@@ -1,0 +1,45 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Location {
+  id                    String    @id @default(cuid())
+  city                  String    @unique
+  inhabitants          Int
+  populationGrowth     Float
+  description          String
+  investmentHighlights String[]
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  
+  employers            Employer[]
+  images              LocationImage[]
+}
+
+model Employer {
+  id           String   @id @default(cuid())
+  name         String
+  description  String
+  employees    Int
+  locationId   String
+  location     Location @relation(fields: [locationId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model LocationImage {
+  id          String   @id @default(cuid())
+  url         String
+  alt         String
+  category    String   // 'hero', 'city', 'infrastructure', etc.
+  locationId  String
+  location    Location @relation(fields: [locationId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
