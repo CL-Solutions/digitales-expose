@@ -120,3 +120,23 @@
     @apply bg-background text-foreground;
   }
 }
+
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  
+  .print\:break-after-page {
+    break-after: page;
+  }
+  
+  .print\:hidden {
+    display: none !important;
+  }
+}

@@ -15,9 +15,9 @@ A modern, responsive web application for presenting real estate investment oppor
 
 ## Tech Stack
 
-- **Framework**: Next.js 14 (App Router)
+- **Framework**: Next.js 15 (App Router)
 - **Language**: TypeScript
-- **Styling**: Tailwind CSS
+- **Styling**: Tailwind CSS v4
 - **UI Components**: shadcn/ui
 - **Database**: PostgreSQL with Prisma ORM
 - **State Management**: Zustand

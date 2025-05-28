@@ -1,5 +1,5 @@
 // components/expose/ExposePage.tsx (Client Component)
-'use client';
+"use client";
 
 import React, { useRef } from 'react';
 import { useReactToPrint } from 'react-to-print';
