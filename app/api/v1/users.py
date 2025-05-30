@@ -1,5 +1,5 @@
 # ================================
-# USER MANAGEMENT API ROUTES (api/v1/users.py)
+# USER MANAGEMENT API ROUTES (api/v1/users.py) - COMPLETED
 # ================================
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Path
@@ -24,6 +24,7 @@ from app.schemas.base import SuccessResponse
 from app.models.user import User, UserSession
 from app.core.exceptions import AppException
 from typing import List, Optional
+from datetime import datetime, timedelta
 import uuid
 
 router = APIRouter()
@@ -51,6 +52,283 @@ async def get_current_user_profile(
         
         return profile_data
     
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to get user profile")
+
+@router.put("/me", response_model=UserResponse)
+async def update_current_user_profile(
+    user_update: UserUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Aktuelles User-Profil aktualisieren"""
+    try:
+        # Update allowed fields
+        if user_update.first_name is not None:
+            current_user.first_name = user_update.first_name
+        if user_update.last_name is not None:
+            current_user.last_name = user_update.last_name
+        if user_update.avatar_url is not None:
+            current_user.avatar_url = user_update.avatar_url
+        
+        # Log the change
+        from app.utils.audit import AuditLogger
+        audit_logger = AuditLogger()
+        audit_logger.log_auth_event(
+            db, "PROFILE_UPDATED", current_user.id, current_user.tenant_id,
+            {"updated_fields": user_update.model_dump(exclude_unset=True)}
+        )
+        
+        db.commit()
+        return UserResponse.model_validate(current_user)
+    
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Profile update failed")
+
+# ================================
+# USER MANAGEMENT (ADMIN)
+# ================================
+
+@router.get("/", response_model=UserListResponse)
+async def list_users(
+    filter_params: UserFilterParams = Depends(),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_permission("users", "read"))
+):
+    """Liste aller User im Tenant (mit Filtering/Pagination)"""
+    try:
+        # Base query - nur User im gleichen Tenant (außer Super-Admin)
+        query = db.query(User)
+        
+        if not current_user.is_super_admin:
+            query = query.filter(User.tenant_id == current_user.tenant_id)
+        elif filter_params.tenant_id:
+            query = query.filter(User.tenant_id == filter_params.tenant_id)
+        
+        # Apply filters
+        if filter_params.search:
+            search_term = f"%{filter_params.search}%"
+            query = query.filter(
+                or_(
+                    User.first_name.ilike(search_term),
+                    User.last_name.ilike(search_term),
+                    User.email.ilike(search_term)
+                )
+            )
+        
+        if filter_params.auth_method:
+            query = query.filter(User.auth_method == filter_params.auth_method)
+        
+        if filter_params.is_active is not None:
+            query = query.filter(User.is_active == filter_params.is_active)
+        
+        if filter_params.is_verified is not None:
+            query = query.filter(User.is_verified == filter_params.is_verified)
+        
+        if filter_params.role_id:
+            from app.models.rbac import UserRole
+            query = query.join(UserRole).filter(UserRole.role_id == filter_params.role_id)
+        
+        # Count total
+        total = query.count()
+        
+        # Apply sorting
+        if filter_params.sort_by == "name":
+            sort_field = User.first_name
+        elif filter_params.sort_by == "email":
+            sort_field = User.email
+        elif filter_params.sort_by == "last_login":
+            sort_field = User.last_login_at
+        else:
+            sort_field = User.created_at
+        
+        if filter_params.sort_order == "desc":
+            sort_field = sort_field.desc()
+        
+        query = query.order_by(sort_field)
+        
+        # Apply pagination
+        offset = (filter_params.page - 1) * filter_params.page_size
+        users = query.offset(offset).limit(filter_params.page_size).all()
+        
+        return UserListResponse(
+            users=[UserResponse.model_validate(user) for user in users],
+            total=total,
+            page=filter_params.page,
+            page_size=filter_params.page_size
+        )
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to retrieve users")
+
+@router.get("/{user_id}", response_model=UserProfileResponse)
+async def get_user_by_id(
+    user_id: uuid.UUID = Path(..., description="User ID"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_permission("users", "read")),
+    __: bool = Depends(require_same_tenant_or_super_admin())
+):
+    """Spezifischen User abrufen"""
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Get user permissions
+        from app.models.utils import get_user_permissions
+        permissions = []
+        if user.tenant_id:
+            permissions = get_user_permissions(db, user.id, user.tenant_id)
+        
+        profile_data = UserProfileResponse.model_validate(user)
+        profile_data.permissions = permissions
+        
+        return profile_data
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to get user")
+
+@router.put("/{user_id}", response_model=UserResponse)
+async def update_user(
+    user_id: uuid.UUID = Path(..., description="User ID"),
+    user_update: UserUpdate = ...,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_permission("users", "update")),
+    __: bool = Depends(require_same_tenant_or_super_admin())
+):
+    """User aktualisieren"""
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Update fields
+        update_data = {}
+        if user_update.first_name is not None:
+            user.first_name = user_update.first_name
+            update_data["first_name"] = user_update.first_name
+        if user_update.last_name is not None:
+            user.last_name = user_update.last_name
+            update_data["last_name"] = user_update.last_name
+        if user_update.is_active is not None:
+            user.is_active = user_update.is_active
+            update_data["is_active"] = user_update.is_active
+        if user_update.avatar_url is not None:
+            user.avatar_url = user_update.avatar_url
+            update_data["avatar_url"] = user_update.avatar_url
+        
+        # Audit log
+        from app.utils.audit import AuditLogger
+        audit_logger = AuditLogger()
+        audit_logger.log_auth_event(
+            db, "USER_UPDATED", current_user.id, user.tenant_id,
+            {"target_user_id": str(user.id), "updates": update_data}
+        )
+        
+        db.commit()
+        return UserResponse.model_validate(user)
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="User update failed")
+
+@router.delete("/{user_id}")
+async def deactivate_user(
+    user_id: uuid.UUID = Path(..., description="User ID"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_permission("users", "delete")),
+    __: bool = Depends(require_same_tenant_or_super_admin())
+):
+    """User deaktivieren (Soft Delete)"""
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Prevent self-deletion
+        if user.id == current_user.id:
+            raise HTTPException(status_code=400, detail="Cannot delete yourself")
+        
+        # Soft delete (deactivate) instead of hard delete
+        user.is_active = False
+        user.email = f"deleted_{user.id}@deleted.local"  # Prevent email conflicts
+        
+        # Invalidate all user sessions
+        db.query(UserSession).filter(UserSession.user_id == user.id).delete()
+        
+        # Audit log
+        from app.utils.audit import AuditLogger
+        audit_logger = AuditLogger()
+        audit_logger.log_auth_event(
+            db, "USER_DEACTIVATED", current_user.id, user.tenant_id,
+            {"target_user_id": str(user.id)}
+        )
+        
+        db.commit()
+        return SuccessResponse(message="User deactivated successfully")
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="User deletion failed")
+
+# ================================
+# USER SESSIONS MANAGEMENT
+# ================================
+
+@router.get("/{user_id}/sessions", response_model=ActiveSessionsResponse)
+async def get_user_sessions(
+    user_id: uuid.UUID = Path(..., description="User ID"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_permission("users", "read")),
+    __: bool = Depends(require_same_tenant_or_super_admin())
+):
+    """Aktive Sessions eines Users abrufen"""
+    try:
+        # Users können nur ihre eigenen Sessions sehen (außer Admins)
+        if not current_user.is_super_admin and user_id != current_user.id:
+            from app.dependencies import check_user_permission
+            if not check_user_permission(db, current_user.id, current_user.tenant_id, "users", "read"):
+                raise HTTPException(status_code=403, detail="Access denied")
+        
+        sessions = db.query(UserSession).filter(
+            UserSession.user_id == user_id,
+            UserSession.expires_at > datetime.utcnow()
+        ).order_by(desc(UserSession.last_accessed_at)).all()
+        
+        session_responses = []
+        for session in sessions:
+            session_responses.append(UserSessionResponse(
+                id=session.id,
+                user_id=session.user_id,
+                ip_address=str(session.ip_address) if session.ip_address else None,
+                user_agent=session.user_agent,
+                expires_at=session.expires_at,
+                last_accessed_at=session.last_accessed_at,
+                is_impersonation=session.impersonated_tenant_id is not None,
+                impersonated_tenant_id=session.impersonated_tenant_id,
+                created_at=session.created_at,
+                updated_at=session.updated_at
+            ))
+        
+        return ActiveSessionsResponse(
+            sessions=session_responses,
+            total_active=len(session_responses)
+        )
+    
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to get user sessions")
 
@@ -136,6 +414,7 @@ async def invite_user(
         
         # Send invitation email
         from app.utils.email import email_service
+        from app.models.tenant import Tenant
         tenant = db.query(Tenant).filter(Tenant.id == current_user.tenant_id).first()
         
         invitation_link = f"{settings.FRONTEND_URL}/accept-invite?token={invite_token}"
@@ -537,280 +816,183 @@ async def export_users(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Export failed") profile")
-
-@router.put("/me", response_model=UserResponse)
-async def update_current_user_profile(
-    user_update: UserUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Aktuelles User-Profil aktualisieren"""
-    try:
-        # Update allowed fields
-        if user_update.first_name is not None:
-            current_user.first_name = user_update.first_name
-        if user_update.last_name is not None:
-            current_user.last_name = user_update.last_name
-        if user_update.avatar_url is not None:
-            current_user.avatar_url = user_update.avatar_url
-        
-        # Log the change
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "PROFILE_UPDATED", current_user.id, current_user.tenant_id,
-            {"updated_fields": user_update.model_dump(exclude_unset=True)}
-        )
-        
-        db.commit()
-        return UserResponse.model_validate(current_user)
-    
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail="Profile update failed")
+        raise HTTPException(status_code=500, detail="Export failed")
 
 # ================================
-# USER MANAGEMENT (ADMIN)
+# USER ROLE MANAGEMENT
 # ================================
 
-@router.get("/", response_model=UserListResponse)
-async def list_users(
-    filter_params: UserFilterParams = Depends(),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    _: bool = Depends(require_permission("users", "read"))
-):
-    """Liste aller User im Tenant (mit Filtering/Pagination)"""
-    try:
-        # Base query - nur User im gleichen Tenant (außer Super-Admin)
-        query = db.query(User)
-        
-        if not current_user.is_super_admin:
-            query = query.filter(User.tenant_id == current_user.tenant_id)
-        elif filter_params.tenant_id:
-            query = query.filter(User.tenant_id == filter_params.tenant_id)
-        
-        # Apply filters
-        if filter_params.search:
-            search_term = f"%{filter_params.search}%"
-            query = query.filter(
-                or_(
-                    User.first_name.ilike(search_term),
-                    User.last_name.ilike(search_term),
-                    User.email.ilike(search_term)
-                )
-            )
-        
-        if filter_params.auth_method:
-            query = query.filter(User.auth_method == filter_params.auth_method)
-        
-        if filter_params.is_active is not None:
-            query = query.filter(User.is_active == filter_params.is_active)
-        
-        if filter_params.is_verified is not None:
-            query = query.filter(User.is_verified == filter_params.is_verified)
-        
-        if filter_params.role_id:
-            from app.models.rbac import UserRole
-            query = query.join(UserRole).filter(UserRole.role_id == filter_params.role_id)
-        
-        # Count total
-        total = query.count()
-        
-        # Apply sorting
-        if filter_params.sort_by == "name":
-            sort_field = User.first_name
-        elif filter_params.sort_by == "email":
-            sort_field = User.email
-        elif filter_params.sort_by == "last_login":
-            sort_field = User.last_login_at
-        else:
-            sort_field = User.created_at
-        
-        if filter_params.sort_order == "desc":
-            sort_field = sort_field.desc()
-        
-        query = query.order_by(sort_field)
-        
-        # Apply pagination
-        offset = (filter_params.page - 1) * filter_params.page_size
-        users = query.offset(offset).limit(filter_params.page_size).all()
-        
-        return UserListResponse(
-            users=[UserResponse.model_validate(user) for user in users],
-            total=total,
-            page=filter_params.page,
-            page_size=filter_params.page_size
-        )
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to retrieve users")
-
-@router.get("/{user_id}", response_model=UserProfileResponse)
-async def get_user_by_id(
+@router.get("/{user_id}/roles")
+async def get_user_roles(
     user_id: uuid.UUID = Path(..., description="User ID"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("users", "read")),
     __: bool = Depends(require_same_tenant_or_super_admin())
 ):
-    """Spezifischen User abrufen"""
+    """Get roles assigned to a user"""
     try:
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
-        # Get user permissions
-        from app.models.utils import get_user_permissions
-        permissions = []
-        if user.tenant_id:
-            permissions = get_user_permissions(db, user.id, user.tenant_id)
+        from app.models.rbac import UserRole, Role
+        user_roles = db.query(Role).join(UserRole).filter(
+            UserRole.user_id == user_id,
+            UserRole.tenant_id == user.tenant_id
+        ).all()
         
-        profile_data = UserProfileResponse.model_validate(user)
-        profile_data.permissions = permissions
+        roles_data = []
+        for role in user_roles:
+            role_assignment = db.query(UserRole).filter(
+                UserRole.user_id == user_id,
+                UserRole.role_id == role.id
+            ).first()
+            
+            roles_data.append({
+                "role_id": str(role.id),
+                "role_name": role.name,
+                "role_description": role.description,
+                "granted_at": role_assignment.granted_at.isoformat() if role_assignment else None,
+                "expires_at": role_assignment.expires_at.isoformat() if role_assignment and role_assignment.expires_at else None,
+                "is_expired": role_assignment.is_expired if role_assignment else False
+            })
         
-        return profile_data
+        return {
+            "user_id": str(user_id),
+            "roles": roles_data,
+            "total_roles": len(roles_data)
+        }
     
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to get user")
+        raise HTTPException(status_code=500, detail="Failed to get user roles")
 
-@router.put("/{user_id}", response_model=UserResponse)
-async def update_user(
+@router.post("/{user_id}/roles/{role_id}")
+async def assign_role_to_user(
     user_id: uuid.UUID = Path(..., description="User ID"),
-    user_update: UserUpdate = ...,
+    role_id: uuid.UUID = Path(..., description="Role ID"),
+    expires_in_days: Optional[int] = Query(None, description="Role expiration in days"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-    _: bool = Depends(require_permission("users", "update")),
-    __: bool = Depends(require_same_tenant_or_super_admin())
+    _: bool = Depends(require_permission("roles", "assign"))
 ):
-    """User aktualisieren"""
+    """Assign a role to a user"""
     try:
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
-        # Update fields
-        update_data = {}
-        if user_update.first_name is not None:
-            user.first_name = user_update.first_name
-            update_data["first_name"] = user_update.first_name
-        if user_update.last_name is not None:
-            user.last_name = user_update.last_name
-            update_data["last_name"] = user_update.last_name
-        if user_update.is_active is not None:
-            user.is_active = user_update.is_active
-            update_data["is_active"] = user_update.is_active
-        if user_update.avatar_url is not None:
-            user.avatar_url = user_update.avatar_url
-            update_data["avatar_url"] = user_update.avatar_url
+        from app.models.rbac import Role, UserRole
+        role = db.query(Role).filter(
+            Role.id == role_id,
+            Role.tenant_id == user.tenant_id
+        ).first()
+        if not role:
+            raise HTTPException(status_code=404, detail="Role not found")
+        
+        # Check if assignment already exists
+        existing = db.query(UserRole).filter(
+            UserRole.user_id == user_id,
+            UserRole.role_id == role_id,
+            UserRole.tenant_id == user.tenant_id
+        ).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Role already assigned to user")
+        
+        # Create role assignment
+        expires_at = None
+        if expires_in_days:
+            expires_at = datetime.utcnow() + timedelta(days=expires_in_days)
+        
+        user_role = UserRole(
+            user_id=user_id,
+            role_id=role_id,
+            tenant_id=user.tenant_id,
+            granted_by=current_user.id,
+            expires_at=expires_at
+        )
+        db.add(user_role)
         
         # Audit log
         from app.utils.audit import AuditLogger
         audit_logger = AuditLogger()
         audit_logger.log_auth_event(
-            db, "USER_UPDATED", current_user.id, user.tenant_id,
-            {"target_user_id": str(user.id), "updates": update_data}
+            db, "ROLE_ASSIGNED", current_user.id, user.tenant_id,
+            {
+                "target_user_id": str(user_id),
+                "role_id": str(role_id),
+                "role_name": role.name,
+                "expires_at": expires_at.isoformat() if expires_at else None
+            }
         )
         
         db.commit()
-        return UserResponse.model_validate(user)
+        return SuccessResponse(
+            message=f"Role '{role.name}' assigned to user",
+            data={
+                "role_name": role.name,
+                "expires_at": expires_at.isoformat() if expires_at else None
+            }
+        )
     
     except HTTPException:
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail="User update failed")
+        raise HTTPException(status_code=500, detail="Failed to assign role")
 
-@router.delete("/{user_id}")
-async def deactivate_user(
+@router.delete("/{user_id}/roles/{role_id}")
+async def remove_role_from_user(
     user_id: uuid.UUID = Path(..., description="User ID"),
+    role_id: uuid.UUID = Path(..., description="Role ID"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-    _: bool = Depends(require_permission("users", "delete")),
-    __: bool = Depends(require_same_tenant_or_super_admin())
+    _: bool = Depends(require_permission("roles", "assign"))
 ):
-    """User deaktivieren (Soft Delete)"""
+    """Remove a role from a user"""
     try:
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
-        # Prevent self-deletion
-        if user.id == current_user.id:
-            raise HTTPException(status_code=400, detail="Cannot delete yourself")
+        from app.models.rbac import UserRole, Role
+        user_role = db.query(UserRole).filter(
+            UserRole.user_id == user_id,
+            UserRole.role_id == role_id,
+            UserRole.tenant_id == user.tenant_id
+        ).first()
         
-        # Soft delete (deactivate) instead of hard delete
-        user.is_active = False
-        user.email = f"deleted_{user.id}@deleted.local"  # Prevent email conflicts
+        if not user_role:
+            raise HTTPException(status_code=404, detail="Role assignment not found")
         
-        # Invalidate all user sessions
-        db.query(UserSession).filter(UserSession.user_id == user.id).delete()
+        # Get role name for audit
+        role = db.query(Role).filter(Role.id == role_id).first()
+        role_name = role.name if role else "Unknown"
+        
+        # Remove role assignment
+        db.delete(user_role)
         
         # Audit log
         from app.utils.audit import AuditLogger
         audit_logger = AuditLogger()
         audit_logger.log_auth_event(
-            db, "USER_DEACTIVATED", current_user.id, user.tenant_id,
-            {"target_user_id": str(user.id)}
+            db, "ROLE_REMOVED", current_user.id, user.tenant_id,
+            {
+                "target_user_id": str(user_id),
+                "role_id": str(role_id),
+                "role_name": role_name
+            }
         )
         
         db.commit()
-        return SuccessResponse(message="User deactivated successfully")
+        return SuccessResponse(
+            message=f"Role '{role_name}' removed from user"
+        )
     
     except HTTPException:
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail="User deletion failed")
-
-# ================================
-# USER SESSIONS MANAGEMENT
-# ================================
-
-@router.get("/{user_id}/sessions", response_model=ActiveSessionsResponse)
-async def get_user_sessions(
-    user_id: uuid.UUID = Path(..., description="User ID"),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    _: bool = Depends(require_permission("users", "read")),
-    __: bool = Depends(require_same_tenant_or_super_admin())
-):
-    """Aktive Sessions eines Users abrufen"""
-    try:
-        # Users können nur ihre eigenen Sessions sehen (außer Admins)
-        if not current_user.is_super_admin and user_id != current_user.id:
-            from app.dependencies import check_user_permission
-            if not check_user_permission(db, current_user.id, current_user.tenant_id, "users", "read"):
-                raise HTTPException(status_code=403, detail="Access denied")
-        
-        sessions = db.query(UserSession).filter(
-            UserSession.user_id == user_id,
-            UserSession.expires_at > datetime.utcnow()
-        ).order_by(desc(UserSession.last_accessed_at)).all()
-        
-        session_responses = []
-        for session in sessions:
-            session_responses.append(UserSessionResponse(
-                id=session.id,
-                user_id=session.user_id,
-                ip_address=str(session.ip_address) if session.ip_address else None,
-                user_agent=session.user_agent,
-                expires_at=session.expires_at,
-                last_accessed_at=session.last_accessed_at,
-                is_impersonation=session.impersonated_tenant_id is not None,
-                impersonated_tenant_id=session.impersonated_tenant_id,
-                **session.__dict__
-            ))
-        
-        return ActiveSessionsResponse(
-            sessions=session_responses,
-            total_active=len(session_responses)
-        )
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to get user
+        raise HTTPException(status_code=500, detail="Failed to remove role")

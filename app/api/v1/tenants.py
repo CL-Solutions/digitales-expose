@@ -1,5 +1,4 @@
-# ================================
-# TENANT MANAGEMENT API ROUTES (api/v1/tenants.py) - Super Admin Only
+# TENANT MANAGEMENT API ROUTES (api/v1/tenants.py) - COMPLETED
 # ================================
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Path
@@ -16,9 +15,11 @@ from app.schemas.tenant import (
 from app.schemas.base import SuccessResponse
 from app.models.tenant import Tenant, TenantIdentityProvider
 from app.models.user import User
+from app.models.audit import AuditLog
 from app.services.auth_service import AuthService
 from app.core.exceptions import AppException
 from typing import List, Optional
+from datetime import datetime, timedelta
 import uuid
 
 router = APIRouter()
@@ -83,6 +84,298 @@ async def create_tenant(
         # Assign tenant_admin role to the admin user
         from app.models.utils import assign_user_to_role
         assign_user_to_role(db, admin_user.id, "tenant_admin", tenant.id, super_admin.id)
+        
+        # Audit log
+        from app.utils.audit import AuditLogger
+        audit_logger = AuditLogger()
+        audit_logger.log_auth_event(
+            db, "TENANT_CREATED", super_admin.id, tenant.id,
+            {
+                "tenant_name": tenant.name,
+                "tenant_slug": tenant.slug,
+                "admin_email": admin_user.email
+            }
+        )
+        
+        db.commit()
+        return TenantResponse.model_validate(tenant)
+    
+    except AppException as e:
+        db.rollback()
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to create tenant")
+
+@router.get("/", response_model=TenantListResponse)
+async def list_tenants(
+    filter_params: TenantFilterParams = Depends(),
+    super_admin: User = Depends(get_super_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Liste aller Tenants (nur Super-Admin)"""
+    try:
+        query = db.query(Tenant)
+        
+        # Apply filters
+        if filter_params.search:
+            search_term = f"%{filter_params.search}%"
+            query = query.filter(
+                or_(
+                    Tenant.name.ilike(search_term),
+                    Tenant.slug.ilike(search_term),
+                    Tenant.domain.ilike(search_term)
+                )
+            )
+        
+        if filter_params.subscription_plan:
+            query = query.filter(Tenant.subscription_plan == filter_params.subscription_plan)
+        
+        if filter_params.is_active is not None:
+            query = query.filter(Tenant.is_active == filter_params.is_active)
+        
+        if filter_params.has_domain is not None:
+            if filter_params.has_domain:
+                query = query.filter(Tenant.domain.isnot(None))
+            else:
+                query = query.filter(Tenant.domain.is_(None))
+        
+        # Count total
+        total = query.count()
+        
+        # Apply sorting
+        if filter_params.sort_by == "name":
+            sort_field = Tenant.name
+        elif filter_params.sort_by == "slug":
+            sort_field = Tenant.slug
+        else:
+            sort_field = Tenant.created_at
+        
+        if filter_params.sort_order == "desc":
+            sort_field = sort_field.desc()
+        
+        query = query.order_by(sort_field)
+        
+        # Apply pagination
+        offset = (filter_params.page - 1) * filter_params.page_size
+        tenants = query.offset(offset).limit(filter_params.page_size).all()
+        
+        # Add user count to each tenant
+        tenant_responses = []
+        for tenant in tenants:
+            user_count = db.query(User).filter(User.tenant_id == tenant.id).count()
+            tenant_response = TenantResponse.model_validate(tenant)
+            tenant_response.user_count = user_count
+            tenant_responses.append(tenant_response)
+        
+        return TenantListResponse(
+            tenants=tenant_responses,
+            total=total,
+            page=filter_params.page,
+            page_size=filter_params.page_size
+        )
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to retrieve tenants")
+
+@router.get("/{tenant_id}", response_model=TenantResponse)
+async def get_tenant_by_id(
+    tenant_id: uuid.UUID = Path(..., description="Tenant ID"),
+    super_admin: User = Depends(get_super_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Spezifischen Tenant abrufen"""
+    try:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+        
+        # Add user count
+        user_count = db.query(User).filter(User.tenant_id == tenant.id).count()
+        tenant_response = TenantResponse.model_validate(tenant)
+        tenant_response.user_count = user_count
+        
+        return tenant_response
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to get tenant")
+
+@router.put("/{tenant_id}", response_model=TenantResponse)
+async def update_tenant(
+    tenant_id: uuid.UUID = Path(..., description="Tenant ID"),
+    tenant_update: TenantUpdate = ...,
+    super_admin: User = Depends(get_super_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Tenant aktualisieren"""
+    try:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+        
+        # Store old values for audit
+        old_values = {
+            "name": tenant.name,
+            "domain": tenant.domain,
+            "subscription_plan": tenant.subscription_plan,
+            "max_users": tenant.max_users,
+            "is_active": tenant.is_active
+        }
+        
+        # Update fields
+        update_data = {}
+        if tenant_update.name is not None:
+            tenant.name = tenant_update.name
+            update_data["name"] = tenant_update.name
+        if tenant_update.domain is not None:
+            # Check domain uniqueness
+            if tenant_update.domain != tenant.domain:
+                existing = db.query(Tenant).filter(
+                    Tenant.domain == tenant_update.domain,
+                    Tenant.id != tenant_id
+                ).first()
+                if existing:
+                    raise HTTPException(status_code=400, detail="Domain already in use")
+            tenant.domain = tenant_update.domain
+            update_data["domain"] = tenant_update.domain
+        if tenant_update.settings is not None:
+            tenant.settings = tenant_update.settings
+            update_data["settings"] = tenant_update.settings
+        if tenant_update.subscription_plan is not None:
+            tenant.subscription_plan = tenant_update.subscription_plan
+            update_data["subscription_plan"] = tenant_update.subscription_plan
+        if tenant_update.max_users is not None:
+            tenant.max_users = tenant_update.max_users
+            update_data["max_users"] = tenant_update.max_users
+        if tenant_update.is_active is not None:
+            tenant.is_active = tenant_update.is_active
+            update_data["is_active"] = tenant_update.is_active
+        
+        # Audit log
+        from app.utils.audit import AuditLogger
+        audit_logger = AuditLogger()
+        audit_logger.log_auth_event(
+            db, "TENANT_UPDATED", super_admin.id, tenant.id,
+            {"old_values": old_values, "new_values": update_data}
+        )
+        
+        db.commit()
+        
+        # Add user count
+        user_count = db.query(User).filter(User.tenant_id == tenant.id).count()
+        tenant_response = TenantResponse.model_validate(tenant)
+        tenant_response.user_count = user_count
+        
+        return tenant_response
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Tenant update failed")
+
+@router.delete("/{tenant_id}")
+async def delete_tenant(
+    tenant_id: uuid.UUID = Path(..., description="Tenant ID"),
+    super_admin: User = Depends(get_super_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Tenant löschen (mit allen Daten!)"""
+    try:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+        
+        # Count users for audit
+        user_count = db.query(User).filter(User.tenant_id == tenant_id).count()
+        
+        # Audit log before deletion
+        from app.utils.audit import AuditLogger
+        audit_logger = AuditLogger()
+        audit_logger.log_auth_event(
+            db, "TENANT_DELETED", super_admin.id, tenant_id,
+            {
+                "tenant_name": tenant.name,
+                "tenant_slug": tenant.slug,
+                "user_count": user_count
+            }
+        )
+        
+        # Delete tenant (cascade will handle related data)
+        db.delete(tenant)
+        db.commit()
+        
+        return SuccessResponse(
+            message="Tenant deleted successfully",
+            data={"deleted_users": user_count}
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Tenant deletion failed")
+
+# ================================
+# TENANT IDENTITY PROVIDERS
+# ================================
+
+@router.post("/{tenant_id}/identity-providers/microsoft", response_model=IdentityProviderResponse)
+async def create_microsoft_identity_provider(
+    tenant_id: uuid.UUID = Path(..., description="Tenant ID"),
+    provider_data: MicrosoftIdentityProviderCreate = ...,
+    super_admin: User = Depends(get_super_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Microsoft Entra ID Provider für Tenant konfigurieren"""
+    try:
+        # Verify tenant exists
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+        
+        # Check if Microsoft provider already exists for this tenant
+        existing = db.query(TenantIdentityProvider).filter(
+            TenantIdentityProvider.tenant_id == tenant_id,
+            TenantIdentityProvider.provider == "microsoft"
+        ).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Microsoft provider already configured for this tenant")
+        
+        # Get default role
+        default_role = None
+        if provider_data.default_role_name:
+            from app.models.rbac import Role
+            default_role = db.query(Role).filter(
+                Role.tenant_id == tenant_id,
+                Role.name == provider_data.default_role_name
+            ).first()
+        
+        # Encrypt client secret
+        from app.services.oauth_service import EnterpriseOAuthService
+        client_secret_hash = EnterpriseOAuthService._encrypt_secret(provider_data.client_secret)
+        
+        # Create identity provider
+        identity_provider = TenantIdentityProvider(
+            tenant_id=tenant_id,
+            provider="microsoft",
+            provider_type="oauth2",
+            client_id=provider_data.client_id,
+            client_secret_hash=client_secret_hash,
+            azure_tenant_id=provider_data.azure_tenant_id,
+            discovery_endpoint=provider_data.discovery_endpoint or f"https://login.microsoftonline.com/{provider_data.azure_tenant_id}/v2.0/.well-known/openid_configuration",
+            user_attribute_mapping=provider_data.user_attribute_mapping,
+            role_attribute_mapping=provider_data.role_attribute_mapping,
+            auto_provision_users=provider_data.auto_provision_users,
+            require_verified_email=provider_data.require_verified_email,
+            allowed_domains=provider_data.allowed_domains,
+            default_role_id=default_role.id if default_role else None,
+            is_active=provider_data.is_active
+        )
+        
+        db.add(identity_provider)
         
         # Audit log
         from app.utils.audit import AuditLogger
@@ -740,319 +1033,4 @@ async def get_tenant_usage_report(
                 "total_users": total_users,
                 "active_users_period": active_users,
                 "user_utilization_percent": round(user_utilization, 2),
-                "activity_rate_percent": round(activity_rate, 2)
-            },
-            "activity_metrics": {
-                "total_logins": login_events,
-                "avg_logins_per_day": round(login_events / days, 2),
-                "avg_logins_per_active_user": round(login_events / active_users, 2) if active_users > 0 else 0
-            },
-            "feature_usage": {
-                "projects_created": projects_created,
-                "documents_created": documents_created,
-                "total_storage_bytes": total_storage_bytes,
-                "total_storage_mb": round(total_storage_bytes / (1024 * 1024), 2)
-            },
-            "recommendations": [
-                "Consider upgrading plan" if user_utilization > 80 else None,
-                "Low user activity detected" if activity_rate < 20 else None,
-                "High storage usage" if total_storage_bytes > 100 * 1024 * 1024 else None
-            ]
-        }
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to generate usage report")(
-            db, "TENANT_CREATED", super_admin.id, tenant.id,
-            {
-                "tenant_name": tenant.name,
-                "tenant_slug": tenant.slug,
-                "admin_email": admin_user.email
-            }
-        )
-        
-        db.commit()
-        return TenantResponse.model_validate(tenant)
-    
-    except AppException as e:
-        db.rollback()
-        raise HTTPException(status_code=e.status_code, detail=e.detail)
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail="Failed to create tenant")
-
-@router.get("/", response_model=TenantListResponse)
-async def list_tenants(
-    filter_params: TenantFilterParams = Depends(),
-    super_admin: User = Depends(get_super_admin_user),
-    db: Session = Depends(get_db)
-):
-    """Liste aller Tenants (nur Super-Admin)"""
-    try:
-        query = db.query(Tenant)
-        
-        # Apply filters
-        if filter_params.search:
-            search_term = f"%{filter_params.search}%"
-            query = query.filter(
-                or_(
-                    Tenant.name.ilike(search_term),
-                    Tenant.slug.ilike(search_term),
-                    Tenant.domain.ilike(search_term)
-                )
-            )
-        
-        if filter_params.subscription_plan:
-            query = query.filter(Tenant.subscription_plan == filter_params.subscription_plan)
-        
-        if filter_params.is_active is not None:
-            query = query.filter(Tenant.is_active == filter_params.is_active)
-        
-        if filter_params.has_domain is not None:
-            if filter_params.has_domain:
-                query = query.filter(Tenant.domain.isnot(None))
-            else:
-                query = query.filter(Tenant.domain.is_(None))
-        
-        # Count total
-        total = query.count()
-        
-        # Apply sorting
-        if filter_params.sort_by == "name":
-            sort_field = Tenant.name
-        elif filter_params.sort_by == "slug":
-            sort_field = Tenant.slug
-        else:
-            sort_field = Tenant.created_at
-        
-        if filter_params.sort_order == "desc":
-            sort_field = sort_field.desc()
-        
-        query = query.order_by(sort_field)
-        
-        # Apply pagination
-        offset = (filter_params.page - 1) * filter_params.page_size
-        tenants = query.offset(offset).limit(filter_params.page_size).all()
-        
-        # Add user count to each tenant
-        tenant_responses = []
-        for tenant in tenants:
-            user_count = db.query(User).filter(User.tenant_id == tenant.id).count()
-            tenant_response = TenantResponse.model_validate(tenant)
-            tenant_response.user_count = user_count
-            tenant_responses.append(tenant_response)
-        
-        return TenantListResponse(
-            tenants=tenant_responses,
-            total=total,
-            page=filter_params.page,
-            page_size=filter_params.page_size
-        )
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to retrieve tenants")
-
-@router.get("/{tenant_id}", response_model=TenantResponse)
-async def get_tenant_by_id(
-    tenant_id: uuid.UUID = Path(..., description="Tenant ID"),
-    super_admin: User = Depends(get_super_admin_user),
-    db: Session = Depends(get_db)
-):
-    """Spezifischen Tenant abrufen"""
-    try:
-        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
-        if not tenant:
-            raise HTTPException(status_code=404, detail="Tenant not found")
-        
-        # Add user count
-        user_count = db.query(User).filter(User.tenant_id == tenant.id).count()
-        tenant_response = TenantResponse.model_validate(tenant)
-        tenant_response.user_count = user_count
-        
-        return tenant_response
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to get tenant")
-
-@router.put("/{tenant_id}", response_model=TenantResponse)
-async def update_tenant(
-    tenant_id: uuid.UUID = Path(..., description="Tenant ID"),
-    tenant_update: TenantUpdate = ...,
-    super_admin: User = Depends(get_super_admin_user),
-    db: Session = Depends(get_db)
-):
-    """Tenant aktualisieren"""
-    try:
-        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
-        if not tenant:
-            raise HTTPException(status_code=404, detail="Tenant not found")
-        
-        # Store old values for audit
-        old_values = {
-            "name": tenant.name,
-            "domain": tenant.domain,
-            "subscription_plan": tenant.subscription_plan,
-            "max_users": tenant.max_users,
-            "is_active": tenant.is_active
-        }
-        
-        # Update fields
-        update_data = {}
-        if tenant_update.name is not None:
-            tenant.name = tenant_update.name
-            update_data["name"] = tenant_update.name
-        if tenant_update.domain is not None:
-            # Check domain uniqueness
-            if tenant_update.domain != tenant.domain:
-                existing = db.query(Tenant).filter(
-                    Tenant.domain == tenant_update.domain,
-                    Tenant.id != tenant_id
-                ).first()
-                if existing:
-                    raise HTTPException(status_code=400, detail="Domain already in use")
-            tenant.domain = tenant_update.domain
-            update_data["domain"] = tenant_update.domain
-        if tenant_update.settings is not None:
-            tenant.settings = tenant_update.settings
-            update_data["settings"] = tenant_update.settings
-        if tenant_update.subscription_plan is not None:
-            tenant.subscription_plan = tenant_update.subscription_plan
-            update_data["subscription_plan"] = tenant_update.subscription_plan
-        if tenant_update.max_users is not None:
-            tenant.max_users = tenant_update.max_users
-            update_data["max_users"] = tenant_update.max_users
-        if tenant_update.is_active is not None:
-            tenant.is_active = tenant_update.is_active
-            update_data["is_active"] = tenant_update.is_active
-        
-        # Audit log
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "TENANT_UPDATED", super_admin.id, tenant.id,
-            {"old_values": old_values, "new_values": update_data}
-        )
-        
-        db.commit()
-        
-        # Add user count
-        user_count = db.query(User).filter(User.tenant_id == tenant.id).count()
-        tenant_response = TenantResponse.model_validate(tenant)
-        tenant_response.user_count = user_count
-        
-        return tenant_response
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail="Tenant update failed")
-
-@router.delete("/{tenant_id}")
-async def delete_tenant(
-    tenant_id: uuid.UUID = Path(..., description="Tenant ID"),
-    super_admin: User = Depends(get_super_admin_user),
-    db: Session = Depends(get_db)
-):
-    """Tenant löschen (mit allen Daten!)"""
-    try:
-        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
-        if not tenant:
-            raise HTTPException(status_code=404, detail="Tenant not found")
-        
-        # Count users for audit
-        user_count = db.query(User).filter(User.tenant_id == tenant_id).count()
-        
-        # Audit log before deletion
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "TENANT_DELETED", super_admin.id, tenant_id,
-            {
-                "tenant_name": tenant.name,
-                "tenant_slug": tenant.slug,
-                "user_count": user_count
-            }
-        )
-        
-        # Delete tenant (cascade will handle related data)
-        db.delete(tenant)
-        db.commit()
-        
-        return SuccessResponse(
-            message="Tenant deleted successfully",
-            data={"deleted_users": user_count}
-        )
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail="Tenant deletion failed")
-
-# ================================
-# TENANT IDENTITY PROVIDERS
-# ================================
-
-@router.post("/{tenant_id}/identity-providers/microsoft", response_model=IdentityProviderResponse)
-async def create_microsoft_identity_provider(
-    tenant_id: uuid.UUID = Path(..., description="Tenant ID"),
-    provider_data: MicrosoftIdentityProviderCreate = ...,
-    super_admin: User = Depends(get_super_admin_user),
-    db: Session = Depends(get_db)
-):
-    """Microsoft Entra ID Provider für Tenant konfigurieren"""
-    try:
-        # Verify tenant exists
-        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
-        if not tenant:
-            raise HTTPException(status_code=404, detail="Tenant not found")
-        
-        # Check if Microsoft provider already exists for this tenant
-        existing = db.query(TenantIdentityProvider).filter(
-            TenantIdentityProvider.tenant_id == tenant_id,
-            TenantIdentityProvider.provider == "microsoft"
-        ).first()
-        if existing:
-            raise HTTPException(status_code=400, detail="Microsoft provider already configured for this tenant")
-        
-        # Get default role
-        default_role = None
-        if provider_data.default_role_name:
-            from app.models.rbac import Role
-            default_role = db.query(Role).filter(
-                Role.tenant_id == tenant_id,
-                Role.name == provider_data.default_role_name
-            ).first()
-        
-        # Encrypt client secret
-        from app.services.oauth_service import EnterpriseOAuthService
-        client_secret_hash = EnterpriseOAuthService._encrypt_secret(provider_data.client_secret)
-        
-        # Create identity provider
-        identity_provider = TenantIdentityProvider(
-            tenant_id=tenant_id,
-            provider="microsoft",
-            provider_type="oauth2",
-            client_id=provider_data.client_id,
-            client_secret_hash=client_secret_hash,
-            azure_tenant_id=provider_data.azure_tenant_id,
-            discovery_endpoint=provider_data.discovery_endpoint or f"https://login.microsoftonline.com/{provider_data.azure_tenant_id}/v2.0/.well-known/openid_configuration",
-            user_attribute_mapping=provider_data.user_attribute_mapping,
-            role_attribute_mapping=provider_data.role_attribute_mapping,
-            auto_provision_users=provider_data.auto_provision_users,
-            require_verified_email=provider_data.require_verified_email,
-            allowed_domains=provider_data.allowed_domains,
-            default_role_id=default_role.id if default_role else None,
-            is_active=provider_data.is_active
-        )
-        
-        db.add(identity_provider)
-        
-        # Audit log
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event
+                "

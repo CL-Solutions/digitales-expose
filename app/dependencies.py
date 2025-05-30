@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.models.user import User
 from app.core.security import verify_token
 from app.core.exceptions import AuthenticationError, AuthorizationError
-from typing import Optional, Callable
+from typing import List, Optional, Callable
 import uuid
 
 security = HTTPBearer()

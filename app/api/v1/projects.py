@@ -1,5 +1,5 @@
 # ================================
-# PROJECTS & BUSINESS LOGIC API ROUTES (api/v1/projects.py)
+# PROJECTS & BUSINESS LOGIC API ROUTES (api/v1/projects.py) - COMPLETED
 # ================================
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Path, UploadFile, File
@@ -20,7 +20,9 @@ from app.schemas.business import (
 from app.schemas.base import SuccessResponse
 from app.models.business import Project, Document
 from app.models.user import User
+from app.models.tenant import Tenant
 from app.core.exceptions import AppException
+from app.config import settings
 from typing import List, Optional
 import uuid
 
@@ -36,6 +38,331 @@ async def create_project(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("projects", "create")),
+    __: bool = Depends(require_tenant_access())
+):
+    """Neues Projekt erstellen"""
+    try:
+        project = Project(
+            tenant_id=current_user.tenant_id,
+            name=project_data.name,
+            description=project_data.description,
+            status=project_data.status,
+            created_by=current_user.id
+        )
+        
+        db.add(project)
+        db.flush()
+        
+        # Audit log
+        from app.utils.audit import AuditLogger
+        audit_logger = AuditLogger()
+        audit_logger.log_auth_event(
+            db, "PROJECT_CREATED", current_user.id, current_user.tenant_id,
+            {
+                "project_id": str(project.id),
+                "project_name": project.name
+            }
+        )
+        
+        db.commit()
+        return ProjectResponse.model_validate(project)
+    
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to create project")
+
+@router.get("/", response_model=ProjectListResponse)
+async def list_projects(
+    filter_params: ProjectFilterParams = Depends(),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_permission("projects", "read")),
+    __: bool = Depends(require_tenant_access())
+):
+    """Liste aller Projekte im Tenant"""
+    try:
+        # Base query für Tenant
+        query = db.query(Project).filter(Project.tenant_id == current_user.tenant_id)
+        
+        # Apply filters
+        if filter_params.search:
+            search_term = f"%{filter_params.search}%"
+            query = query.filter(
+                or_(
+                    Project.name.ilike(search_term),
+                    Project.description.ilike(search_term)
+                )
+            )
+        
+        if filter_params.status:
+            query = query.filter(Project.status == filter_params.status)
+        
+        if filter_params.created_by:
+            query = query.filter(Project.created_by == filter_params.created_by)
+        
+        if filter_params.has_documents is not None:
+            if filter_params.has_documents:
+                query = query.filter(Project.documents.any())
+            else:
+                query = query.filter(~Project.documents.any())
+        
+        if filter_params.created_after:
+            from datetime import datetime
+            query = query.filter(Project.created_at >= datetime.fromisoformat(filter_params.created_after))
+        
+        if filter_params.created_before:
+            from datetime import datetime
+            query = query.filter(Project.created_at <= datetime.fromisoformat(filter_params.created_before))
+        
+        # Count total
+        total = query.count()
+        
+        # Apply sorting
+        if filter_params.sort_by == "name":
+            sort_field = Project.name
+        elif filter_params.sort_by == "status":
+            sort_field = Project.status
+        else:
+            sort_field = Project.created_at
+        
+        if filter_params.sort_order == "desc":
+            sort_field = sort_field.desc()
+        
+        query = query.order_by(sort_field)
+        
+        # Apply pagination
+        offset = (filter_params.page - 1) * filter_params.page_size
+        projects = query.offset(offset).limit(filter_params.page_size).all()
+        
+        # Add document count to each project
+        project_responses = []
+        for project in projects:
+            project_response = ProjectResponse.model_validate(project)
+            project_response.document_count = len(project.documents)
+            project_responses.append(project_response)
+        
+        return ProjectListResponse(
+            projects=project_responses,
+            total=total,
+            page=filter_params.page,
+            page_size=filter_params.page_size
+        )
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to retrieve projects")
+
+@router.get("/{project_id}", response_model=ProjectDetailResponse)
+async def get_project_by_id(
+    project_id: uuid.UUID = Path(..., description="Project ID"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_permission("projects", "read")),
+    __: bool = Depends(require_tenant_access())
+):
+    """Spezifisches Projekt abrufen"""
+    try:
+        project = db.query(Project).filter(
+            Project.id == project_id,
+            Project.tenant_id == current_user.tenant_id
+        ).first()
+        
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Build detailed response
+        project_detail = ProjectDetailResponse.model_validate(project)
+        project_detail.creator_name = project.creator.full_name if project.creator else None
+        project_detail.updater_name = project.updater.full_name if project.updater else None
+        project_detail.document_count = len(project.documents)
+        
+        # Add recent documents
+        recent_documents = db.query(Document).filter(
+            Document.project_id == project_id
+        ).order_by(desc(Document.updated_at)).limit(5).all()
+        
+        project_detail.documents = [DocumentResponse.model_validate(doc) for doc in recent_documents]
+        
+        return project_detail
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to get project")
+
+@router.put("/{project_id}", response_model=ProjectResponse)
+async def update_project(
+    project_id: uuid.UUID = Path(..., description="Project ID"),
+    project_update: ProjectUpdate = ...,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_own_resource_or_permission("projects", "update"))
+):
+    """Projekt aktualisieren"""
+    try:
+        project = db.query(Project).filter(
+            Project.id == project_id,
+            Project.tenant_id == current_user.tenant_id
+        ).first()
+        
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Store old values for audit
+        old_values = {
+            "name": project.name,
+            "description": project.description,
+            "status": project.status
+        }
+        
+        # Update fields
+        update_data = {}
+        if project_update.name is not None:
+            project.name = project_update.name
+            update_data["name"] = project_update.name
+        if project_update.description is not None:
+            project.description = project_update.description
+            update_data["description"] = project_update.description
+        if project_update.status is not None:
+            project.status = project_update.status
+            update_data["status"] = project_update.status
+        
+        project.updated_by = current_user.id
+        
+        # Audit log
+        from app.utils.audit import AuditLogger
+        audit_logger = AuditLogger()
+        audit_logger.log_auth_event(
+            db, "PROJECT_UPDATED", current_user.id, current_user.tenant_id,
+            {
+                "project_id": str(project.id),
+                "project_name": project.name,
+                "old_values": old_values,
+                "new_values": update_data
+            }
+        )
+        
+        db.commit()
+        
+        project_response = ProjectResponse.model_validate(project)
+        project_response.document_count = len(project.documents)
+        
+        return project_response
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Project update failed")
+
+@router.delete("/{project_id}")
+async def delete_project(
+    project_id: uuid.UUID = Path(..., description="Project ID"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_own_resource_or_permission("projects", "delete"))
+):
+    """Projekt löschen"""
+    try:
+        project = db.query(Project).filter(
+            Project.id == project_id,
+            Project.tenant_id == current_user.tenant_id
+        ).first()
+        
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Count documents for audit
+        document_count = len(project.documents)
+        
+        # Audit log
+        from app.utils.audit import AuditLogger
+        audit_logger = AuditLogger()
+        audit_logger.log_auth_event(
+            db, "PROJECT_DELETED", current_user.id, current_user.tenant_id,
+            {
+                "project_id": str(project.id),
+                "project_name": project.name,
+                "document_count": document_count
+            }
+        )
+        
+        # Delete project (cascade will handle documents)
+        db.delete(project)
+        db.commit()
+        
+        return SuccessResponse(
+            message="Project deleted successfully",
+            data={"deleted_documents": document_count}
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Project deletion failed")
+
+# ================================
+# DOCUMENT MANAGEMENT
+# ================================
+
+@router.post("/{project_id}/documents", response_model=DocumentResponse)
+async def create_document(
+    project_id: uuid.UUID = Path(..., description="Project ID"),
+    document_data: DocumentCreate = ...,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_permission("documents", "create")),
+    __: bool = Depends(require_tenant_access())
+):
+    """Neues Dokument in Projekt erstellen"""
+    try:
+        # Verify project exists and belongs to tenant
+        project = db.query(Project).filter(
+            Project.id == project_id,
+            Project.tenant_id == current_user.tenant_id
+        ).first()
+        
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        document = Document(
+            tenant_id=current_user.tenant_id,
+            project_id=project_id,
+            title=document_data.title,
+            content=document_data.content,
+            created_by=current_user.id
+        )
+        
+        db.add(document)
+        db.flush()
+        
+        # Audit log
+        from app.utils.audit import AuditLogger
+        audit_logger = AuditLogger()
+        audit_logger.log_auth_event(
+            db, "DOCUMENT_CREATED", current_user.id, current_user.tenant_id,
+            {
+                "document_id": str(document.id),
+                "document_title": document.title,
+                "project_id": str(project_id)
+            }
+        )
+        
+        db.commit()
+        return DocumentResponse.model_validate(document)
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to create document")
+
+@router.get("/documents", response_model=DocumentListResponse)
+async def list_all_documents(
+    filter_params: DocumentFilterParams = Depends(),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_permission("documents", "read")),
     __: bool = Depends(require_tenant_access())
 ):
     """Liste aller Dokumente im Tenant"""
@@ -365,7 +692,7 @@ async def complete_document_upload(
         raise HTTPException(status_code=500, detail="Failed to complete upload")
 
 # ================================
-# ACTIVITY & SEARCH
+# SEARCH & ACTIVITY
 # ================================
 
 @router.get("/activity", response_model=ActivityFeedResponse)
@@ -591,86 +918,6 @@ async def get_project_statistics(
         raise HTTPException(status_code=500, detail="Failed to get project statistics")
 
 # ================================
-# PROJECT EXPORT & BACKUP
-# ================================
-
-@router.post("/{project_id}/export")
-async def export_project(
-    project_id: uuid.UUID = Path(..., description="Project ID"),
-    format: str = Query(default="json", description="Export format: json, zip"),
-    include_documents: bool = Query(default=True, description="Include document content"),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    _: bool = Depends(require_permission("projects", "read")),
-    __: bool = Depends(require_tenant_access())
-):
-    """Project mit allen Dokumenten exportieren"""
-    try:
-        project = db.query(Project).filter(
-            Project.id == project_id,
-            Project.tenant_id == current_user.tenant_id
-        ).first()
-        
-        if not project:
-            raise HTTPException(status_code=404, detail="Project not found")
-        
-        # Build export data
-        export_data = {
-            "project": {
-                "id": str(project.id),
-                "name": project.name,
-                "description": project.description,
-                "status": project.status,
-                "created_at": project.created_at.isoformat(),
-                "updated_at": project.updated_at.isoformat()
-            },
-            "documents": []
-        }
-        
-        if include_documents:
-            for document in project.documents:
-                doc_data = {
-                    "id": str(document.id),
-                    "title": document.title,
-                    "content": document.content,
-                    "file_size": document.file_size,
-                    "mime_type": document.mime_type,
-                    "created_at": document.created_at.isoformat(),
-                    "updated_at": document.updated_at.isoformat()
-                }
-                export_data["documents"].append(doc_data)
-        
-        # Audit log
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "PROJECT_EXPORTED", current_user.id, current_user.tenant_id,
-            {
-                "project_id": str(project.id),
-                "format": format,
-                "include_documents": include_documents,
-                "document_count": len(export_data["documents"])
-            }
-        )
-        
-        db.commit()
-        
-        if format == "json":
-            from fastapi.responses import JSONResponse
-            return JSONResponse(content=export_data)
-        else:
-            # Would implement ZIP export
-            return SuccessResponse(
-                message="Export initiated",
-                data={"download_url": f"/api/v1/exports/project-{project_id}.zip"}
-            )
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Export failed")
-
-# ================================
 # DOCUMENT SHARING & COLLABORATION
 # ================================
 
@@ -754,128 +1001,23 @@ async def share_document(
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail="Failed to share document")(require_tenant_access())
-):
-    """Neues Projekt erstellen"""
-    try:
-        project = Project(
-            tenant_id=current_user.tenant_id,
-            name=project_data.name,
-            description=project_data.description,
-            status=project_data.status,
-            created_by=current_user.id
-        )
-        
-        db.add(project)
-        db.flush()
-        
-        # Audit log
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "PROJECT_CREATED", current_user.id, current_user.tenant_id,
-            {
-                "project_id": str(project.id),
-                "project_name": project.name
-            }
-        )
-        
-        db.commit()
-        return ProjectResponse.model_validate(project)
-    
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail="Failed to create project")
+        raise HTTPException(status_code=500, detail="Failed to share document")
 
-@router.get("/", response_model=ProjectListResponse)
-async def list_projects(
-    filter_params: ProjectFilterParams = Depends(),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    _: bool = Depends(require_permission("projects", "read")),
-    __: bool = Depends(require_tenant_access())
-):
-    """Liste aller Projekte im Tenant"""
-    try:
-        # Base query für Tenant
-        query = db.query(Project).filter(Project.tenant_id == current_user.tenant_id)
-        
-        # Apply filters
-        if filter_params.search:
-            search_term = f"%{filter_params.search}%"
-            query = query.filter(
-                or_(
-                    Project.name.ilike(search_term),
-                    Project.description.ilike(search_term)
-                )
-            )
-        
-        if filter_params.status:
-            query = query.filter(Project.status == filter_params.status)
-        
-        if filter_params.created_by:
-            query = query.filter(Project.created_by == filter_params.created_by)
-        
-        if filter_params.has_documents is not None:
-            if filter_params.has_documents:
-                query = query.filter(Project.documents.any())
-            else:
-                query = query.filter(~Project.documents.any())
-        
-        if filter_params.created_after:
-            from datetime import datetime
-            query = query.filter(Project.created_at >= datetime.fromisoformat(filter_params.created_after))
-        
-        if filter_params.created_before:
-            from datetime import datetime
-            query = query.filter(Project.created_at <= datetime.fromisoformat(filter_params.created_before))
-        
-        # Count total
-        total = query.count()
-        
-        # Apply sorting
-        if filter_params.sort_by == "name":
-            sort_field = Project.name
-        elif filter_params.sort_by == "status":
-            sort_field = Project.status
-        else:
-            sort_field = Project.created_at
-        
-        if filter_params.sort_order == "desc":
-            sort_field = sort_field.desc()
-        
-        query = query.order_by(sort_field)
-        
-        # Apply pagination
-        offset = (filter_params.page - 1) * filter_params.page_size
-        projects = query.offset(offset).limit(filter_params.page_size).all()
-        
-        # Add document count to each project
-        project_responses = []
-        for project in projects:
-            project_response = ProjectResponse.model_validate(project)
-            project_response.document_count = len(project.documents)
-            project_responses.append(project_response)
-        
-        return ProjectListResponse(
-            projects=project_responses,
-            total=total,
-            page=filter_params.page,
-            page_size=filter_params.page_size
-        )
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to retrieve projects")
+# ================================
+# PROJECT EXPORT & BACKUP
+# ================================
 
-@router.get("/{project_id}", response_model=ProjectDetailResponse)
-async def get_project_by_id(
+@router.post("/{project_id}/export")
+async def export_project(
     project_id: uuid.UUID = Path(..., description="Project ID"),
+    format: str = Query(default="json", description="Export format: json, zip"),
+    include_documents: bool = Query(default=True, description="Include document content"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("projects", "read")),
     __: bool = Depends(require_tenant_access())
 ):
-    """Spezifisches Projekt abrufen"""
+    """Project mit allen Dokumenten exportieren"""
     try:
         project = db.query(Project).filter(
             Project.id == project_id,
@@ -885,198 +1027,58 @@ async def get_project_by_id(
         if not project:
             raise HTTPException(status_code=404, detail="Project not found")
         
-        # Build detailed response
-        project_detail = ProjectDetailResponse.model_validate(project)
-        project_detail.creator_name = project.creator.full_name if project.creator else None
-        project_detail.updater_name = project.updater.full_name if project.updater else None
-        project_detail.document_count = len(project.documents)
-        
-        # Add recent documents
-        recent_documents = db.query(Document).filter(
-            Document.project_id == project_id
-        ).order_by(desc(Document.updated_at)).limit(5).all()
-        
-        project_detail.documents = [DocumentResponse.model_validate(doc) for doc in recent_documents]
-        
-        return project_detail
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to get project")
-
-@router.put("/{project_id}", response_model=ProjectResponse)
-async def update_project(
-    project_id: uuid.UUID = Path(..., description="Project ID"),
-    project_update: ProjectUpdate = ...,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    _: bool = Depends(require_own_resource_or_permission("projects", "update"))
-):
-    """Projekt aktualisieren"""
-    try:
-        project = db.query(Project).filter(
-            Project.id == project_id,
-            Project.tenant_id == current_user.tenant_id
-        ).first()
-        
-        if not project:
-            raise HTTPException(status_code=404, detail="Project not found")
-        
-        # Store old values for audit
-        old_values = {
-            "name": project.name,
-            "description": project.description,
-            "status": project.status
+        # Build export data
+        export_data = {
+            "project": {
+                "id": str(project.id),
+                "name": project.name,
+                "description": project.description,
+                "status": project.status,
+                "created_at": project.created_at.isoformat(),
+                "updated_at": project.updated_at.isoformat()
+            },
+            "documents": []
         }
         
-        # Update fields
-        update_data = {}
-        if project_update.name is not None:
-            project.name = project_update.name
-            update_data["name"] = project_update.name
-        if project_update.description is not None:
-            project.description = project_update.description
-            update_data["description"] = project_update.description
-        if project_update.status is not None:
-            project.status = project_update.status
-            update_data["status"] = project_update.status
-        
-        project.updated_by = current_user.id
+        if include_documents:
+            for document in project.documents:
+                doc_data = {
+                    "id": str(document.id),
+                    "title": document.title,
+                    "content": document.content,
+                    "file_size": document.file_size,
+                    "mime_type": document.mime_type,
+                    "created_at": document.created_at.isoformat(),
+                    "updated_at": document.updated_at.isoformat()
+                }
+                export_data["documents"].append(doc_data)
         
         # Audit log
         from app.utils.audit import AuditLogger
         audit_logger = AuditLogger()
         audit_logger.log_auth_event(
-            db, "PROJECT_UPDATED", current_user.id, current_user.tenant_id,
+            db, "PROJECT_EXPORTED", current_user.id, current_user.tenant_id,
             {
                 "project_id": str(project.id),
-                "project_name": project.name,
-                "old_values": old_values,
-                "new_values": update_data
+                "format": format,
+                "include_documents": include_documents,
+                "document_count": len(export_data["documents"])
             }
         )
         
         db.commit()
         
-        project_response = ProjectResponse.model_validate(project)
-        project_response.document_count = len(project.documents)
-        
-        return project_response
+        if format == "json":
+            from fastapi.responses import JSONResponse
+            return JSONResponse(content=export_data)
+        else:
+            # Would implement ZIP export
+            return SuccessResponse(
+                message="Export initiated",
+                data={"download_url": f"/api/v1/exports/project-{project_id}.zip"}
+            )
     
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail="Project update failed")
-
-@router.delete("/{project_id}")
-async def delete_project(
-    project_id: uuid.UUID = Path(..., description="Project ID"),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    _: bool = Depends(require_own_resource_or_permission("projects", "delete"))
-):
-    """Projekt löschen"""
-    try:
-        project = db.query(Project).filter(
-            Project.id == project_id,
-            Project.tenant_id == current_user.tenant_id
-        ).first()
-        
-        if not project:
-            raise HTTPException(status_code=404, detail="Project not found")
-        
-        # Count documents for audit
-        document_count = len(project.documents)
-        
-        # Audit log
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "PROJECT_DELETED", current_user.id, current_user.tenant_id,
-            {
-                "project_id": str(project.id),
-                "project_name": project.name,
-                "document_count": document_count
-            }
-        )
-        
-        # Delete project (cascade will handle documents)
-        db.delete(project)
-        db.commit()
-        
-        return SuccessResponse(
-            message="Project deleted successfully",
-            data={"deleted_documents": document_count}
-        )
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail="Project deletion failed")
-
-# ================================
-# DOCUMENT MANAGEMENT
-# ================================
-
-@router.post("/{project_id}/documents", response_model=DocumentResponse)
-async def create_document(
-    project_id: uuid.UUID = Path(..., description="Project ID"),
-    document_data: DocumentCreate = ...,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    _: bool = Depends(require_permission("documents", "create")),
-    __: bool = Depends(require_tenant_access())
-):
-    """Neues Dokument in Projekt erstellen"""
-    try:
-        # Verify project exists and belongs to tenant
-        project = db.query(Project).filter(
-            Project.id == project_id,
-            Project.tenant_id == current_user.tenant_id
-        ).first()
-        
-        if not project:
-            raise HTTPException(status_code=404, detail="Project not found")
-        
-        document = Document(
-            tenant_id=current_user.tenant_id,
-            project_id=project_id,
-            title=document_data.title,
-            content=document_data.content,
-            created_by=current_user.id
-        )
-        
-        db.add(document)
-        db.flush()
-        
-        # Audit log
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "DOCUMENT_CREATED", current_user.id, current_user.tenant_id,
-            {
-                "document_id": str(document.id),
-                "document_title": document.title,
-                "project_id": str(project_id)
-            }
-        )
-        
-        db.commit()
-        return DocumentResponse.model_validate(document)
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail="Failed to create document")
-
-@router.get("/documents", response_model=DocumentListResponse)
-async def list_all_documents(
-    filter_params: DocumentFilterParams = Depends(),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    _: bool = Depends(require_permission("documents", "read")),
-    __: bool = Depends
+        raise HTTPException(status_code=500, detail="Export failed")
