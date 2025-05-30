@@ -1,0 +1,164 @@
+# ================================
+# REQUIREMENTS.TXT
+# Enterprise Multi-Tenant FastAPI Application
+# ================================
+
+# Core FastAPI Framework
+fastapi
+uvicorn[standard]
+
+# Database & ORM
+sqlalchemy
+alembic
+psycopg2-binary
+
+# Pydantic & Settings
+pydantic
+pydantic-settings
+pydantic[email]
+
+# Authentication & Security
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+cryptography
+
+# HTTP Client & OAuth
+httpx
+authlib
+
+# AWS Services
+boto3
+botocore
+
+# Email & Templates
+jinja2
+premailer
+bleach
+
+# Background Tasks (Optional)
+Celery
+redis
+
+# Utilities
+python-dateutil
+python-dotenv
+typer
+
+# Development & Testing
+pytest
+pytest-asyncio
+pytest-cov
+httpx
+factory-boy
+faker
+
+# Code Quality
+black
+isort
+flake8
+mypy
+
+# Documentation
+mkdocs
+mkdocs-material
+
+# Monitoring & Logging
+structlog
+sentry-sdk[fastapi]
+
+# Production WSGI Server
+gunicorn
+
+# ================================
+# DEVELOPMENT DEPENDENCIES
+# ================================
+
+# Interactive debugging
+ipdb
+ipython
+
+# Database GUI (optional)
+# pgcli==4.0.1
+
+# API Documentation
+# sphinx==7.2.6
+# sphinx-rtd-theme==1.3.0
+
+# ================================
+# OPTIONAL ENTERPRISE FEATURES
+# ================================
+
+# Advanced Caching
+# redis-py-cluster==2.1.3
+
+# Message Queue (Alternative to Celery)
+# dramatiq[redis]==1.15.0
+
+# Metrics & Monitoring
+# prometheus-client==0.19.0
+# statsd==4.0.1
+
+# Advanced Security
+# python-casbin==1.17.6
+
+# File Upload & Storage
+# python-magic==0.4.27
+# pillow==10.1.0
+
+# Advanced Email Features
+# sendgrid==6.10.0
+# mailgun2==1.4.1
+
+# PDF Generation
+# reportlab==4.0.7
+# weasyprint==60.2
+
+# Excel/CSV Processing
+# openpyxl==3.1.2
+# pandas==2.1.3
+
+# Advanced Validation
+# cerberus==1.3.5
+
+# Rate Limiting (Advanced)
+# slowapi==0.1.9
+
+# WebSockets (wenn benötigt)
+# websockets==12.0
+
+# ================================
+# PRODUCTION DEPLOYMENT
+# ================================
+
+# Process Management
+supervisor
+
+# Reverse Proxy (wenn direkt deployed)
+# nginx-python-module==0.4.2
+
+# Container Health Checks
+# docker-py==6.1.3
+
+# ================================
+# SECURITY DEPENDENCIES
+# ================================
+
+# CVE Scanning
+safety
+
+# Dependency Management
+pip-audit
+
+# ================================
+# VERSION PINNING NOTES
+# ================================
+
+# Core dependencies sind fest versioniert für Stabilität
+# Development dependencies können flexibler sein
+# Security-kritische Pakete sollten regelmäßig aktualisiert werden
+
+# Update-Strategie:
+# - Core: Quarterly updates mit Testing
+# - Security: Monthly security updates
+# - Development: Latest stable versions
