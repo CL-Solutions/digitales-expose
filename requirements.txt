@@ -70,6 +70,11 @@ sentry-sdk[fastapi]
 # Production WSGI Server
 gunicorn
 
+# Two-Factor Authentication
+pyotp
+qrcode
+pillow
+
 # ================================
 # DEVELOPMENT DEPENDENCIES
 # ================================
