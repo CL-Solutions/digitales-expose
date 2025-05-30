@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.models.user import User, UserSession, PasswordResetToken
 from app.models.tenant import Tenant
 from app.core.security import verify_password, get_password_hash, create_access_token, create_refresh_token, generate_reset_token
-from app.schemas.auth import UserCreate, LoginRequest
+from app.schemas.user import UserCreate
 from app.core.exceptions import AppException, AuthenticationError, AuthorizationError
 from app.utils.audit import AuditLogger
 from datetime import datetime, timedelta

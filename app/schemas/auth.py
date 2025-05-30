@@ -37,7 +37,7 @@ class PasswordResetRequest(BaseSchema):
 class PasswordResetConfirm(BaseSchema, PasswordFieldMixin):
     """Schema für Password-Reset Bestätigung"""
     token: str = Field(..., description="Password reset token")
-    new_password: str = Field(..., min_length=8, description="New password")
+    password: str = Field(..., min_length=8, description="New password")
 
 class EmailVerificationRequest(BaseSchema):
     """Schema für Email-Verifizierung"""
@@ -46,7 +46,7 @@ class EmailVerificationRequest(BaseSchema):
 class ChangePasswordRequest(BaseSchema, PasswordFieldMixin):
     """Schema für Passwort-Änderung"""
     current_password: str = Field(..., description="Current password")
-    new_password: str = Field(..., min_length=8, description="New password")
+    password: str = Field(..., min_length=8, description="New password")
 
 class CreateUserRequest(BaseSchema, PasswordFieldMixin):
     """Schema für User-Erstellung durch Admin"""
