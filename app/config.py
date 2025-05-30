@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings
 from typing import Optional
 import secrets
 
-class Settings(BaseSettings):
+class settings(BaseSettings):
     # Database
     DATABASE_URL: str = "postgresql://user:password@localhost/dbname"
     DATABASE_POOL_SIZE: int = 20
@@ -58,4 +58,4 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
 
-settings = Settings()
+settings = settings()

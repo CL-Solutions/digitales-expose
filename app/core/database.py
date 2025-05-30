@@ -9,6 +9,8 @@ from sqlalchemy.pool import StaticPool
 from contextlib import contextmanager
 import uuid
 
+from app.config import settings
+
 # Database Engine
 engine = create_engine(
     settings.DATABASE_URL,

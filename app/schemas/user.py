@@ -7,6 +7,7 @@ from typing import Optional, List, Literal
 from datetime import datetime
 from uuid import UUID
 from app.schemas.base import BaseSchema, TimestampMixin, PaginationParams, SortParams, SearchParams
+from app.schemas.rbac import RoleResponse
 
 class UserBase(BaseSchema):
     """Base User Schema"""

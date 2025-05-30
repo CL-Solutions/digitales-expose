@@ -12,7 +12,7 @@ from app.schemas.rbac import RBACStatsResponse, RBACComplianceReport
 from app.schemas.user import UserStatsResponse
 from app.schemas.tenant import TenantStatsResponse
 from app.models.user import User, UserSession
-from app.models.tenant import Tenant
+from app.models.tenant import Tenant, TenantIdentityProvider
 from app.models.audit import AuditLog
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
@@ -99,7 +99,7 @@ async def get_admin_dashboard(
         }
     
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to get system limits")
+        raise HTTPException(status_code=500, detail="Failed to get dashboard data")
 
 # ================================
 # EMERGENCY OPERATIONS
@@ -240,365 +240,8 @@ async def create_system_backup(
         raise HTTPException(status_code=500, detail="Backup initiation failed")
 
 # ================================
-# SYSTEM REPORTS
+# ANALYTICS & REPORTING
 # ================================
-
-@router.get("/reports/usage")
-async def get_usage_report(
-    period_days: int = Query(default=30, ge=1, le=365),
-    super_admin: User = Depends(get_super_admin_user),
-    db: Session = Depends(get_db)
-):
-    """System Usage Report"""
-    try:
-        from datetime import datetime, timedelta
-        
-        start_date = datetime.utcnow() - timedelta(days=period_days)
-        
-        # User activity
-        active_users = db.query(User).filter(
-            User.last_login_at >= start_date,
-            User.tenant_id.isnot(None)
-        ).count()
-        
-        total_users = db.query(User).filter(User.tenant_id.isnot(None)).count()
-        
-        # Tenant activity
-        active_tenants = db.query(Tenant).join(User).filter(
-            User.last_login_at >= start_date
-        ).distinct().count()
-        
-        # Login statistics
-        login_attempts = db.query(AuditLog).filter(
-            and_(
-                AuditLog.action.in_(["LOGIN_SUCCESS", "LOGIN_FAILED"]),
-                AuditLog.created_at >= start_date
-            )
-        ).count()
-        
-        successful_logins = db.query(AuditLog).filter(
-            and_(
-                AuditLog.action == "LOGIN_SUCCESS",
-                AuditLog.created_at >= start_date
-            )
-        ).count()
-        
-        # Feature usage
-        try:
-            from app.models.business import Project, Document
-            new_projects = db.query(Project).filter(Project.created_at >= start_date).count()
-            new_documents = db.query(Document).filter(Document.created_at >= start_date).count()
-        except:
-            new_projects = 0
-            new_documents = 0
-        
-        return {
-            "report_period": {
-                "start_date": start_date.isoformat(),
-                "end_date": datetime.utcnow().isoformat(),
-                "period_days": period_days
-            },
-            "user_activity": {
-                "active_users": active_users,
-                "total_users": total_users,
-                "activity_rate_percent": round((active_users / total_users * 100), 2) if total_users > 0 else 0
-            },
-            "tenant_activity": {
-                "active_tenants": active_tenants,
-                "total_tenants": db.query(Tenant).count()
-            },
-            "authentication": {
-                "total_login_attempts": login_attempts,
-                "successful_logins": successful_logins,
-                "success_rate_percent": round((successful_logins / login_attempts * 100), 2) if login_attempts > 0 else 0
-            },
-            "feature_usage": {
-                "new_projects": new_projects,
-                "new_documents": new_documents
-            },
-            "generated_at": datetime.utcnow().isoformat()
-        }
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to generate usage report")
-
-# ================================
-# SYSTEM HEALTH MONITORING
-# ================================
-
-@router.get("/health/detailed")
-async def get_detailed_system_health(
-    super_admin: User = Depends(get_super_admin_user),
-    db: Session = Depends(get_db)
-):
-    """Detailed system health check"""
-    try:
-        health_data = {
-            "timestamp": datetime.utcnow().isoformat(),
-            "overall_status": "healthy",
-            "components": {}
-        }
-        
-        # Database health
-        try:
-            db.execute("SELECT 1")
-            health_data["components"]["database"] = {
-                "status": "healthy",
-                "response_time_ms": 1  # Would measure actual response time
-            }
-        except Exception as e:
-            health_data["components"]["database"] = {
-                "status": "unhealthy",
-                "error": str(e)
-            }
-            health_data["overall_status"] = "degraded"
-        
-        # Active sessions count
-        active_sessions = db.query(UserSession).filter(
-            UserSession.expires_at > datetime.utcnow()
-        ).count()
-        
-        health_data["components"]["sessions"] = {
-            "status": "healthy" if active_sessions < 10000 else "warning",
-            "active_count": active_sessions
-        }
-        
-        # Recent failed logins
-        recent_failures = db.query(AuditLog).filter(
-            and_(
-                AuditLog.action == "LOGIN_FAILED",
-                AuditLog.created_at >= datetime.utcnow() - timedelta(hours=1)
-            )
-        ).count()
-        
-        health_data["components"]["security"] = {
-            "status": "healthy" if recent_failures < 100 else "warning",
-            "failed_logins_last_hour": recent_failures
-        }
-        
-        # System resources (would implement actual monitoring)
-        health_data["components"]["resources"] = {
-            "status": "healthy",
-            "cpu_usage_percent": 25,  # Placeholder
-            "memory_usage_percent": 60,  # Placeholder
-            "disk_usage_percent": 45   # Placeholder
-        }
-        
-        return health_data
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Health check failed")
-
-# ================================
-# FEATURE TOGGLES & CONFIGURATION
-# ================================
-
-@router.get("/config/features")
-async def get_feature_configuration(
-    super_admin: User = Depends(get_super_admin_user),
-    db: Session = Depends(get_db)
-):
-    """Get system feature configuration"""
-    try:
-        # Would implement actual feature toggle system
-        features = {
-            "oauth_providers": {
-                "microsoft": {"enabled": True, "configured_tenants": 0},
-                "google": {"enabled": True, "configured_tenants": 0}
-            },
-            "email_service": {
-                "aws_ses": {"enabled": True, "status": "operational"},
-                "smtp_fallback": {"enabled": True, "status": "standby"}
-            },
-            "audit_logging": {
-                "enabled": True,
-                "retention_days": 365,
-                "current_log_count": db.query(AuditLog).count()
-            },
-            "multi_tenant": {
-                "enabled": True,
-                "max_tenants": 10000,
-                "current_tenant_count": db.query(Tenant).count()
-            }
-        }
-        
-        # Count OAuth provider usage
-        microsoft_count = db.query(TenantIdentityProvider).filter(
-            TenantIdentityProvider.provider == "microsoft"
-        ).count()
-        google_count = db.query(TenantIdentityProvider).filter(
-            TenantIdentityProvider.provider == "google"
-        ).count()
-        
-        features["oauth_providers"]["microsoft"]["configured_tenants"] = microsoft_count
-        features["oauth_providers"]["google"]["configured_tenants"] = google_count
-        
-        return {
-            "features": features,
-            "last_updated": datetime.utcnow().isoformat()
-        }
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to get feature configuration")
-
-@router.post("/config/features/{feature_name}/toggle")
-async def toggle_feature(
-    feature_name: str = Path(..., description="Feature name to toggle"),
-    enabled: bool = Query(..., description="Enable or disable the feature"),
-    super_admin: User = Depends(get_super_admin_user),
-    db: Session = Depends(get_db)
-):
-    """Toggle system feature on/off"""
-    try:
-        # Would implement actual feature toggle persistence
-        valid_features = ["oauth_login", "email_notifications", "audit_logging", "tenant_creation"]
-        
-        if feature_name not in valid_features:
-            raise HTTPException(status_code=400, detail="Invalid feature name")
-        
-        # Audit log
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "FEATURE_TOGGLED", super_admin.id, None,
-            {
-                "feature_name": feature_name,
-                "enabled": enabled,
-                "previous_state": not enabled  # Would get actual previous state
-            }
-        )
-        
-        db.commit()
-        
-        return SuccessResponse(
-            message=f"Feature '{feature_name}' {'enabled' if enabled else 'disabled'}",
-            data={
-                "feature_name": feature_name,
-                "enabled": enabled
-            }
-        )
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail="Failed to toggle feature")
-
-# ================================
-# PERFORMANCE MONITORING
-# ================================
-
-@router.get("/performance/metrics")
-async def get_performance_metrics(
-    hours: int = Query(default=24, ge=1, le=168),
-    super_admin: User = Depends(get_super_admin_user),
-    db: Session = Depends(get_db)
-):
-    """Get system performance metrics"""
-    try:
-        start_time = datetime.utcnow() - timedelta(hours=hours)
-        
-        # API endpoint usage (would implement actual tracking)
-        api_metrics = {
-            "/api/v1/auth/login": {"calls": 1250, "avg_response_ms": 145, "error_rate": 0.02},
-            "/api/v1/users/": {"calls": 890, "avg_response_ms": 89, "error_rate": 0.01},
-            "/api/v1/projects/": {"calls": 450, "avg_response_ms": 234, "error_rate": 0.03},
-            "/api/v1/admin/dashboard": {"calls": 67, "avg_response_ms": 567, "error_rate": 0.0}
-        }
-        
-        # Database query performance
-        db_metrics = {
-            "avg_query_time_ms": 45,
-            "slow_queries_count": 12,
-            "connection_pool_usage": 65,
-            "deadlocks_count": 0
-        }
-        
-        # System resource usage trends
-        resource_trends = []
-        for i in range(hours):
-            hour_ago = start_time + timedelta(hours=i)
-            # Would implement actual metrics collection
-            resource_trends.append({
-                "timestamp": hour_ago.isoformat(),
-                "cpu_percent": 20 + (i % 10),
-                "memory_percent": 55 + (i % 15),
-                "active_sessions": 100 + (i * 5)
-            })
-        
-        return {
-            "period_hours": hours,
-            "api_endpoints": api_metrics,
-            "database": db_metrics,
-            "resource_trends": resource_trends,
-            "generated_at": datetime.utcnow().isoformat()
-        }
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to get performance metrics")
-
-# ================================
-# NOTIFICATION SYSTEM
-# ================================
-
-@router.post("/notifications/send")
-async def send_system_notification(
-    title: str = Query(..., description="Notification title"),
-    message: str = Query(..., description="Notification message"),
-    severity: str = Query(default="info", description="Severity: info, warning, critical"),
-    target_tenants: Optional[List[uuid.UUID]] = Query(None, description="Target specific tenants"),
-    super_admin: User = Depends(get_super_admin_user),
-    db: Session = Depends(get_db)
-):
-    """Send system-wide notification"""
-    try:
-        # Would implement actual notification system
-        notification_id = uuid.uuid4()
-        
-        # Determine target users
-        if target_tenants:
-            target_users = db.query(User).filter(
-                User.tenant_id.in_(target_tenants),
-                User.is_active == True
-            ).all()
-        else:
-            # All active tenant users
-            target_users = db.query(User).filter(
-                User.tenant_id.isnot(None),
-                User.is_active == True
-            ).all()
-        
-        # Send notifications (would implement actual delivery)
-        delivered_count = len(target_users)
-        
-        # Audit log
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "SYSTEM_NOTIFICATION_SENT", super_admin.id, None,
-            {
-                "notification_id": str(notification_id),
-                "title": title,
-                "severity": severity,
-                "target_user_count": delivered_count,
-                "target_tenants": [str(tid) for tid in target_tenants] if target_tenants else "all"
-            }
-        )
-        
-        db.commit()
-        
-        return SuccessResponse(
-            message=f"Notification sent to {delivered_count} users",
-            data={
-                "notification_id": str(notification_id),
-                "delivered_count": delivered_count,
-                "severity": severity
-            }
-        )
-    
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail="Failed to send notification")
 
 @router.get("/analytics/growth")
 async def get_growth_analytics(
@@ -683,10 +326,6 @@ async def get_growth_analytics(
     
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to get growth analytics")
-
-# ================================
-# AUDIT & SECURITY MONITORING
-# ================================
 
 @router.get("/audit/logs")
 async def get_audit_logs(
@@ -1194,4 +833,215 @@ async def get_system_limits(
         }
     
     except Exception as e:
-        raise HTTPException(status_code=500, detail="
+        raise HTTPException(status_code=500, detail="Failed to get system limits")
+
+# ================================
+# FEATURE TOGGLES & CONFIGURATION
+# ================================
+
+@router.get("/config/features")
+async def get_feature_configuration(
+    super_admin: User = Depends(get_super_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get system feature configuration"""
+    try:
+        # Would implement actual feature toggle system
+        features = {
+            "oauth_providers": {
+                "microsoft": {"enabled": True, "configured_tenants": 0},
+                "google": {"enabled": True, "configured_tenants": 0}
+            },
+            "email_service": {
+                "aws_ses": {"enabled": True, "status": "operational"},
+                "smtp_fallback": {"enabled": True, "status": "standby"}
+            },
+            "audit_logging": {
+                "enabled": True,
+                "retention_days": 365,
+                "current_log_count": db.query(AuditLog).count()
+            },
+            "multi_tenant": {
+                "enabled": True,
+                "max_tenants": 10000,
+                "current_tenant_count": db.query(Tenant).count()
+            }
+        }
+        
+        # Count OAuth provider usage
+        microsoft_count = db.query(TenantIdentityProvider).filter(
+            TenantIdentityProvider.provider == "microsoft"
+        ).count()
+        google_count = db.query(TenantIdentityProvider).filter(
+            TenantIdentityProvider.provider == "google"
+        ).count()
+        
+        features["oauth_providers"]["microsoft"]["configured_tenants"] = microsoft_count
+        features["oauth_providers"]["google"]["configured_tenants"] = google_count
+        
+        return {
+            "features": features,
+            "last_updated": datetime.utcnow().isoformat()
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to get feature configuration")
+
+@router.post("/config/features/{feature_name}/toggle")
+async def toggle_feature(
+    feature_name: str = Path(..., description="Feature name to toggle"),
+    enabled: bool = Query(..., description="Enable or disable the feature"),
+    super_admin: User = Depends(get_super_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Toggle system feature on/off"""
+    try:
+        # Would implement actual feature toggle persistence
+        valid_features = ["oauth_login", "email_notifications", "audit_logging", "tenant_creation"]
+        
+        if feature_name not in valid_features:
+            raise HTTPException(status_code=400, detail="Invalid feature name")
+        
+        # Audit log
+        from app.utils.audit import AuditLogger
+        audit_logger = AuditLogger()
+        audit_logger.log_auth_event(
+            db, "FEATURE_TOGGLED", super_admin.id, None,
+            {
+                "feature_name": feature_name,
+                "enabled": enabled,
+                "previous_state": not enabled  # Would get actual previous state
+            }
+        )
+        
+        db.commit()
+        
+        return SuccessResponse(
+            message=f"Feature '{feature_name}' {'enabled' if enabled else 'disabled'}",
+            data={
+                "feature_name": feature_name,
+                "enabled": enabled
+            }
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to toggle feature")
+
+# ================================
+# PERFORMANCE MONITORING
+# ================================
+
+@router.get("/performance/metrics")
+async def get_performance_metrics(
+    hours: int = Query(default=24, ge=1, le=168),
+    super_admin: User = Depends(get_super_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get system performance metrics"""
+    try:
+        start_time = datetime.utcnow() - timedelta(hours=hours)
+        
+        # API endpoint usage (would implement actual tracking)
+        api_metrics = {
+            "/api/v1/auth/login": {"calls": 1250, "avg_response_ms": 145, "error_rate": 0.02},
+            "/api/v1/users/": {"calls": 890, "avg_response_ms": 89, "error_rate": 0.01},
+            "/api/v1/projects/": {"calls": 450, "avg_response_ms": 234, "error_rate": 0.03},
+            "/api/v1/admin/dashboard": {"calls": 67, "avg_response_ms": 567, "error_rate": 0.0}
+        }
+        
+        # Database query performance
+        db_metrics = {
+            "avg_query_time_ms": 45,
+            "slow_queries_count": 12,
+            "connection_pool_usage": 65,
+            "deadlocks_count": 0
+        }
+        
+        # System resource usage trends
+        resource_trends = []
+        for i in range(hours):
+            hour_ago = start_time + timedelta(hours=i)
+            # Would implement actual metrics collection
+            resource_trends.append({
+                "timestamp": hour_ago.isoformat(),
+                "cpu_percent": 20 + (i % 10),
+                "memory_percent": 55 + (i % 15),
+                "active_sessions": 100 + (i * 5)
+            })
+        
+        return {
+            "period_hours": hours,
+            "api_endpoints": api_metrics,
+            "database": db_metrics,
+            "resource_trends": resource_trends,
+            "generated_at": datetime.utcnow().isoformat()
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to get performance metrics")
+
+# ================================
+# NOTIFICATION SYSTEM
+# ================================
+
+@router.post("/notifications/send")
+async def send_system_notification(
+    title: str = Query(..., description="Notification title"),
+    message: str = Query(..., description="Notification message"),
+    severity: str = Query(default="info", description="Severity: info, warning, critical"),
+    target_tenants: Optional[List[uuid.UUID]] = Query(None, description="Target specific tenants"),
+    super_admin: User = Depends(get_super_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Send system-wide notification"""
+    try:
+        # Would implement actual notification system
+        notification_id = uuid.uuid4()
+        
+        # Determine target users
+        if target_tenants:
+            target_users = db.query(User).filter(
+                User.tenant_id.in_(target_tenants),
+                User.is_active == True
+            ).all()
+        else:
+            # All active tenant users
+            target_users = db.query(User).filter(
+                User.tenant_id.isnot(None),
+                User.is_active == True
+            ).all()
+        
+        # Send notifications (would implement actual delivery)
+        delivered_count = len(target_users)
+        
+        # Audit log
+        from app.utils.audit import AuditLogger
+        audit_logger = AuditLogger()
+        audit_logger.log_auth_event(
+            db, "SYSTEM_NOTIFICATION_SENT", super_admin.id, None,
+            {
+                "notification_id": str(notification_id),
+                "title": title,
+                "severity": severity,
+                "target_user_count": delivered_count,
+                "target_tenants": [str(tid) for tid in target_tenants] if target_tenants else "all"
+            }
+        )
+        
+        db.commit()
+        
+        return SuccessResponse(
+            message=f"Notification sent to {delivered_count} users",
+            data={
+                "notification_id": str(notification_id),
+                "delivered_count": delivered_count,
+                "severity": severity
+            }
+        )
+    
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to send notification")

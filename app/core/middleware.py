@@ -2,8 +2,9 @@
 # MIDDLEWARE (core/middleware.py)
 # ================================
 
+from typing import Optional
 from fastapi import Request, Response
-from fastapi.middleware.base import BaseHTTPMiddleware
+from fastapi.middleware import BaseHTTPMiddleware
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal, set_tenant_context
 from app.models.user import User

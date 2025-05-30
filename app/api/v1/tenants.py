@@ -1,3 +1,4 @@
+# ================================
 # TENANT MANAGEMENT API ROUTES (api/v1/tenants.py) - COMPLETED
 # ================================
 
@@ -977,7 +978,15 @@ async def get_tenant_usage_report(
         ).count()
         
         # Login activity
-        login_events = db.query(AuditLog).filter(
+        login_attempts = db.query(AuditLog).filter(
+            and_(
+                AuditLog.tenant_id == tenant_id,
+                AuditLog.action.in_(["LOGIN_SUCCESS", "LOGIN_FAILED"]),
+                AuditLog.created_at >= start_date
+            )
+        ).count()
+        
+        successful_logins = db.query(AuditLog).filter(
             and_(
                 AuditLog.tenant_id == tenant_id,
                 AuditLog.action == "LOGIN_SUCCESS",
@@ -989,14 +998,14 @@ async def get_tenant_usage_report(
         try:
             from app.models.business import Project, Document
             
-            projects_created = db.query(Project).filter(
+            new_projects = db.query(Project).filter(
                 and_(
                     Project.tenant_id == tenant_id,
                     Project.created_at >= start_date
                 )
             ).count()
             
-            documents_created = db.query(Document).filter(
+            new_documents = db.query(Document).filter(
                 and_(
                     Document.tenant_id == tenant_id,
                     Document.created_at >= start_date
@@ -1009,8 +1018,8 @@ async def get_tenant_usage_report(
             ).scalar() or 0
             
         except ImportError:
-            projects_created = 0
-            documents_created = 0
+            new_projects = 0
+            new_documents = 0
             total_storage_bytes = 0
         
         # Calculate usage percentages
@@ -1033,4 +1042,604 @@ async def get_tenant_usage_report(
                 "total_users": total_users,
                 "active_users_period": active_users,
                 "user_utilization_percent": round(user_utilization, 2),
-                "
+                "activity_rate_percent": round(activity_rate, 2)
+            },
+            "authentication_metrics": {
+                "total_login_attempts": login_attempts,
+                "successful_logins": successful_logins,
+                "success_rate_percent": round((successful_logins / login_attempts * 100), 2) if login_attempts > 0 else 0
+            },
+            "feature_usage": {
+                "new_projects": new_projects,
+                "new_documents": new_documents,
+                "total_storage_bytes": total_storage_bytes,
+                "storage_gb": round(total_storage_bytes / (1024**3), 2)
+            },
+            "generated_at": datetime.utcnow().isoformat()
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to generate usage report")
+
+# ================================
+# TENANT HEALTH MONITORING
+# ================================
+
+@router.get("/{tenant_id}/health")
+async def get_tenant_health(
+    tenant_id: uuid.UUID = Path(..., description="Tenant ID"),
+    super_admin: User = Depends(get_super_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Tenant Health Check"""
+    try:
+        # Verify tenant exists
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+        
+        health_data = {
+            "tenant_id": str(tenant_id),
+            "tenant_name": tenant.name,
+            "overall_health": "healthy",
+            "timestamp": datetime.utcnow().isoformat(),
+            "checks": {}
+        }
+        
+        # User health
+        total_users = db.query(User).filter(User.tenant_id == tenant_id).count()
+        locked_users = db.query(User).filter(
+            User.tenant_id == tenant_id,
+            User.locked_until.isnot(None),
+            User.locked_until > datetime.utcnow()
+        ).count()
+        
+        user_health = "healthy"
+        if locked_users > (total_users * 0.1):  # More than 10% locked
+            user_health = "warning"
+        
+        health_data["checks"]["users"] = {
+            "status": user_health,
+            "total_users": total_users,
+            "locked_users": locked_users,
+            "lock_percentage": round((locked_users / total_users * 100), 2) if total_users > 0 else 0
+        }
+        
+        # Session health
+        from app.models.user import UserSession
+        active_sessions = db.query(UserSession).filter(
+            UserSession.tenant_id == tenant_id,
+            UserSession.expires_at > datetime.utcnow()
+        ).count()
+        
+        health_data["checks"]["sessions"] = {
+            "status": "healthy" if active_sessions < 1000 else "warning",
+            "active_sessions": active_sessions
+        }
+        
+        # Recent security events
+        recent_failures = db.query(AuditLog).filter(
+            and_(
+                AuditLog.tenant_id == tenant_id,
+                AuditLog.action == "LOGIN_FAILED",
+                AuditLog.created_at >= datetime.utcnow() - timedelta(hours=24)
+            )
+        ).count()
+        
+        security_health = "healthy"
+        if recent_failures > 50:
+            security_health = "warning" if recent_failures < 100 else "critical"
+        
+        health_data["checks"]["security"] = {
+            "status": security_health,
+            "failed_logins_24h": recent_failures
+        }
+        
+        # Identity provider health
+        identity_providers = db.query(TenantIdentityProvider).filter(
+            TenantIdentityProvider.tenant_id == tenant_id,
+            TenantIdentityProvider.is_active == True
+        ).count()
+        
+        health_data["checks"]["identity_providers"] = {
+            "status": "healthy",
+            "active_providers": identity_providers
+        }
+        
+        # Determine overall health
+        check_statuses = [check["status"] for check in health_data["checks"].values()]
+        if "critical" in check_statuses:
+            health_data["overall_health"] = "critical"
+        elif "warning" in check_statuses:
+            health_data["overall_health"] = "warning"
+        
+        return health_data
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to get tenant health")
+
+# ================================
+# TENANT MIGRATION & CLONING
+# ================================
+
+@router.post("/{tenant_id}/clone")
+async def clone_tenant(
+    tenant_id: uuid.UUID = Path(..., description="Source tenant ID"),
+    new_tenant_name: str = Query(..., description="New tenant name"),
+    new_tenant_slug: str = Query(..., description="New tenant slug"),
+    include_users: bool = Query(default=False, description="Include users in clone"),
+    include_data: bool = Query(default=False, description="Include business data in clone"),
+    super_admin: User = Depends(get_super_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Clone an existing tenant"""
+    try:
+        # Verify source tenant exists
+        source_tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if not source_tenant:
+            raise HTTPException(status_code=404, detail="Source tenant not found")
+        
+        # Check if new slug already exists
+        existing_tenant = db.query(Tenant).filter(Tenant.slug == new_tenant_slug).first()
+        if existing_tenant:
+            raise HTTPException(status_code=400, detail="New tenant slug already exists")
+        
+        # Create new tenant
+        new_tenant = Tenant(
+            name=new_tenant_name,
+            slug=new_tenant_slug,
+            domain=None,  # Don't clone domain
+            settings=source_tenant.settings.copy() if source_tenant.settings else {},
+            subscription_plan=source_tenant.subscription_plan,
+            max_users=source_tenant.max_users,
+            is_active=True
+        )
+        
+        db.add(new_tenant)
+        db.flush()  # Get new tenant ID
+        
+        # Clone default roles and permissions
+        from app.models.utils import create_default_permissions, create_default_roles_for_tenant
+        create_default_permissions(db)
+        create_default_roles_for_tenant(db, new_tenant.id)
+        
+        # Clone identity providers
+        source_providers = db.query(TenantIdentityProvider).filter(
+            TenantIdentityProvider.tenant_id == tenant_id
+        ).all()
+        
+        for provider in source_providers:
+            new_provider = TenantIdentityProvider(
+                tenant_id=new_tenant.id,
+                provider=provider.provider,
+                provider_type=provider.provider_type,
+                client_id=provider.client_id,
+                client_secret_hash=provider.client_secret_hash,
+                azure_tenant_id=provider.azure_tenant_id,
+                discovery_endpoint=provider.discovery_endpoint,
+                user_attribute_mapping=provider.user_attribute_mapping,
+                role_attribute_mapping=provider.role_attribute_mapping,
+                auto_provision_users=provider.auto_provision_users,
+                require_verified_email=provider.require_verified_email,
+                allowed_domains=provider.allowed_domains,
+                is_active=provider.is_active
+            )
+            db.add(new_provider)
+        
+        clone_summary = {
+            "cloned_tenant_id": str(new_tenant.id),
+            "cloned_providers": len(source_providers),
+            "cloned_users": 0,
+            "cloned_projects": 0
+        }
+        
+        # Clone users if requested
+        if include_users:
+            source_users = db.query(User).filter(User.tenant_id == tenant_id).all()
+            for user in source_users:
+                # Create new user with modified email to avoid conflicts
+                new_email = f"cloned_{user.email}"
+                new_user = User(
+                    email=new_email,
+                    tenant_id=new_tenant.id,
+                    auth_method=user.auth_method,
+                    first_name=user.first_name,
+                    last_name=user.last_name,
+                    is_active=user.is_active,
+                    is_verified=user.is_verified
+                )
+                db.add(new_user)
+            
+            clone_summary["cloned_users"] = len(source_users)
+        
+        # Clone business data if requested
+        if include_data:
+            try:
+                from app.models.business import Project, Document
+                
+                source_projects = db.query(Project).filter(Project.tenant_id == tenant_id).all()
+                for project in source_projects:
+                    new_project = Project(
+                        tenant_id=new_tenant.id,
+                        name=f"{project.name} (Cloned)",
+                        description=project.description,
+                        status=project.status,
+                        created_by=super_admin.id
+                    )
+                    db.add(new_project)
+                
+                clone_summary["cloned_projects"] = len(source_projects)
+            except ImportError:
+                pass  # Business models not available
+        
+        # Audit log
+        from app.utils.audit import AuditLogger
+        audit_logger = AuditLogger()
+        audit_logger.log_auth_event(
+            db, "TENANT_CLONED", super_admin.id, new_tenant.id,
+            {
+                "source_tenant_id": str(tenant_id),
+                "source_tenant_name": source_tenant.name,
+                "new_tenant_name": new_tenant_name,
+                "include_users": include_users,
+                "include_data": include_data,
+                "clone_summary": clone_summary
+            }
+        )
+        
+        db.commit()
+        
+        return SuccessResponse(
+            message=f"Tenant cloned successfully as '{new_tenant_name}'",
+            data=clone_summary
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to clone tenant")
+
+# ================================
+# TENANT BILLING & SUBSCRIPTION
+# ================================
+
+@router.get("/{tenant_id}/billing")
+async def get_tenant_billing_info(
+    tenant_id: uuid.UUID = Path(..., description="Tenant ID"),
+    super_admin: User = Depends(get_super_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get tenant billing information"""
+    try:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+        
+        # Current usage
+        total_users = db.query(User).filter(User.tenant_id == tenant_id).count()
+        
+        # Storage usage
+        total_storage_bytes = 0
+        try:
+            from app.models.business import Document
+            storage_result = db.query(func.sum(Document.file_size)).filter(
+                Document.tenant_id == tenant_id,
+                Document.file_size.isnot(None)
+            ).scalar()
+            total_storage_bytes = storage_result or 0
+        except ImportError:
+            pass
+        
+        # Plan limits based on subscription
+        plan_limits = {
+            "basic": {"max_users": 10, "max_storage_gb": 1},
+            "pro": {"max_users": 50, "max_storage_gb": 10},
+            "enterprise": {"max_users": 500, "max_storage_gb": 100}
+        }
+        
+        current_limits = plan_limits.get(tenant.subscription_plan, plan_limits["basic"])
+        storage_gb = total_storage_bytes / (1024**3)
+        
+        return {
+            "tenant_info": {
+                "id": str(tenant.id),
+                "name": tenant.name,
+                "subscription_plan": tenant.subscription_plan
+            },
+            "current_usage": {
+                "users": total_users,
+                "max_users": tenant.max_users,
+                "storage_gb": round(storage_gb, 2),
+                "max_storage_gb": current_limits["max_storage_gb"]
+            },
+            "utilization": {
+                "user_percentage": round((total_users / tenant.max_users * 100), 2) if tenant.max_users > 0 else 0,
+                "storage_percentage": round((storage_gb / current_limits["max_storage_gb"] * 100), 2)
+            },
+            "billing_status": {
+                "status": "active",  # Would implement actual billing
+                "next_billing_date": None,
+                "amount_due": 0
+            }
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to get billing information")
+
+@router.post("/{tenant_id}/subscription/upgrade")
+async def upgrade_tenant_subscription(
+    tenant_id: uuid.UUID = Path(..., description="Tenant ID"),
+    new_plan: str = Query(..., description="New subscription plan"),
+    super_admin: User = Depends(get_super_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Upgrade tenant subscription plan"""
+    try:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+        
+        valid_plans = ["basic", "pro", "enterprise"]
+        if new_plan not in valid_plans:
+            raise HTTPException(status_code=400, detail="Invalid subscription plan")
+        
+        old_plan = tenant.subscription_plan
+        tenant.subscription_plan = new_plan
+        
+        # Update limits based on new plan
+        plan_limits = {
+            "basic": {"max_users": 10},
+            "pro": {"max_users": 50},
+            "enterprise": {"max_users": 500}
+        }
+        
+        if new_plan in plan_limits:
+            tenant.max_users = plan_limits[new_plan]["max_users"]
+        
+        # Audit log
+        from app.utils.audit import AuditLogger
+        audit_logger = AuditLogger()
+        audit_logger.log_auth_event(
+            db, "SUBSCRIPTION_UPGRADED", super_admin.id, tenant_id,
+            {
+                "old_plan": old_plan,
+                "new_plan": new_plan,
+                "tenant_name": tenant.name
+            }
+        )
+        
+        db.commit()
+        
+        return SuccessResponse(
+            message=f"Subscription upgraded from {old_plan} to {new_plan}",
+            data={
+                "old_plan": old_plan,
+                "new_plan": new_plan,
+                "new_max_users": tenant.max_users
+            }
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to upgrade subscription")
+
+# ================================
+# TENANT SECURITY & COMPLIANCE
+# ================================
+
+@router.get("/{tenant_id}/security-report")
+async def get_tenant_security_report(
+    tenant_id: uuid.UUID = Path(..., description="Tenant ID"),
+    days: int = Query(default=30, ge=1, le=90, description="Report period in days"),
+    super_admin: User = Depends(get_super_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Generate tenant security report"""
+    try:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+        
+        start_date = datetime.utcnow() - timedelta(days=days)
+        
+        # Security metrics
+        failed_logins = db.query(AuditLog).filter(
+            and_(
+                AuditLog.tenant_id == tenant_id,
+                AuditLog.action == "LOGIN_FAILED",
+                AuditLog.created_at >= start_date
+            )
+        ).count()
+        
+        successful_logins = db.query(AuditLog).filter(
+            and_(
+                AuditLog.tenant_id == tenant_id,
+                AuditLog.action == "LOGIN_SUCCESS",
+                AuditLog.created_at >= start_date
+            )
+        ).count()
+        
+        account_lockouts = db.query(AuditLog).filter(
+            and_(
+                AuditLog.tenant_id == tenant_id,
+                AuditLog.action == "ACCOUNT_LOCKED",
+                AuditLog.created_at >= start_date
+            )
+        ).count()
+        
+        # Current security state
+        locked_users = db.query(User).filter(
+            User.tenant_id == tenant_id,
+            User.locked_until.isnot(None),
+            User.locked_until > datetime.utcnow()
+        ).count()
+        
+        unverified_users = db.query(User).filter(
+            User.tenant_id == tenant_id,
+            User.is_verified == False,
+            User.is_active == True
+        ).count()
+        
+        # Identity provider security
+        active_providers = db.query(TenantIdentityProvider).filter(
+            TenantIdentityProvider.tenant_id == tenant_id,
+            TenantIdentityProvider.is_active == True
+        ).count()
+        
+        # Calculate security score
+        total_logins = successful_logins + failed_logins
+        login_success_rate = (successful_logins / total_logins * 100) if total_logins > 0 else 100
+        
+        security_score = 100
+        if login_success_rate < 90:
+            security_score -= 20
+        if account_lockouts > 5:
+            security_score -= 15
+        if locked_users > 0:
+            security_score -= 10
+        if unverified_users > 5:
+            security_score -= 10
+        if active_providers == 0:
+            security_score -= 5
+        
+        security_level = "high"
+        if security_score < 70:
+            security_level = "low"
+        elif security_score < 85:
+            security_level = "medium"
+        
+        return {
+            "tenant_info": {
+                "id": str(tenant_id),
+                "name": tenant.name
+            },
+            "report_period": {
+                "days": days,
+                "start_date": start_date.isoformat(),
+                "end_date": datetime.utcnow().isoformat()
+            },
+            "security_metrics": {
+                "login_attempts": total_logins,
+                "successful_logins": successful_logins,
+                "failed_logins": failed_logins,
+                "login_success_rate": round(login_success_rate, 2),
+                "account_lockouts": account_lockouts
+            },
+            "current_state": {
+                "locked_users": locked_users,
+                "unverified_users": unverified_users,
+                "active_identity_providers": active_providers
+            },
+            "security_assessment": {
+                "security_score": security_score,
+                "security_level": security_level,
+                "recommendations": [
+                    "Enable multi-factor authentication" if active_providers == 0 else None,
+                    "Review failed login patterns" if failed_logins > 20 else None,
+                    "Follow up on unverified users" if unverified_users > 5 else None,
+                    "Investigate locked accounts" if locked_users > 0 else None
+                ]
+            },
+            "generated_at": datetime.utcnow().isoformat()
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to generate security report")
+
+# ================================
+# TENANT MAINTENANCE
+# ================================
+
+@router.post("/{tenant_id}/maintenance/cleanup")
+async def tenant_maintenance_cleanup(
+    tenant_id: uuid.UUID = Path(..., description="Tenant ID"),
+    cleanup_type: str = Query(..., description="Type: sessions, audit_logs, inactive_users"),
+    days_old: int = Query(default=30, ge=1, le=365, description="Remove data older than N days"),
+    super_admin: User = Depends(get_super_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Perform maintenance cleanup for specific tenant"""
+    try:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+        
+        cleanup_date = datetime.utcnow() - timedelta(days=days_old)
+        cleaned_count = 0
+        
+        if cleanup_type == "sessions":
+            # Clean expired sessions for this tenant
+            from app.models.user import UserSession
+            cleaned_count = db.query(UserSession).filter(
+                UserSession.tenant_id == tenant_id,
+                UserSession.expires_at < datetime.utcnow()
+            ).delete()
+        
+        elif cleanup_type == "audit_logs":
+            # Clean old audit logs for this tenant (keep critical ones)
+            cleaned_count = db.query(AuditLog).filter(
+                and_(
+                    AuditLog.tenant_id == tenant_id,
+                    AuditLog.created_at < cleanup_date,
+                    ~AuditLog.action.in_([
+                        "TENANT_CREATED", "TENANT_DELETED", 
+                        "USER_CREATED", "IDENTITY_PROVIDER_CREATED"
+                    ])
+                )
+            ).delete()
+        
+        elif cleanup_type == "inactive_users":
+            # Clean users who never logged in and are old
+            cleaned_count = db.query(User).filter(
+                and_(
+                    User.tenant_id == tenant_id,
+                    User.last_login_at.is_(None),
+                    User.created_at < cleanup_date,
+                    User.is_active == False
+                )
+            ).delete()
+        
+        else:
+            raise HTTPException(status_code=400, detail="Invalid cleanup type")
+        
+        # Audit the cleanup
+        from app.utils.audit import AuditLogger
+        audit_logger = AuditLogger()
+        audit_logger.log_auth_event(
+            db, "TENANT_CLEANUP", super_admin.id, tenant_id,
+            {
+                "cleanup_type": cleanup_type,
+                "days_old": days_old,
+                "cleaned_count": cleaned_count,
+                "tenant_name": tenant.name
+            }
+        )
+        
+        db.commit()
+        
+        return SuccessResponse(
+            message=f"Tenant cleanup completed: {cleaned_count} records removed",
+            data={
+                "tenant_name": tenant.name,
+                "cleanup_type": cleanup_type,
+                "records_removed": cleaned_count,
+                "cutoff_date": cleanup_date.isoformat()
+            }
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Tenant cleanup operation failed")

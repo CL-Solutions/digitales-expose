@@ -5,6 +5,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc
+from app.config import settings
 from app.dependencies import (
     get_db, get_current_user, require_permission, 
     get_pagination_params, get_sort_params,

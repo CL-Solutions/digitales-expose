@@ -2,7 +2,9 @@
 # AUTH API ROUTES (api/v1/auth.py) - COMPLETED
 # ================================
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
+import secrets
+from fastapi import APIRouter, Depends, HTTPException, Path, status, Request, Query
+from sqlalchemy import desc
 from sqlalchemy.orm import Session
 from app.dependencies import get_db, get_current_user, get_super_admin_user
 from app.schemas.auth import (
@@ -276,8 +278,8 @@ async def oauth_callback(
 @router.post("/impersonate", response_model=TokenResponse)
 async def super_admin_impersonate(
     impersonate_data: ImpersonateRequest,
-    super_admin: User = Depends(get_super_admin_user),
     request: Request,
+    super_admin: User = Depends(get_super_admin_user),
     db: Session = Depends(get_db)
 ):
     """Super-Admin Impersonation"""
@@ -299,8 +301,8 @@ async def super_admin_impersonate(
 
 @router.post("/end-impersonation")
 async def end_impersonation(
-    super_admin: User = Depends(get_super_admin_user),
     request: Request,
+    super_admin: User = Depends(get_super_admin_user),
     db: Session = Depends(get_db)
 ):
     """Beendet Super-Admin Impersonation"""
@@ -322,8 +324,8 @@ async def end_impersonation(
 
 @router.get("/status", response_model=AuthStatusResponse)
 async def get_auth_status(
-    current_user: User = Depends(get_current_user),
     request: Request,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Aktueller Authentication Status"""
@@ -703,9 +705,9 @@ async def terminate_session(
 
 @router.delete("/sessions")
 async def terminate_all_sessions(
+    request: Request,
     keep_current: bool = Query(default=True, description="Keep current session active"),
     current_user: User = Depends(get_current_user),
-    request: Request,
     db: Session = Depends(get_db)
 ):
     """Terminate all sessions for current user"""
