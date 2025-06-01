@@ -1,10 +1,9 @@
 # ================================
-# PROJECTS & BUSINESS LOGIC API ROUTES (api/v1/projects.py) - COMPLETED
+# PROJECTS & BUSINESS LOGIC API ROUTES (api/v1/projects.py) - COMPLETED USING SERVICES
 # ================================
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Path, UploadFile, File
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, desc
 from app.dependencies import (
     get_db, get_current_user, require_permission, 
     require_tenant_access, require_own_resource_or_permission
@@ -15,12 +14,11 @@ from app.schemas.business import (
     ProjectStatsResponse, DocumentCreate, DocumentUpdate,
     DocumentResponse, DocumentDetailResponse, DocumentListResponse,
     DocumentFilterParams, DocumentUploadRequest, DocumentUploadResponse,
-    ActivityFeedResponse, SearchRequest, SearchResponse
+    ActivityFeedResponse, SearchRequest, SearchResponse, ActivityResponse
 )
 from app.schemas.base import SuccessResponse
-from app.models.business import Project, Document
+from app.services.business_service import ProjectService, DocumentService, BusinessSearchService
 from app.models.user import User
-from app.models.tenant import Tenant
 from app.core.exceptions import AppException
 from app.config import settings
 from typing import List, Optional
@@ -40,216 +38,19 @@ async def create_project(
     _: bool = Depends(require_permission("projects", "create")),
     __: bool = Depends(require_tenant_access())
 ):
-    """Neues Projekt erstellen"""
+    """Create new project - Uses ProjectService"""
     try:
-        project = Project(
-            tenant_id=current_user.tenant_id,
-            name=project_data.name,
-            description=project_data.description,
-            status=project_data.status,
-            created_by=current_user.id
-        )
-        
-        db.add(project)
-        db.flush()
-        
-        # Audit log
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "PROJECT_CREATED", current_user.id, current_user.tenant_id,
-            {
-                "project_id": str(project.id),
-                "project_name": project.name
-            }
-        )
-        
-        db.commit()
-        return ProjectResponse.model_validate(project)
-    
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail="Failed to create project")
-
-@router.get("/", response_model=ProjectListResponse)
-async def list_projects(
-    filter_params: ProjectFilterParams = Depends(),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    _: bool = Depends(require_permission("projects", "read")),
-    __: bool = Depends(require_tenant_access())
-):
-    """Liste aller Projekte im Tenant"""
-    try:
-        # Base query für Tenant
-        query = db.query(Project).filter(Project.tenant_id == current_user.tenant_id)
-        
-        # Apply filters
-        if filter_params.search:
-            search_term = f"%{filter_params.search}%"
-            query = query.filter(
-                or_(
-                    Project.name.ilike(search_term),
-                    Project.description.ilike(search_term)
-                )
-            )
-        
-        if filter_params.status:
-            query = query.filter(Project.status == filter_params.status)
-        
-        if filter_params.created_by:
-            query = query.filter(Project.created_by == filter_params.created_by)
-        
-        if filter_params.has_documents is not None:
-            if filter_params.has_documents:
-                query = query.filter(Project.documents.any())
-            else:
-                query = query.filter(~Project.documents.any())
-        
-        if filter_params.created_after:
-            from datetime import datetime
-            query = query.filter(Project.created_at >= datetime.fromisoformat(filter_params.created_after))
-        
-        if filter_params.created_before:
-            from datetime import datetime
-            query = query.filter(Project.created_at <= datetime.fromisoformat(filter_params.created_before))
-        
-        # Count total
-        total = query.count()
-        
-        # Apply sorting
-        if filter_params.sort_by == "name":
-            sort_field = Project.name
-        elif filter_params.sort_by == "status":
-            sort_field = Project.status
-        else:
-            sort_field = Project.created_at
-        
-        if filter_params.sort_order == "desc":
-            sort_field = sort_field.desc()
-        
-        query = query.order_by(sort_field)
-        
-        # Apply pagination
-        offset = (filter_params.page - 1) * filter_params.page_size
-        projects = query.offset(offset).limit(filter_params.page_size).all()
-        
-        # Add document count to each project
-        project_responses = []
-        for project in projects:
-            project_response = ProjectResponse.model_validate(project)
-            project_response.document_count = len(project.documents)
-            project_responses.append(project_response)
-        
-        return ProjectListResponse(
-            projects=project_responses,
-            total=total,
-            page=filter_params.page,
-            page_size=filter_params.page_size
-        )
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to retrieve projects")
-
-@router.get("/{project_id}", response_model=ProjectDetailResponse)
-async def get_project_by_id(
-    project_id: uuid.UUID = Path(..., description="Project ID"),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    _: bool = Depends(require_permission("projects", "read")),
-    __: bool = Depends(require_tenant_access())
-):
-    """Spezifisches Projekt abrufen"""
-    try:
-        project = db.query(Project).filter(
-            Project.id == project_id,
-            Project.tenant_id == current_user.tenant_id
-        ).first()
-        
-        if not project:
-            raise HTTPException(status_code=404, detail="Project not found")
-        
-        # Build detailed response
-        project_detail = ProjectDetailResponse.model_validate(project)
-        project_detail.creator_name = project.creator.full_name if project.creator else None
-        project_detail.updater_name = project.updater.full_name if project.updater else None
-        project_detail.document_count = len(project.documents)
-        
-        # Add recent documents
-        recent_documents = db.query(Document).filter(
-            Document.project_id == project_id
-        ).order_by(desc(Document.updated_at)).limit(5).all()
-        
-        project_detail.documents = [DocumentResponse.model_validate(doc) for doc in recent_documents]
-        
-        return project_detail
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to get project")
-
-@router.put("/{project_id}", response_model=ProjectResponse)
-async def update_project(
-    project_id: uuid.UUID = Path(..., description="Project ID"),
-    project_update: ProjectUpdate = ...,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    _: bool = Depends(require_own_resource_or_permission("projects", "update"))
-):
-    """Projekt aktualisieren"""
-    try:
-        project = db.query(Project).filter(
-            Project.id == project_id,
-            Project.tenant_id == current_user.tenant_id
-        ).first()
-        
-        if not project:
-            raise HTTPException(status_code=404, detail="Project not found")
-        
-        # Store old values for audit
-        old_values = {
-            "name": project.name,
-            "description": project.description,
-            "status": project.status
-        }
-        
-        # Update fields
-        update_data = {}
-        if project_update.name is not None:
-            project.name = project_update.name
-            update_data["name"] = project_update.name
-        if project_update.description is not None:
-            project.description = project_update.description
-            update_data["description"] = project_update.description
-        if project_update.status is not None:
-            project.status = project_update.status
-            update_data["status"] = project_update.status
-        
-        project.updated_by = current_user.id
-        
-        # Audit log
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "PROJECT_UPDATED", current_user.id, current_user.tenant_id,
-            {
-                "project_id": str(project.id),
-                "project_name": project.name,
-                "old_values": old_values,
-                "new_values": update_data
-            }
-        )
-        
+        project = ProjectService.create_project(db, project_data, current_user)
         db.commit()
         
         project_response = ProjectResponse.model_validate(project)
-        project_response.document_count = len(project.documents)
+        project_response.document_count = 0  # New project has no documents
         
         return project_response
     
-    except HTTPException:
-        raise
+    except AppException as e:
+        db.rollback()
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Project update failed")
@@ -261,42 +62,19 @@ async def delete_project(
     db: Session = Depends(get_db),
     _: bool = Depends(require_own_resource_or_permission("projects", "delete"))
 ):
-    """Projekt löschen"""
+    """Delete project - Uses ProjectService"""
     try:
-        project = db.query(Project).filter(
-            Project.id == project_id,
-            Project.tenant_id == current_user.tenant_id
-        ).first()
-        
-        if not project:
-            raise HTTPException(status_code=404, detail="Project not found")
-        
-        # Count documents for audit
-        document_count = len(project.documents)
-        
-        # Audit log
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "PROJECT_DELETED", current_user.id, current_user.tenant_id,
-            {
-                "project_id": str(project.id),
-                "project_name": project.name,
-                "document_count": document_count
-            }
-        )
-        
-        # Delete project (cascade will handle documents)
-        db.delete(project)
+        result = ProjectService.delete_project(db, project_id, current_user)
         db.commit()
         
         return SuccessResponse(
             message="Project deleted successfully",
-            data={"deleted_documents": document_count}
+            data=result
         )
     
-    except HTTPException:
-        raise
+    except AppException as e:
+        db.rollback()
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Project deletion failed")
@@ -314,45 +92,15 @@ async def create_document(
     _: bool = Depends(require_permission("documents", "create")),
     __: bool = Depends(require_tenant_access())
 ):
-    """Neues Dokument in Projekt erstellen"""
+    """Create new document in project - Uses DocumentService"""
     try:
-        # Verify project exists and belongs to tenant
-        project = db.query(Project).filter(
-            Project.id == project_id,
-            Project.tenant_id == current_user.tenant_id
-        ).first()
-        
-        if not project:
-            raise HTTPException(status_code=404, detail="Project not found")
-        
-        document = Document(
-            tenant_id=current_user.tenant_id,
-            project_id=project_id,
-            title=document_data.title,
-            content=document_data.content,
-            created_by=current_user.id
-        )
-        
-        db.add(document)
-        db.flush()
-        
-        # Audit log
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "DOCUMENT_CREATED", current_user.id, current_user.tenant_id,
-            {
-                "document_id": str(document.id),
-                "document_title": document.title,
-                "project_id": str(project_id)
-            }
-        )
-        
+        document = DocumentService.create_document(db, project_id, document_data, current_user)
         db.commit()
         return DocumentResponse.model_validate(document)
     
-    except HTTPException:
-        raise
+    except AppException as e:
+        db.rollback()
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to create document")
@@ -365,61 +113,9 @@ async def list_all_documents(
     _: bool = Depends(require_permission("documents", "read")),
     __: bool = Depends(require_tenant_access())
 ):
-    """Liste aller Dokumente im Tenant"""
+    """List all documents in tenant - Uses DocumentService"""
     try:
-        # Base query für Tenant
-        query = db.query(Document).filter(Document.tenant_id == current_user.tenant_id)
-        
-        # Apply filters
-        if filter_params.search:
-            search_term = f"%{filter_params.search}%"
-            query = query.filter(
-                or_(
-                    Document.title.ilike(search_term),
-                    Document.content.ilike(search_term)
-                )
-            )
-        
-        if filter_params.project_id:
-            query = query.filter(Document.project_id == filter_params.project_id)
-        
-        if filter_params.created_by:
-            query = query.filter(Document.created_by == filter_params.created_by)
-        
-        if filter_params.mime_type:
-            query = query.filter(Document.mime_type == filter_params.mime_type)
-        
-        if filter_params.has_content is not None:
-            if filter_params.has_content:
-                query = query.filter(Document.content.isnot(None))
-            else:
-                query = query.filter(Document.content.is_(None))
-        
-        if filter_params.file_size_min:
-            query = query.filter(Document.file_size >= filter_params.file_size_min)
-        
-        if filter_params.file_size_max:
-            query = query.filter(Document.file_size <= filter_params.file_size_max)
-        
-        # Count total
-        total = query.count()
-        
-        # Apply sorting
-        if filter_params.sort_by == "title":
-            sort_field = Document.title
-        elif filter_params.sort_by == "size":
-            sort_field = Document.file_size
-        else:
-            sort_field = Document.updated_at
-        
-        if filter_params.sort_order == "desc":
-            sort_field = sort_field.desc()
-        
-        query = query.order_by(sort_field)
-        
-        # Apply pagination
-        offset = (filter_params.page - 1) * filter_params.page_size
-        documents = query.offset(offset).limit(filter_params.page_size).all()
+        documents, total = DocumentService.list_documents(db, current_user.tenant_id, filter_params)
         
         return DocumentListResponse(
             documents=[DocumentResponse.model_validate(doc) for doc in documents],
@@ -439,12 +135,9 @@ async def get_document_by_id(
     _: bool = Depends(require_permission("documents", "read")),
     __: bool = Depends(require_tenant_access())
 ):
-    """Spezifisches Dokument abrufen"""
+    """Get specific document - Uses DocumentService"""
     try:
-        document = db.query(Document).filter(
-            Document.id == document_id,
-            Document.tenant_id == current_user.tenant_id
-        ).first()
+        document = DocumentService.get_document_by_id(db, document_id, current_user.tenant_id)
         
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
@@ -457,7 +150,6 @@ async def get_document_by_id(
         
         # Generate download URL if file exists
         if document.file_path:
-            # Would implement file service for pre-signed URLs
             document_detail.download_url = f"/api/v1/files/download/{document.id}"
             document_detail.preview_url = f"/api/v1/files/preview/{document.id}"
         
@@ -476,65 +168,15 @@ async def update_document(
     db: Session = Depends(get_db),
     _: bool = Depends(require_own_resource_or_permission("documents", "update"))
 ):
-    """Dokument aktualisieren"""
+    """Update document - Uses DocumentService"""
     try:
-        document = db.query(Document).filter(
-            Document.id == document_id,
-            Document.tenant_id == current_user.tenant_id
-        ).first()
-        
-        if not document:
-            raise HTTPException(status_code=404, detail="Document not found")
-        
-        # Store old values for audit
-        old_values = {
-            "title": document.title,
-            "content": document.content[:100] + "..." if document.content and len(document.content) > 100 else document.content,
-            "project_id": str(document.project_id) if document.project_id else None
-        }
-        
-        # Update fields
-        update_data = {}
-        if document_update.title is not None:
-            document.title = document_update.title
-            update_data["title"] = document_update.title
-        if document_update.content is not None:
-            document.content = document_update.content
-            update_data["content_updated"] = True
-        if document_update.project_id is not None:
-            # Verify project belongs to same tenant
-            if document_update.project_id:
-                project = db.query(Project).filter(
-                    Project.id == document_update.project_id,
-                    Project.tenant_id == current_user.tenant_id
-                ).first()
-                if not project:
-                    raise HTTPException(status_code=400, detail="Invalid project ID")
-            document.project_id = document_update.project_id
-            update_data["project_id"] = str(document_update.project_id) if document_update.project_id else None
-        
-        document.updated_by = current_user.id
-        document.version += 1
-        
-        # Audit log
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "DOCUMENT_UPDATED", current_user.id, current_user.tenant_id,
-            {
-                "document_id": str(document.id),
-                "document_title": document.title,
-                "version": document.version,
-                "old_values": old_values,
-                "new_values": update_data
-            }
-        )
-        
+        document = DocumentService.update_document(db, document_id, document_update, current_user)
         db.commit()
         return DocumentResponse.model_validate(document)
     
-    except HTTPException:
-        raise
+    except AppException as e:
+        db.rollback()
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Document update failed")
@@ -546,37 +188,16 @@ async def delete_document(
     db: Session = Depends(get_db),
     _: bool = Depends(require_own_resource_or_permission("documents", "delete"))
 ):
-    """Dokument löschen"""
+    """Delete document - Uses DocumentService"""
     try:
-        document = db.query(Document).filter(
-            Document.id == document_id,
-            Document.tenant_id == current_user.tenant_id
-        ).first()
-        
-        if not document:
-            raise HTTPException(status_code=404, detail="Document not found")
-        
-        # Audit log
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "DOCUMENT_DELETED", current_user.id, current_user.tenant_id,
-            {
-                "document_id": str(document.id),
-                "document_title": document.title,
-                "project_id": str(document.project_id) if document.project_id else None,
-                "file_size": document.file_size
-            }
-        )
-        
-        # Delete document
-        db.delete(document)
+        result = DocumentService.delete_document(db, document_id, current_user)
         db.commit()
         
         return SuccessResponse(message="Document deleted successfully")
     
-    except HTTPException:
-        raise
+    except AppException as e:
+        db.rollback()
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Document deletion failed")
@@ -593,19 +214,17 @@ async def upload_document(
     _: bool = Depends(require_permission("documents", "create")),
     __: bool = Depends(require_tenant_access())
 ):
-    """Initiiert Document Upload (Pre-signed URL)"""
+    """Initiate document upload (Pre-signed URL)"""
     try:
         # Verify project if specified
         if upload_data.project_id:
-            project = db.query(Project).filter(
-                Project.id == upload_data.project_id,
-                Project.tenant_id == current_user.tenant_id
-            ).first()
+            project = ProjectService.get_project_by_id(db, upload_data.project_id, current_user.tenant_id)
             if not project:
                 raise HTTPException(status_code=400, detail="Invalid project ID")
         
         # Check for existing document if replace_existing is False
         if not upload_data.replace_existing:
+            from app.models.business import Document
             existing = db.query(Document).filter(
                 Document.title == upload_data.title,
                 Document.tenant_id == current_user.tenant_id,
@@ -619,6 +238,7 @@ async def upload_document(
         upload_url = f"https://your-storage-bucket.s3.amazonaws.com/documents/{document_id}"
         
         # Create document record
+        from app.models.business import Document
         document = Document(
             id=document_id,
             tenant_id=current_user.tenant_id,
@@ -655,12 +275,9 @@ async def complete_document_upload(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Completes document upload after file is uploaded"""
+    """Complete document upload after file is uploaded"""
     try:
-        document = db.query(Document).filter(
-            Document.id == document_id,
-            Document.tenant_id == current_user.tenant_id
-        ).first()
+        document = DocumentService.get_document_by_id(db, document_id, current_user.tenant_id)
         
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
@@ -672,11 +289,10 @@ async def complete_document_upload(
         # Audit log
         from app.utils.audit import AuditLogger
         audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
+        audit_logger.log_business_event(
             db, "DOCUMENT_UPLOADED", current_user.id, current_user.tenant_id,
-            {
-                "document_id": str(document.id),
-                "document_title": document.title,
+            "document", document.id,
+            new_values={
                 "file_size": file_size,
                 "mime_type": mime_type
             }
@@ -692,6 +308,33 @@ async def complete_document_upload(
         raise HTTPException(status_code=500, detail="Failed to complete upload")
 
 # ================================
+# STATISTICS
+# ================================
+
+@router.get("/stats", response_model=ProjectStatsResponse)
+async def get_project_statistics(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_permission("projects", "read"))
+):
+    """Project statistics for current tenant - Uses ProjectService"""
+    try:
+        stats = ProjectService.get_project_statistics(db, current_user.tenant_id)
+        
+        return ProjectStatsResponse(
+            total_projects=stats["total_projects"],
+            active_projects=stats["active_projects"],
+            completed_projects=stats["completed_projects"],
+            archived_projects=stats["archived_projects"],
+            projects_by_month=stats["projects_by_month"],
+            average_documents_per_project=stats["average_documents_per_project"],
+            most_active_projects=[]  # Would implement most active projects query
+        )
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to get project statistics")
+
+# ================================
 # SEARCH & ACTIVITY
 # ================================
 
@@ -703,51 +346,15 @@ async def get_project_activity(
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("projects", "read"))
 ):
-    """Activity Feed für Projekte und Dokumente"""
+    """Activity feed for projects and documents - Uses BusinessSearchService"""
     try:
-        from app.models.audit import AuditLog
-        from sqlalchemy import and_
-        
-        # Get activity logs
-        query = db.query(AuditLog).filter(
-            and_(
-                AuditLog.tenant_id == current_user.tenant_id,
-                AuditLog.action.in_([
-                    "PROJECT_CREATED", "PROJECT_UPDATED", "PROJECT_DELETED",
-                    "DOCUMENT_CREATED", "DOCUMENT_UPDATED", "DOCUMENT_DELETED", "DOCUMENT_UPLOADED"
-                ])
-            )
+        activities = BusinessSearchService.get_activity_feed(
+            db, current_user.tenant_id, limit, project_id
         )
-        
-        if project_id:
-            query = query.filter(
-                or_(
-                    AuditLog.resource_id == project_id,
-                    AuditLog.new_values.contains({"project_id": str(project_id)})
-                )
-            )
-        
-        activities = query.order_by(desc(AuditLog.created_at)).limit(limit).all()
         
         activity_responses = []
         for activity in activities:
-            # Map audit log to activity response
-            activity_data = {
-                "id": activity.id,
-                "activity_type": activity.action,
-                "resource_type": "project" if "PROJECT" in activity.action else "document",
-                "resource_id": activity.resource_id or uuid.uuid4(),  # Fallback
-                "description": f"{activity.action.replace('_', ' ').title()}",
-                "user_id": activity.user_id,
-                "user_name": "Unknown User",  # Would join with users table
-                "tenant_id": activity.tenant_id,
-                "metadata": activity.new_values or {},
-                "created_at": activity.created_at,
-                "updated_at": activity.created_at
-            }
-            
-            from app.schemas.business import ActivityResponse
-            activity_responses.append(ActivityResponse(**activity_data))
+            activity_responses.append(ActivityResponse(**activity))
         
         return ActivityFeedResponse(
             activities=activity_responses,
@@ -765,157 +372,16 @@ async def search_projects_and_documents(
     db: Session = Depends(get_db),
     _: bool = Depends(require_tenant_access())
 ):
-    """Suche in Projekten und Dokumenten"""
+    """Search in projects and documents - Uses BusinessSearchService"""
     try:
-        import time
-        start_time = time.time()
-        
-        results_by_type = {}
-        total_results = 0
-        
-        # Search projects
-        if "project" in search_data.resource_types:
-            project_query = db.query(Project).filter(
-                and_(
-                    Project.tenant_id == current_user.tenant_id,
-                    or_(
-                        Project.name.ilike(f"%{search_data.query}%"),
-                        Project.description.ilike(f"%{search_data.query}%")
-                    )
-                )
-            ).limit(search_data.limit)
-            
-            projects = project_query.all()
-            project_results = []
-            
-            for project in projects:
-                project_results.append({
-                    "id": project.id,
-                    "type": "project",
-                    "title": project.name,
-                    "description": project.description,
-                    "url": f"/projects/{project.id}",
-                    "relevance_score": 1.0,  # Would implement proper scoring
-                    "metadata": {
-                        "status": project.status,
-                        "created_at": project.created_at.isoformat(),
-                        "document_count": len(project.documents)
-                    }
-                })
-            
-            results_by_type["project"] = project_results
-            total_results += len(project_results)
-        
-        # Search documents
-        if "document" in search_data.resource_types:
-            document_query = db.query(Document).filter(
-                and_(
-                    Document.tenant_id == current_user.tenant_id,
-                    or_(
-                        Document.title.ilike(f"%{search_data.query}%"),
-                        Document.content.ilike(f"%{search_data.query}%")
-                    )
-                )
-            ).limit(search_data.limit)
-            
-            documents = document_query.all()
-            document_results = []
-            
-            for document in documents:
-                document_results.append({
-                    "id": document.id,
-                    "type": "document",
-                    "title": document.title,
-                    "description": document.content[:200] + "..." if document.content and len(document.content) > 200 else document.content,
-                    "url": f"/documents/{document.id}",
-                    "relevance_score": 1.0,  # Would implement proper scoring
-                    "metadata": {
-                        "project_id": str(document.project_id) if document.project_id else None,
-                        "file_size": document.file_size,
-                        "mime_type": document.mime_type,
-                        "created_at": document.created_at.isoformat()
-                    }
-                })
-            
-            results_by_type["document"] = document_results
-            total_results += len(document_results)
-        
-        search_time_ms = int((time.time() - start_time) * 1000)
-        
-        return SearchResponse(
-            query=search_data.query,
-            total_results=total_results,
-            results_by_type=results_by_type,
-            search_time_ms=search_time_ms,
-            suggestions=[]  # Would implement search suggestions
+        search_results = BusinessSearchService.search_projects_and_documents(
+            db, current_user.tenant_id, search_data
         )
+        
+        return SearchResponse(**search_results)
     
     except Exception as e:
         raise HTTPException(status_code=500, detail="Search failed")
-
-# ================================
-# STATISTICS
-# ================================
-
-@router.get("/stats", response_model=ProjectStatsResponse)
-async def get_project_statistics(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    _: bool = Depends(require_permission("projects", "read"))
-):
-    """Projekt-Statistiken für den aktuellen Tenant"""
-    try:
-        from sqlalchemy import func
-        from datetime import datetime, timedelta
-        
-        # Basic counts
-        total_projects = db.query(Project).filter(Project.tenant_id == current_user.tenant_id).count()
-        active_projects = db.query(Project).filter(
-            Project.tenant_id == current_user.tenant_id,
-            Project.status == "active"
-        ).count()
-        completed_projects = db.query(Project).filter(
-            Project.tenant_id == current_user.tenant_id,
-            Project.status == "completed"
-        ).count()
-        archived_projects = db.query(Project).filter(
-            Project.tenant_id == current_user.tenant_id,
-            Project.status == "archived"
-        ).count()
-        
-        # Projects by month (last 12 months)
-        projects_by_month = {}
-        for i in range(12):
-            month_start = datetime.utcnow().replace(day=1) - timedelta(days=30*i)
-            month_end = month_start.replace(day=28) + timedelta(days=4)
-            month_end = month_end - timedelta(days=month_end.day)
-            
-            count = db.query(Project).filter(
-                and_(
-                    Project.tenant_id == current_user.tenant_id,
-                    Project.created_at >= month_start,
-                    Project.created_at <= month_end
-                )
-            ).count()
-            
-            projects_by_month[month_start.strftime("%Y-%m")] = count
-        
-        # Average documents per project
-        total_documents = db.query(Document).filter(Document.tenant_id == current_user.tenant_id).count()
-        avg_docs_per_project = total_documents / total_projects if total_projects > 0 else 0
-        
-        return ProjectStatsResponse(
-            total_projects=total_projects,
-            active_projects=active_projects,
-            completed_projects=completed_projects,
-            archived_projects=archived_projects,
-            projects_by_month=projects_by_month,
-            average_documents_per_project=round(avg_docs_per_project, 2),
-            most_active_projects=[]  # Would implement most active projects query
-        )
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to get project statistics")
 
 # ================================
 # DOCUMENT SHARING & COLLABORATION
@@ -931,37 +397,22 @@ async def share_document(
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("documents", "update"))
 ):
-    """Dokument mit anderen Usern teilen"""
+    """Share document with other users - Uses DocumentService"""
     try:
-        document = db.query(Document).filter(
-            Document.id == document_id,
-            Document.tenant_id == current_user.tenant_id
-        ).first()
+        result = DocumentService.share_document(
+            db, document_id, share_with_emails, permission_level, current_user
+        )
         
-        if not document:
-            raise HTTPException(status_code=404, detail="Document not found")
-        
-        # Verify users exist in same tenant
-        valid_users = []
-        for email in share_with_emails:
-            user = db.query(User).filter(
-                User.email == email,
-                User.tenant_id == current_user.tenant_id,
-                User.is_active == True
-            ).first()
-            if user:
-                valid_users.append(user)
-        
-        if not valid_users:
-            raise HTTPException(status_code=400, detail="No valid users found to share with")
-        
-        # Send sharing notifications (would implement email notifications)
+        # Send sharing notifications
         from app.utils.email import email_service
-        tenant = db.query(Tenant).filter(Tenant.id == current_user.tenant_id).first()
+        from app.models.tenant import Tenant
         
-        for user in valid_users:
+        tenant = db.query(Tenant).filter(Tenant.id == current_user.tenant_id).first()
+        document = DocumentService.get_document_by_id(db, document_id, current_user.tenant_id)
+        
+        for email in result["shared_with"]:
             await email_service.send_email(
-                to_emails=[user.email],
+                to_emails=[email],
                 subject=f"Document shared: {document.title}",
                 template_name="document_shared",
                 template_data={
@@ -974,31 +425,16 @@ async def share_document(
                 }
             )
         
-        # Audit log
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "DOCUMENT_SHARED", current_user.id, current_user.tenant_id,
-            {
-                "document_id": str(document.id),
-                "document_title": document.title,
-                "shared_with": [user.email for user in valid_users],
-                "permission_level": permission_level
-            }
-        )
-        
         db.commit()
         
         return SuccessResponse(
-            message=f"Document shared with {len(valid_users)} users",
-            data={
-                "shared_with": [user.email for user in valid_users],
-                "permission_level": permission_level
-            }
+            message=f"Document shared with {len(result['shared_with'])} users",
+            data=result
         )
     
-    except HTTPException:
-        raise
+    except AppException as e:
+        db.rollback()
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to share document")
@@ -1017,49 +453,19 @@ async def export_project(
     _: bool = Depends(require_permission("projects", "read")),
     __: bool = Depends(require_tenant_access())
 ):
-    """Project mit allen Dokumenten exportieren"""
+    """Export project with all documents - Uses ProjectService"""
     try:
-        project = db.query(Project).filter(
-            Project.id == project_id,
-            Project.tenant_id == current_user.tenant_id
-        ).first()
-        
-        if not project:
-            raise HTTPException(status_code=404, detail="Project not found")
-        
-        # Build export data
-        export_data = {
-            "project": {
-                "id": str(project.id),
-                "name": project.name,
-                "description": project.description,
-                "status": project.status,
-                "created_at": project.created_at.isoformat(),
-                "updated_at": project.updated_at.isoformat()
-            },
-            "documents": []
-        }
-        
-        if include_documents:
-            for document in project.documents:
-                doc_data = {
-                    "id": str(document.id),
-                    "title": document.title,
-                    "content": document.content,
-                    "file_size": document.file_size,
-                    "mime_type": document.mime_type,
-                    "created_at": document.created_at.isoformat(),
-                    "updated_at": document.updated_at.isoformat()
-                }
-                export_data["documents"].append(doc_data)
+        export_data = ProjectService.export_project(
+            db, project_id, current_user.tenant_id, include_documents
+        )
         
         # Audit log
         from app.utils.audit import AuditLogger
         audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
+        audit_logger.log_business_event(
             db, "PROJECT_EXPORTED", current_user.id, current_user.tenant_id,
-            {
-                "project_id": str(project.id),
+            "project", project_id,
+            new_values={
                 "format": format,
                 "include_documents": include_documents,
                 "document_count": len(export_data["documents"])
@@ -1078,7 +484,109 @@ async def export_project(
                 data={"download_url": f"/api/v1/exports/project-{project_id}.zip"}
             )
     
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Export failed")
+    except AppException as e:
+        db.rollback()
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to create project")
+
+@router.get("/", response_model=ProjectListResponse)
+async def list_projects(
+    filter_params: ProjectFilterParams = Depends(),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_permission("projects", "read")),
+    __: bool = Depends(require_tenant_access())
+):
+    """List all projects in tenant - Uses ProjectService"""
+    try:
+        projects, total = ProjectService.list_projects(db, current_user.tenant_id, filter_params)
+        
+        # Add document count to each project
+        project_responses = []
+        for project in projects:
+            project_response = ProjectResponse.model_validate(project)
+            project_response.document_count = len(project.documents)
+            project_responses.append(project_response)
+        
+        return ProjectListResponse(
+            projects=project_responses,
+            total=total,
+            page=filter_params.page,
+            page_size=filter_params.page_size
+        )
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to retrieve projects")
+
+@router.get("/{project_id}", response_model=ProjectDetailResponse)
+async def get_project_by_id(
+    project_id: uuid.UUID = Path(..., description="Project ID"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_permission("projects", "read")),
+    __: bool = Depends(require_tenant_access())
+):
+    """Get specific project - Uses ProjectService"""
+    try:
+        project = ProjectService.get_project_by_id(db, project_id, current_user.tenant_id)
+        
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Build detailed response
+        project_detail = ProjectDetailResponse.model_validate(project)
+        project_detail.creator_name = project.creator.full_name if project.creator else None
+        project_detail.updater_name = project.updater.full_name if project.updater else None
+        project_detail.document_count = len(project.documents)
+        
+        # Add recent documents
+        from sqlalchemy import desc
+        recent_documents = db.query(DocumentService.get_document_by_id.__annotations__['return'].__args__[0]).filter(
+            db.query(DocumentService.get_document_by_id.__annotations__['return'].__args__[0]).project_id == project_id
+        ).order_by(desc(db.query(DocumentService.get_document_by_id.__annotations__['return'].__args__[0]).updated_at)).limit(5).all()
+        
+        # Fix: Get recent documents properly
+        from app.models.business import Document
+        recent_documents = db.query(Document).filter(
+            Document.project_id == project_id
+        ).order_by(desc(Document.updated_at)).limit(5).all()
+        
+        project_detail.documents = [DocumentResponse.model_validate(doc) for doc in recent_documents]
+        
+        return project_detail
+    
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Export failed")
+        raise HTTPException(status_code=500, detail="Failed to get project")
+
+@router.put("/{project_id}", response_model=ProjectResponse)
+async def update_project(
+    project_id: uuid.UUID = Path(..., description="Project ID"),
+    project_update: ProjectUpdate = ...,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_own_resource_or_permission("projects", "update"))
+):
+    """Update project - Uses ProjectService"""
+    try:
+        project = ProjectService.update_project(db, project_id, project_update, current_user)
+        db.commit()
+        
+        project_response = ProjectResponse.model_validate(project)
+        project_response.document_count = len(project.documents)
+        
+        return project_response
+    
+    except AppException as e:
+        db.rollback()
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Project update failed")

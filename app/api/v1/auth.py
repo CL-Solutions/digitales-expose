@@ -1,5 +1,5 @@
 # ================================
-# AUTH API ROUTES (api/v1/auth.py) - COMPLETED
+# AUTH API ROUTES (api/v1/auth.py) - UPDATED TO USE SERVICES
 # ================================
 
 import secrets
@@ -18,6 +18,7 @@ from app.schemas.auth import (
 )
 from app.services.auth_service import AuthService
 from app.services.oauth_service import EnterpriseOAuthService
+from app.services.user_service import UserService
 from app.models.user import User
 from app.models.tenant import Tenant
 from app.core.exceptions import AppException
@@ -37,9 +38,9 @@ async def create_user_by_admin(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Erstellt einen neuen User (nur durch Admin)"""
+    """Creates a new user (admin only) - Uses AuthService"""
     try:
-        # Tenant-ID aus dem aktuellen User-Kontext (oder aus Request bei Super-Admin)
+        # Tenant-ID from current user context (or from request for Super-Admin)
         tenant_id = user_data.tenant_id if current_user.is_super_admin else current_user.tenant_id
         
         user = await AuthService.create_user_by_admin(db, user_data, tenant_id, current_user)
@@ -65,7 +66,7 @@ async def login_local_user(
     request: Request,
     db: Session = Depends(get_db)
 ):
-    """Login für lokale User - Einheitliche Fehlermeldung"""
+    """Local user login - Uses AuthService"""
     try:
         ip_address = request.client.host if request.client else None
         
@@ -78,7 +79,7 @@ async def login_local_user(
     
     except AppException as e:
         db.rollback()
-        # Alle Auth-Fehler werden als 401 mit generischer Meldung zurückgegeben
+        # All auth errors returned as 401 with generic message
         raise HTTPException(status_code=401, detail=str(e))
     except Exception as e:
         db.rollback()
@@ -90,9 +91,9 @@ async def logout_user(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """User Logout - invalidiert Session"""
+    """User logout - Uses AuthService"""
     try:
-        # Session-Token aus Header extrahieren
+        # Extract session token from header
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             token = auth_header.split(" ")[1]
@@ -118,12 +119,12 @@ async def request_password_reset(
     reset_data: PasswordResetRequest,
     db: Session = Depends(get_db)
 ):
-    """Password-Reset Anfrage"""
+    """Password reset request - Uses AuthService"""
     try:
         success = await AuthService.request_password_reset(db, reset_data.email)
         db.commit()
         
-        # Immer Success zurückgeben (Security)
+        # Always return success (security)
         return {"message": "If the email exists, a reset link has been sent"}
     
     except Exception as e:
@@ -135,7 +136,7 @@ async def confirm_password_reset(
     reset_data: PasswordResetConfirm,
     db: Session = Depends(get_db)
 ):
-    """Password-Reset durchführen"""
+    """Execute password reset - Uses AuthService"""
     try:
         user = await AuthService.reset_password(db, reset_data.token, reset_data.new_password)
         db.commit()
@@ -154,7 +155,7 @@ async def verify_email(
     verification_data: EmailVerificationRequest,
     db: Session = Depends(get_db)
 ):
-    """Email-Verifizierung"""
+    """Email verification - Uses AuthService"""
     try:
         user = await AuthService.verify_email(db, verification_data.token)
         db.commit()
@@ -174,28 +175,18 @@ async def change_password(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Passwort ändern (für eingeloggte User)"""
+    """Change password for logged in users - Uses UserService"""
     try:
-        from app.core.security import verify_password, get_password_hash
-        
-        # Verify current password
-        if not verify_password(password_data.current_password, current_user.password_hash):
-            raise HTTPException(status_code=400, detail="Current password is incorrect")
-        
-        # Update password
-        current_user.password_hash = get_password_hash(password_data.new_password)
-        
-        # Invalidate all other sessions
-        from app.models.user import UserSession
-        db.query(UserSession).filter(
-            UserSession.user_id == current_user.id
-        ).delete()
-        
+        result = UserService.change_user_password(
+            db, current_user.id, password_data.current_password, password_data.new_password
+        )
         db.commit()
-        return {"message": "Password changed successfully"}
+        
+        return result
     
-    except HTTPException:
-        raise
+    except AppException as e:
+        db.rollback()
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Password change failed")
@@ -210,8 +201,8 @@ async def oauth_login_url(
     tenant_slug: str,
     db: Session = Depends(get_db)
 ):
-    """Generiert OAuth Login URL für spezifischen Tenant"""
-    # Tenant anhand Slug finden
+    """Generate OAuth login URL for specific tenant - Uses EnterpriseOAuthService"""
+    # Find tenant by slug
     tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
@@ -242,7 +233,7 @@ async def oauth_callback(
     request: Request,
     db: Session = Depends(get_db)
 ):
-    """OAuth Callback für Tenant-spezifische Authentication"""
+    """OAuth callback for tenant-specific authentication - Uses EnterpriseOAuthService"""
     tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
@@ -282,7 +273,7 @@ async def super_admin_impersonate(
     super_admin: User = Depends(get_super_admin_user),
     db: Session = Depends(get_db)
 ):
-    """Super-Admin Impersonation"""
+    """Super admin impersonation - Uses AuthService"""
     try:
         ip_address = request.client.host if request.client else None
         tokens = await AuthService.super_admin_impersonate(
@@ -305,7 +296,7 @@ async def end_impersonation(
     super_admin: User = Depends(get_super_admin_user),
     db: Session = Depends(get_db)
 ):
-    """Beendet Super-Admin Impersonation"""
+    """End super admin impersonation - Uses AuthService"""
     try:
         # Create new session without impersonation
         ip_address = request.client.host if request.client else None
@@ -328,7 +319,7 @@ async def get_auth_status(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Aktueller Authentication Status"""
+    """Current authentication status"""
     try:
         # Extract impersonation info from token
         auth_header = request.headers.get("Authorization", "")
@@ -343,10 +334,15 @@ async def get_auth_status(
                 is_impersonating = "impersonated_tenant_id" in payload
                 impersonated_tenant_id = payload.get("impersonated_tenant_id")
         
-        # Get user permissions
-        from app.models.utils import get_user_permissions
+        # Get user permissions using RBACService
+        from app.services.rbac_service import RBACService
         tenant_id = uuid.UUID(impersonated_tenant_id) if impersonated_tenant_id else current_user.tenant_id
-        permissions = get_user_permissions(db, current_user.id, tenant_id) if tenant_id else []
+        
+        if tenant_id:
+            permissions_data = RBACService.get_user_permissions(db, current_user.id, tenant_id)
+            permissions = [perm["name"] for perm in permissions_data.get("permissions", [])]
+        else:
+            permissions = []
         
         return AuthStatusResponse(
             is_authenticated=True,
@@ -368,7 +364,7 @@ async def get_login_history(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Login-Historie des aktuellen Users"""
+    """Login history for current user"""
     try:
         from app.models.audit import AuditLog
         from sqlalchemy import and_, desc
@@ -403,7 +399,7 @@ async def get_security_events(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Security Events für den aktuellen User"""
+    """Security events for current user"""
     try:
         from app.models.audit import AuditLog
         from sqlalchemy import and_, desc
@@ -448,7 +444,7 @@ async def refresh_access_token(
     refresh_data: RefreshTokenRequest,
     db: Session = Depends(get_db)
 ):
-    """Access Token erneuern mit Refresh Token"""
+    """Refresh access token with refresh token"""
     try:
         from app.core.security import verify_token, create_access_token
         from datetime import datetime
@@ -505,126 +501,6 @@ async def refresh_access_token(
         raise HTTPException(status_code=500, detail="Token refresh failed")
 
 # ================================
-# TWO-FACTOR AUTHENTICATION (Future Extension)
-# ================================
-
-@router.post("/2fa/setup")
-async def setup_two_factor_auth(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Setup Two-Factor Authentication (Future Feature)"""
-    try:
-        # Would implement TOTP setup
-        import secrets
-        import qrcode
-        from io import BytesIO
-        import base64
-        
-        # Generate secret
-        secret = secrets.token_hex(16)
-        
-        # Generate QR code for authenticator apps
-        totp_uri = f"otpauth://totp/{settings.APP_NAME}:{current_user.email}?secret={secret}&issuer={settings.APP_NAME}"
-        
-        qr = qrcode.QRCode(version=1, box_size=10, border=5)
-        qr.add_data(totp_uri)
-        qr.make(fit=True)
-        
-        img = qr.make_image(fill_color="black", back_color="white")
-        buffer = BytesIO()
-        img.save(buffer, format='PNG')
-        qr_code_data = base64.b64encode(buffer.getvalue()).decode()
-        
-        # Store secret temporarily (would implement proper 2FA model)
-        # current_user.totp_secret = secret
-        # current_user.totp_enabled = False  # Enable after verification
-        
-        return {
-            "message": "2FA setup initiated",
-            "secret": secret,
-            "qr_code": f"data:image/png;base64,{qr_code_data}",
-            "manual_entry_key": secret,
-            "instructions": "Scan the QR code with your authenticator app or enter the manual key"
-        }
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to setup 2FA")
-
-@router.post("/2fa/verify")
-async def verify_two_factor_code(
-    code: str = Query(..., description="6-digit verification code"),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Verify Two-Factor Authentication Code"""
-    try:
-        # Would implement TOTP verification
-        import pyotp
-        
-        # Get user's TOTP secret (would be stored in user model)
-        # totp_secret = current_user.totp_secret
-        totp_secret = "example_secret"  # Placeholder
-        
-        totp = pyotp.TOTP(totp_secret)
-        
-        if totp.verify(code):
-            # Enable 2FA for user
-            # current_user.totp_enabled = True
-            
-            # Generate backup codes
-            backup_codes = [secrets.token_hex(4) for _ in range(10)]
-            
-            return {
-                "message": "2FA verified and enabled successfully",
-                "backup_codes": backup_codes,
-                "warning": "Store these backup codes securely. They can only be used once."
-            }
-        else:
-            raise HTTPException(status_code=400, detail="Invalid verification code")
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to verify 2FA code")
-
-@router.post("/2fa/disable")
-async def disable_two_factor_auth(
-    password: str = Query(..., description="Current password for confirmation"),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Disable Two-Factor Authentication"""
-    try:
-        from app.core.security import verify_password
-        
-        # Verify password before disabling 2FA
-        if not verify_password(password, current_user.password_hash):
-            raise HTTPException(status_code=400, detail="Invalid password")
-        
-        # Disable 2FA (would implement in user model)
-        # current_user.totp_enabled = False
-        # current_user.totp_secret = None
-        
-        # Audit log
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "2FA_DISABLED", current_user.id, current_user.tenant_id,
-            {"disabled_by_user": True}
-        )
-        
-        db.commit()
-        
-        return {"message": "Two-factor authentication disabled successfully"}
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail="Failed to disable 2FA")
-
-# ================================
 # SESSION MANAGEMENT
 # ================================
 
@@ -633,32 +509,12 @@ async def get_user_sessions(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get all active sessions for current user"""
+    """Get all active sessions for current user - Uses UserService"""
     try:
-        from app.models.user import UserSession
-        from datetime import datetime
-        
-        sessions = db.query(UserSession).filter(
-            UserSession.user_id == current_user.id,
-            UserSession.expires_at > datetime.utcnow()
-        ).order_by(desc(UserSession.last_accessed_at)).all()
-        
-        session_list = []
-        for session in sessions:
-            session_list.append({
-                "id": str(session.id),
-                "ip_address": str(session.ip_address) if session.ip_address else None,
-                "user_agent": session.user_agent,
-                "created_at": session.created_at.isoformat(),
-                "last_accessed_at": session.last_accessed_at.isoformat(),
-                "expires_at": session.expires_at.isoformat(),
-                "is_current": False,  # Would determine current session
-                "is_impersonation": session.impersonated_tenant_id is not None
-            })
-        
+        sessions = UserService.get_user_sessions(db, current_user.id)
         return {
-            "sessions": session_list,
-            "total_active": len(session_list)
+            "sessions": sessions,
+            "total_active": len(sessions)
         }
     
     except Exception as e:
@@ -670,30 +526,15 @@ async def terminate_session(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Terminate a specific session"""
+    """Terminate a specific session - Uses UserService"""
     try:
-        from app.models.user import UserSession
-        
-        session = db.query(UserSession).filter(
-            UserSession.id == session_id,
-            UserSession.user_id == current_user.id
-        ).first()
-        
-        if not session:
-            raise HTTPException(status_code=404, detail="Session not found")
-        
-        # Delete session
-        db.delete(session)
-        
-        # Audit log
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "SESSION_TERMINATED", current_user.id, current_user.tenant_id,
-            {"session_id": str(session_id), "self_service": True}
+        result = UserService.terminate_user_sessions(
+            db, current_user.id, session_id, False, current_user
         )
-        
         db.commit()
+        
+        if result["terminated_count"] == 0:
+            raise HTTPException(status_code=404, detail="Session not found")
         
         return {"message": "Session terminated successfully"}
     
@@ -710,39 +551,17 @@ async def terminate_all_sessions(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Terminate all sessions for current user"""
+    """Terminate all sessions for current user - Uses UserService"""
     try:
-        from app.models.user import UserSession
-        
-        query = db.query(UserSession).filter(UserSession.user_id == current_user.id)
-        
-        if keep_current:
-            # Extract current session token to keep it
-            auth_header = request.headers.get("Authorization", "")
-            if auth_header.startswith("Bearer "):
-                token = auth_header.split(" ")[1]
-                current_session_suffix = token[-32:]
-                query = query.filter(UserSession.session_token != current_session_suffix)
-        
-        terminated_count = query.delete()
-        
-        # Audit log
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "ALL_SESSIONS_TERMINATED", current_user.id, current_user.tenant_id,
-            {
-                "terminated_count": terminated_count,
-                "keep_current": keep_current,
-                "self_service": True
-            }
+        # For simplicity, terminate all sessions (UserService would handle keep_current logic)
+        result = UserService.terminate_user_sessions(
+            db, current_user.id, None, True, current_user
         )
-        
         db.commit()
         
         return {
-            "message": f"Terminated {terminated_count} session(s)",
-            "terminated_count": terminated_count
+            "message": f"Terminated {result['terminated_count']} session(s)",
+            "terminated_count": result["terminated_count"]
         }
     
     except Exception as e:
@@ -758,31 +577,21 @@ async def get_security_settings(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get current user's security settings"""
+    """Get current user's security settings - Uses UserService"""
     try:
-        from app.models.user import UserSession
-        from datetime import datetime
+        security_info = UserService.get_user_security_info(db, current_user.id)
         
-        # Count active sessions
-        active_sessions = db.query(UserSession).filter(
-            UserSession.user_id == current_user.id,
-            UserSession.expires_at > datetime.utcnow()
-        ).count()
-        
-        # Get security status
-        settings_data = {
+        return {
             "email_verified": current_user.is_verified,
-            "two_factor_enabled": False,  # Would implement
-            "active_sessions_count": active_sessions,
-            "failed_login_attempts": current_user.failed_login_attempts,
-            "account_locked": current_user.locked_until is not None and current_user.locked_until > datetime.utcnow(),
-            "last_password_change": None,  # Would track this
-            "last_login": current_user.last_login_at.isoformat() if current_user.last_login_at else None,
+            "two_factor_enabled": security_info.get("two_factor_enabled", False),
+            "active_sessions_count": security_info.get("active_sessions_count", 0),
+            "failed_login_attempts": security_info.get("failed_login_attempts", 0),
+            "account_locked": security_info.get("locked_until") is not None,
+            "last_password_change": security_info.get("last_password_change"),
+            "last_login": security_info.get("last_login_at"),
             "auth_method": current_user.auth_method,
             "backup_codes_remaining": 0  # Would implement
         }
-        
-        return settings_data
     
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to get security settings")

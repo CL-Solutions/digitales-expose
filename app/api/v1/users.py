@@ -1,5 +1,5 @@
 # ================================
-# USER MANAGEMENT API ROUTES (api/v1/users.py) - COMPLETED
+# USER MANAGEMENT API ROUTES (api/v1/users.py) - UPDATED TO USE SERVICES
 # ================================
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Path
@@ -22,6 +22,8 @@ from app.schemas.user import (
     UserBulkActionResponse, UserSecurityInfo
 )
 from app.schemas.base import SuccessResponse
+from app.services.user_service import UserService
+from app.services.rbac_service import RBACService
 from app.models.user import User, UserSession
 from app.core.exceptions import AppException
 from typing import List, Optional
@@ -39,13 +41,13 @@ async def get_current_user_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Aktuelles User-Profil abrufen"""
+    """Get current user profile - Uses RBACService for permissions"""
     try:
-        # Get user permissions
-        from app.models.utils import get_user_permissions
+        # Get user permissions using RBACService
         permissions = []
         if current_user.tenant_id:
-            permissions = get_user_permissions(db, current_user.id, current_user.tenant_id)
+            permissions_data = RBACService.get_user_permissions(db, current_user.id, current_user.tenant_id)
+            permissions = [perm["name"] for perm in permissions_data.get("permissions", [])]
         
         # Create profile response
         profile_data = UserProfileResponse.model_validate(current_user)
@@ -62,27 +64,15 @@ async def update_current_user_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Aktuelles User-Profil aktualisieren"""
+    """Update current user profile - Uses UserService"""
     try:
-        # Update allowed fields
-        if user_update.first_name is not None:
-            current_user.first_name = user_update.first_name
-        if user_update.last_name is not None:
-            current_user.last_name = user_update.last_name
-        if user_update.avatar_url is not None:
-            current_user.avatar_url = user_update.avatar_url
-        
-        # Log the change
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "PROFILE_UPDATED", current_user.id, current_user.tenant_id,
-            {"updated_fields": user_update.model_dump(exclude_unset=True)}
-        )
-        
+        user = UserService.update_user_profile(db, current_user.id, user_update, current_user)
         db.commit()
-        return UserResponse.model_validate(current_user)
+        return UserResponse.model_validate(user)
     
+    except AppException as e:
+        db.rollback()
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Profile update failed")
@@ -98,9 +88,9 @@ async def list_users(
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("users", "read"))
 ):
-    """Liste aller User im Tenant (mit Filtering/Pagination)"""
+    """List all users in tenant (with filtering/pagination)"""
     try:
-        # Base query - nur User im gleichen Tenant (außer Super-Admin)
+        # Base query - only users in same tenant (except Super-Admin)
         query = db.query(User)
         
         if not current_user.is_super_admin:
@@ -172,17 +162,17 @@ async def get_user_by_id(
     _: bool = Depends(require_permission("users", "read")),
     __: bool = Depends(require_same_tenant_or_super_admin())
 ):
-    """Spezifischen User abrufen"""
+    """Get specific user - Uses RBACService for permissions"""
     try:
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
-        # Get user permissions
-        from app.models.utils import get_user_permissions
+        # Get user permissions using RBACService
         permissions = []
         if user.tenant_id:
-            permissions = get_user_permissions(db, user.id, user.tenant_id)
+            permissions_data = RBACService.get_user_permissions(db, user.id, user.tenant_id)
+            permissions = [perm["name"] for perm in permissions_data.get("permissions", [])]
         
         profile_data = UserProfileResponse.model_validate(user)
         profile_data.permissions = permissions
@@ -203,40 +193,15 @@ async def update_user(
     _: bool = Depends(require_permission("users", "update")),
     __: bool = Depends(require_same_tenant_or_super_admin())
 ):
-    """User aktualisieren"""
+    """Update user - Uses UserService"""
     try:
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        # Update fields
-        update_data = {}
-        if user_update.first_name is not None:
-            user.first_name = user_update.first_name
-            update_data["first_name"] = user_update.first_name
-        if user_update.last_name is not None:
-            user.last_name = user_update.last_name
-            update_data["last_name"] = user_update.last_name
-        if user_update.is_active is not None:
-            user.is_active = user_update.is_active
-            update_data["is_active"] = user_update.is_active
-        if user_update.avatar_url is not None:
-            user.avatar_url = user_update.avatar_url
-            update_data["avatar_url"] = user_update.avatar_url
-        
-        # Audit log
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "USER_UPDATED", current_user.id, user.tenant_id,
-            {"target_user_id": str(user.id), "updates": update_data}
-        )
-        
+        user = UserService.update_user_profile(db, user_id, user_update, current_user)
         db.commit()
         return UserResponse.model_validate(user)
     
-    except HTTPException:
-        raise
+    except AppException as e:
+        db.rollback()
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="User update failed")
@@ -249,36 +214,15 @@ async def deactivate_user(
     _: bool = Depends(require_permission("users", "delete")),
     __: bool = Depends(require_same_tenant_or_super_admin())
 ):
-    """User deaktivieren (Soft Delete)"""
+    """Deactivate user (soft delete) - Uses UserService"""
     try:
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        # Prevent self-deletion
-        if user.id == current_user.id:
-            raise HTTPException(status_code=400, detail="Cannot delete yourself")
-        
-        # Soft delete (deactivate) instead of hard delete
-        user.is_active = False
-        user.email = f"deleted_{user.id}@deleted.local"  # Prevent email conflicts
-        
-        # Invalidate all user sessions
-        db.query(UserSession).filter(UserSession.user_id == user.id).delete()
-        
-        # Audit log
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "USER_DEACTIVATED", current_user.id, user.tenant_id,
-            {"target_user_id": str(user.id)}
-        )
-        
+        result = UserService.deactivate_user(db, user_id, current_user)
         db.commit()
         return SuccessResponse(message="User deactivated successfully")
     
-    except HTTPException:
-        raise
+    except AppException as e:
+        db.rollback()
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="User deletion failed")
@@ -295,32 +239,29 @@ async def get_user_sessions(
     _: bool = Depends(require_permission("users", "read")),
     __: bool = Depends(require_same_tenant_or_super_admin())
 ):
-    """Aktive Sessions eines Users abrufen"""
+    """Get active sessions for a user - Uses UserService"""
     try:
-        # Users können nur ihre eigenen Sessions sehen (außer Admins)
+        # Users can only see their own sessions (except admins)
         if not current_user.is_super_admin and user_id != current_user.id:
             from app.dependencies import check_user_permission
             if not check_user_permission(db, current_user.id, current_user.tenant_id, "users", "read"):
                 raise HTTPException(status_code=403, detail="Access denied")
         
-        sessions = db.query(UserSession).filter(
-            UserSession.user_id == user_id,
-            UserSession.expires_at > datetime.utcnow()
-        ).order_by(desc(UserSession.last_accessed_at)).all()
+        sessions_data = UserService.get_user_sessions(db, user_id)
         
         session_responses = []
-        for session in sessions:
+        for session in sessions_data:
             session_responses.append(UserSessionResponse(
-                id=session.id,
-                user_id=session.user_id,
-                ip_address=str(session.ip_address) if session.ip_address else None,
-                user_agent=session.user_agent,
-                expires_at=session.expires_at,
-                last_accessed_at=session.last_accessed_at,
-                is_impersonation=session.impersonated_tenant_id is not None,
-                impersonated_tenant_id=session.impersonated_tenant_id,
-                created_at=session.created_at,
-                updated_at=session.updated_at
+                id=uuid.UUID(session["id"]),
+                user_id=user_id,
+                ip_address=session["ip_address"],
+                user_agent=session["user_agent"],
+                expires_at=datetime.fromisoformat(session["expires_at"]),
+                last_accessed_at=datetime.fromisoformat(session["last_accessed_at"]),
+                is_impersonation=session["is_impersonation"],
+                impersonated_tenant_id=None,  # Would parse from session data
+                created_at=datetime.fromisoformat(session["created_at"]),
+                updated_at=datetime.fromisoformat(session["created_at"])
             ))
         
         return ActiveSessionsResponse(
@@ -341,48 +282,27 @@ async def terminate_user_sessions(
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("users", "update"))
 ):
-    """Beendet User Sessions"""
+    """Terminate user sessions - Uses UserService"""
     try:
-        # Users können nur ihre eigenen Sessions beenden (außer Admins)
+        # Users can only terminate their own sessions (except admins)
         if not current_user.is_super_admin and user_id != current_user.id:
             from app.dependencies import check_user_permission
             if not check_user_permission(db, current_user.id, current_user.tenant_id, "users", "update"):
                 raise HTTPException(status_code=403, detail="Access denied")
         
-        if session_data.terminate_all:
-            # Terminate all sessions for user
-            deleted_count = db.query(UserSession).filter(
-                UserSession.user_id == user_id
-            ).delete()
-        elif session_data.session_id:
-            # Terminate specific session
-            deleted_count = db.query(UserSession).filter(
-                UserSession.user_id == user_id,
-                UserSession.id == session_data.session_id
-            ).delete()
-        else:
-            raise HTTPException(status_code=400, detail="Must specify session_id or terminate_all")
-        
-        # Audit log
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "SESSIONS_TERMINATED", current_user.id, current_user.tenant_id,
-            {
-                "target_user_id": str(user_id), 
-                "terminated_sessions": deleted_count,
-                "terminate_all": session_data.terminate_all
-            }
+        result = UserService.terminate_user_sessions(
+            db, user_id, session_data.session_id, session_data.terminate_all, current_user
         )
-        
         db.commit()
+        
         return SuccessResponse(
-            message=f"Terminated {deleted_count} session(s)",
-            data={"terminated_count": deleted_count}
+            message=f"Terminated {result['terminated_count']} session(s)",
+            data={"terminated_count": result["terminated_count"]}
         )
     
-    except HTTPException:
-        raise
+    except AppException as e:
+        db.rollback()
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to terminate sessions")
@@ -398,50 +318,9 @@ async def invite_user(
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("users", "invite"))
 ):
-    """Lädt einen neuen User ein"""
+    """Invite a new user - Uses UserService"""
     try:
-        from app.models.user import User
-        from datetime import datetime, timedelta
-        import secrets
-        
-        # Check if user already exists
-        existing_user = db.query(User).filter(User.email == invite_data.email).first()
-        if existing_user:
-            raise HTTPException(status_code=400, detail="User with this email already exists")
-        
-        # Create invitation record (would need InviteToken model)
-        invite_token = secrets.token_urlsafe(32)
-        expires_at = datetime.utcnow() + timedelta(days=invite_data.expires_in_days)
-        
-        # Send invitation email
-        from app.utils.email import email_service
-        from app.models.tenant import Tenant
-        tenant = db.query(Tenant).filter(Tenant.id == current_user.tenant_id).first()
-        
-        invitation_link = f"{settings.FRONTEND_URL}/accept-invite?token={invite_token}"
-        
-        # Would implement invitation email template
-        await email_service.send_email(
-            to_emails=[invite_data.email],
-            subject=f"Invitation to join {tenant.name}",
-            template_name="user_invitation",
-            template_data={
-                "invited_by": current_user.full_name,
-                "organization": tenant.name,
-                "invitation_link": invitation_link,
-                "expires_days": invite_data.expires_in_days,
-                "custom_message": invite_data.welcome_message
-            }
-        )
-        
-        # Audit log
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "USER_INVITED", current_user.id, current_user.tenant_id,
-            {"invited_email": invite_data.email, "expires_at": expires_at.isoformat()}
-        )
-        
+        result = await UserService.invite_user(db, invite_data, current_user)
         db.commit()
         
         # Return invitation response (would use actual InviteToken model)
@@ -449,15 +328,16 @@ async def invite_user(
             id=uuid.uuid4(),  # Would be actual invite ID
             email=invite_data.email,
             invited_by=current_user.id,
-            expires_at=expires_at,
+            expires_at=datetime.fromisoformat(result["expires_at"]),
             is_accepted=False,
             accepted_at=None,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()
         )
     
-    except HTTPException:
-        raise
+    except AppException as e:
+        db.rollback()
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to send invitation")
@@ -473,51 +353,16 @@ async def bulk_create_users(
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("users", "create"))
 ):
-    """Erstellt mehrere User auf einmal"""
+    """Create multiple users at once - Uses UserService"""
     try:
-        from app.services.auth_service import AuthService
-        
-        created_users = []
-        failed_users = []
-        
-        for user_data in bulk_data.users:
-            try:
-                # Use default role if not specified
-                if not user_data.role_ids and bulk_data.default_role_id:
-                    user_data.role_ids = [bulk_data.default_role_id]
-                
-                user_data.send_welcome_email = bulk_data.send_welcome_emails
-                
-                user = await AuthService.create_user_by_admin(
-                    db, user_data, current_user.tenant_id, current_user
-                )
-                created_users.append(UserResponse.model_validate(user))
-                
-            except Exception as e:
-                failed_users.append({
-                    "email": user_data.email,
-                    "error": str(e)
-                })
-        
-        # Audit log
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "BULK_USER_CREATE", current_user.id, current_user.tenant_id,
-            {
-                "total_users": len(bulk_data.users),
-                "created_count": len(created_users),
-                "failed_count": len(failed_users)
-            }
-        )
-        
+        result = await UserService.bulk_create_users(db, bulk_data, current_user)
         db.commit()
         
         return UserBulkCreateResponse(
-            created_users=created_users,
-            failed_users=failed_users,
-            total_created=len(created_users),
-            total_failed=len(failed_users)
+            created_users=result["created_users"],
+            failed_users=result["failed_users"],
+            total_created=result["total_created"],
+            total_failed=result["total_failed"]
         )
     
     except Exception as e:
@@ -531,70 +376,17 @@ async def bulk_user_action(
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("users", "update"))
 ):
-    """Führt Bulk-Aktionen auf Users aus"""
+    """Perform bulk actions on users - Uses UserService"""
     try:
-        successful_user_ids = []
-        failed_user_ids = []
-        errors = {}
-        
-        for user_id in action_data.user_ids:
-            try:
-                user = db.query(User).filter(User.id == user_id).first()
-                if not user:
-                    failed_user_ids.append(user_id)
-                    errors[str(user_id)] = "User not found"
-                    continue
-                
-                # Prevent action on self for certain operations
-                if user_id == current_user.id and action_data.action in ["deactivate", "delete", "lock"]:
-                    failed_user_ids.append(user_id)
-                    errors[str(user_id)] = "Cannot perform this action on yourself"
-                    continue
-                
-                # Apply action
-                if action_data.action == "activate":
-                    user.is_active = True
-                elif action_data.action == "deactivate":
-                    user.is_active = False
-                elif action_data.action == "verify":
-                    user.is_verified = True
-                elif action_data.action == "lock":
-                    user.locked_until = datetime.utcnow() + timedelta(hours=24)
-                elif action_data.action == "unlock":
-                    user.locked_until = None
-                    user.failed_login_attempts = 0
-                elif action_data.action == "delete":
-                    user.is_active = False
-                    user.email = f"deleted_{user.id}@deleted.local"
-                
-                successful_user_ids.append(user_id)
-                
-            except Exception as e:
-                failed_user_ids.append(user_id)
-                errors[str(user_id)] = str(e)
-        
-        # Audit log
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "BULK_USER_ACTION", current_user.id, current_user.tenant_id,
-            {
-                "action": action_data.action,
-                "total_users": len(action_data.user_ids),
-                "successful_count": len(successful_user_ids),
-                "failed_count": len(failed_user_ids),
-                "reason": action_data.reason
-            }
-        )
-        
+        result = UserService.bulk_user_action(db, action_data, current_user)
         db.commit()
         
         return UserBulkActionResponse(
-            successful_user_ids=successful_user_ids,
-            failed_user_ids=failed_user_ids,
-            errors=errors,
-            total_processed=len(action_data.user_ids),
-            total_successful=len(successful_user_ids)
+            successful_user_ids=result["successful_user_ids"],
+            failed_user_ids=result["failed_user_ids"],
+            errors=result["errors"],
+            total_processed=result["total_processed"],
+            total_successful=result["total_successful"]
         )
     
     except Exception as e:
@@ -611,43 +403,17 @@ async def get_user_stats(
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("users", "read"))
 ):
-    """User-Statistiken für den aktuellen Tenant"""
+    """User statistics for current tenant - Uses UserService"""
     try:
-        from sqlalchemy import func
-        from datetime import datetime, timedelta
-        
-        # Base query for tenant users
-        base_query = db.query(User)
-        if not current_user.is_super_admin:
-            base_query = base_query.filter(User.tenant_id == current_user.tenant_id)
-        
-        # Count totals
-        total_users = base_query.count()
-        active_users = base_query.filter(User.is_active == True).count()
-        verified_users = base_query.filter(User.is_verified == True).count()
-        
-        # Users by auth method
-        auth_method_stats = db.query(
-            User.auth_method,
-            func.count(User.id).label('count')
-        ).filter(
-            User.tenant_id == current_user.tenant_id if not current_user.is_super_admin else True
-        ).group_by(User.auth_method).all()
-        
-        users_by_auth_method = {stat.auth_method: stat.count for stat in auth_method_stats}
-        
-        # Recent logins (last 7 days)
-        recent_date = datetime.utcnow() - timedelta(days=7)
-        recent_logins = base_query.filter(
-            User.last_login_at >= recent_date
-        ).count()
+        tenant_id = None if current_user.is_super_admin else current_user.tenant_id
+        stats = UserService.get_user_statistics(db, tenant_id)
         
         return UserStatsResponse(
-            total_users=total_users,
-            active_users=active_users,
-            verified_users=verified_users,
-            users_by_auth_method=users_by_auth_method,
-            recent_logins=recent_logins
+            total_users=stats["total_users"],
+            active_users=stats["active_users"],
+            verified_users=stats["verified_users"],
+            users_by_auth_method=stats["users_by_auth_method"],
+            recent_logins=stats["recent_logins"]
         )
     
     except Exception as e:
@@ -665,53 +431,23 @@ async def get_user_security_info(
     _: bool = Depends(require_permission("users", "read")),
     __: bool = Depends(require_same_tenant_or_super_admin())
 ):
-    """Security-Informationen für einen User"""
+    """Security information for a user - Uses UserService"""
     try:
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        # Count active sessions
-        active_sessions = db.query(UserSession).filter(
-            UserSession.user_id == user_id,
-            UserSession.expires_at > datetime.utcnow()
-        ).count()
-        
-        # Get recent security events
-        from app.models.audit import AuditLog
-        recent_events = db.query(AuditLog).filter(
-            and_(
-                AuditLog.user_id == user_id,
-                AuditLog.action.in_([
-                    "LOGIN_SUCCESS", "LOGIN_FAILED", "PASSWORD_CHANGED",
-                    "ACCOUNT_LOCKED", "EMAIL_VERIFIED"
-                ]),
-                AuditLog.created_at >= datetime.utcnow() - timedelta(days=30)
-            )
-        ).order_by(desc(AuditLog.created_at)).limit(10).all()
-        
-        security_events = []
-        for event in recent_events:
-            security_events.append({
-                "event_type": event.action,
-                "timestamp": event.created_at.isoformat(),
-                "ip_address": str(event.ip_address) if event.ip_address else None,
-                "details": event.new_values or {}
-            })
+        security_info = UserService.get_user_security_info(db, user_id)
         
         return UserSecurityInfo(
-            user_id=user.id,
-            failed_login_attempts=user.failed_login_attempts,
-            locked_until=user.locked_until,
-            last_login_at=user.last_login_at,
-            last_password_change=None,  # Would need to track this
-            active_sessions_count=active_sessions,
-            two_factor_enabled=False,  # Future feature
-            recent_security_events=security_events
+            user_id=uuid.UUID(security_info["user_id"]),
+            failed_login_attempts=security_info["failed_login_attempts"],
+            locked_until=datetime.fromisoformat(security_info["locked_until"]) if security_info["locked_until"] else None,
+            last_login_at=datetime.fromisoformat(security_info["last_login_at"]) if security_info["last_login_at"] else None,
+            last_password_change=None,  # Would track this
+            active_sessions_count=security_info["active_sessions_count"],
+            two_factor_enabled=security_info["two_factor_enabled"],
+            recent_security_events=security_info["recent_security_events"]
         )
     
-    except HTTPException:
-        raise
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to get security info")
 
@@ -725,43 +461,17 @@ async def change_current_user_password(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Passwort des aktuellen Users ändern"""
+    """Change password for current user - Uses UserService"""
     try:
-        from app.core.security import verify_password, get_password_hash
-        
-        # Only for local auth users
-        if current_user.auth_method != "local":
-            raise HTTPException(
-                status_code=400, 
-                detail="Password change not available for OAuth users"
-            )
-        
-        # Verify current password
-        if not verify_password(password_data.current_password, current_user.password_hash):
-            raise HTTPException(status_code=400, detail="Current password is incorrect")
-        
-        # Update password
-        current_user.password_hash = get_password_hash(password_data.new_password)
-        
-        # Invalidate all other sessions except current one
-        from app.models.user import UserSession
-        db.query(UserSession).filter(
-            UserSession.user_id == current_user.id
-        ).delete()
-        
-        # Audit log
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "PASSWORD_CHANGED", current_user.id, current_user.tenant_id,
-            {"self_service": True}
+        result = UserService.change_user_password(
+            db, current_user.id, password_data.current_password, password_data.new_password
         )
-        
         db.commit()
-        return SuccessResponse(message="Password changed successfully. Please log in again.")
+        return SuccessResponse(message=result["message"])
     
-    except HTTPException:
-        raise
+    except AppException as e:
+        db.rollback()
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Password change failed")
@@ -777,45 +487,20 @@ async def export_users(
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("users", "read"))
 ):
-    """Export User-Liste"""
+    """Export user list - Uses UserService"""
     try:
-        # Get all users in tenant
-        query = db.query(User)
-        if not current_user.is_super_admin:
-            query = query.filter(User.tenant_id == current_user.tenant_id)
-        
-        users = query.all()
+        tenant_id = current_user.tenant_id if not current_user.is_super_admin else None
+        result = UserService.export_users(db, tenant_id, format)
         
         if format == "json":
-            user_data = []
-            for user in users:
-                user_data.append({
-                    "id": str(user.id),
-                    "email": user.email,
-                    "first_name": user.first_name,
-                    "last_name": user.last_name,
-                    "auth_method": user.auth_method,
-                    "is_active": user.is_active,
-                    "is_verified": user.is_verified,
-                    "created_at": user.created_at.isoformat(),
-                    "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None
-                })
-            
             from fastapi.responses import JSONResponse
-            return JSONResponse(content={"users": user_data, "total": len(user_data)})
-        
-        elif format in ["csv", "xlsx"]:
-            # Would implement CSV/Excel export
-            return SuccessResponse(
-                message=f"Export initiated in {format} format",
-                data={"download_url": f"/api/v1/exports/users-{uuid.uuid4().hex}.{format}"}
-            )
-        
+            return JSONResponse(content=result)
         else:
-            raise HTTPException(status_code=400, detail="Unsupported export format")
+            return SuccessResponse(
+                message=result["message"],
+                data={"download_url": result["download_url"], "total_users": result["total_users"]}
+            )
     
-    except HTTPException:
-        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail="Export failed")
 
@@ -831,39 +516,16 @@ async def get_user_roles(
     _: bool = Depends(require_permission("users", "read")),
     __: bool = Depends(require_same_tenant_or_super_admin())
 ):
-    """Get roles assigned to a user"""
+    """Get roles assigned to a user - Uses UserService"""
     try:
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
-        from app.models.rbac import UserRole, Role
-        user_roles = db.query(Role).join(UserRole).filter(
-            UserRole.user_id == user_id,
-            UserRole.tenant_id == user.tenant_id
-        ).all()
+        tenant_id = user.tenant_id if user.tenant_id else current_user.tenant_id
+        result = UserService.get_user_roles(db, user_id, tenant_id)
         
-        roles_data = []
-        for role in user_roles:
-            role_assignment = db.query(UserRole).filter(
-                UserRole.user_id == user_id,
-                UserRole.role_id == role.id
-            ).first()
-            
-            roles_data.append({
-                "role_id": str(role.id),
-                "role_name": role.name,
-                "role_description": role.description,
-                "granted_at": role_assignment.granted_at.isoformat() if role_assignment else None,
-                "expires_at": role_assignment.expires_at.isoformat() if role_assignment and role_assignment.expires_at else None,
-                "is_expired": role_assignment.is_expired if role_assignment else False
-            })
-        
-        return {
-            "user_id": str(user_id),
-            "roles": roles_data,
-            "total_roles": len(roles_data)
-        }
+        return result
     
     except HTTPException:
         raise
@@ -879,67 +541,26 @@ async def assign_role_to_user(
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("roles", "assign"))
 ):
-    """Assign a role to a user"""
+    """Assign a role to a user - Uses UserService"""
     try:
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
-        from app.models.rbac import Role, UserRole
-        role = db.query(Role).filter(
-            Role.id == role_id,
-            Role.tenant_id == user.tenant_id
-        ).first()
-        if not role:
-            raise HTTPException(status_code=404, detail="Role not found")
-        
-        # Check if assignment already exists
-        existing = db.query(UserRole).filter(
-            UserRole.user_id == user_id,
-            UserRole.role_id == role_id,
-            UserRole.tenant_id == user.tenant_id
-        ).first()
-        if existing:
-            raise HTTPException(status_code=400, detail="Role already assigned to user")
-        
-        # Create role assignment
-        expires_at = None
-        if expires_in_days:
-            expires_at = datetime.utcnow() + timedelta(days=expires_in_days)
-        
-        user_role = UserRole(
-            user_id=user_id,
-            role_id=role_id,
-            tenant_id=user.tenant_id,
-            granted_by=current_user.id,
-            expires_at=expires_at
+        tenant_id = user.tenant_id if user.tenant_id else current_user.tenant_id
+        result = UserService.assign_role_to_user(
+            db, user_id, role_id, tenant_id, expires_in_days, current_user
         )
-        db.add(user_role)
-        
-        # Audit log
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "ROLE_ASSIGNED", current_user.id, user.tenant_id,
-            {
-                "target_user_id": str(user_id),
-                "role_id": str(role_id),
-                "role_name": role.name,
-                "expires_at": expires_at.isoformat() if expires_at else None
-            }
-        )
-        
         db.commit()
+        
         return SuccessResponse(
-            message=f"Role '{role.name}' assigned to user",
-            data={
-                "role_name": role.name,
-                "expires_at": expires_at.isoformat() if expires_at else None
-            }
+            message=f"Role '{result['role_name']}' assigned to user",
+            data=result
         )
     
-    except HTTPException:
-        raise
+    except AppException as e:
+        db.rollback()
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to assign role")
@@ -952,48 +573,21 @@ async def remove_role_from_user(
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("roles", "assign"))
 ):
-    """Remove a role from a user"""
+    """Remove a role from a user - Uses UserService"""
     try:
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
-        from app.models.rbac import UserRole, Role
-        user_role = db.query(UserRole).filter(
-            UserRole.user_id == user_id,
-            UserRole.role_id == role_id,
-            UserRole.tenant_id == user.tenant_id
-        ).first()
-        
-        if not user_role:
-            raise HTTPException(status_code=404, detail="Role assignment not found")
-        
-        # Get role name for audit
-        role = db.query(Role).filter(Role.id == role_id).first()
-        role_name = role.name if role else "Unknown"
-        
-        # Remove role assignment
-        db.delete(user_role)
-        
-        # Audit log
-        from app.utils.audit import AuditLogger
-        audit_logger = AuditLogger()
-        audit_logger.log_auth_event(
-            db, "ROLE_REMOVED", current_user.id, user.tenant_id,
-            {
-                "target_user_id": str(user_id),
-                "role_id": str(role_id),
-                "role_name": role_name
-            }
-        )
-        
+        tenant_id = user.tenant_id if user.tenant_id else current_user.tenant_id
+        result = UserService.remove_role_from_user(db, user_id, role_id, tenant_id, current_user)
         db.commit()
-        return SuccessResponse(
-            message=f"Role '{role_name}' removed from user"
-        )
+        
+        return SuccessResponse(message=f"Role '{result['role_name']}' removed from user")
     
-    except HTTPException:
-        raise
+    except AppException as e:
+        db.rollback()
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to remove role")
