@@ -46,6 +46,36 @@ class RoleResponse(RoleBase, TimestampMixin):
     permissions: List[PermissionResponse] = Field(default_factory=list)
     user_count: Optional[int] = Field(None, description="Number of users with this role")
 
+class RoleDetailResponse(RoleBase, TimestampMixin):
+    """Detailed Role Response with full information"""
+    id: UUID
+    tenant_id: Optional[UUID]
+    permissions: List[PermissionResponse] = Field(default_factory=list, description="Permissions assigned to this role")
+    user_count: int = Field(description="Number of users with this role")
+    users: List[dict] = Field(default_factory=list, description="Users assigned to this role")
+    
+    # Additional metadata
+    can_be_deleted: bool = Field(description="Whether this role can be deleted")
+    permission_count: int = Field(description="Total number of permissions")
+    recent_assignments: int = Field(default=0, description="Recent role assignments count")
+    
+    # Usage statistics
+    last_assigned: Optional[datetime] = Field(None, description="When this role was last assigned")
+    created_by_name: Optional[str] = Field(None, description="Name of user who created this role")
+
+class RoleListResponse(BaseSchema):
+    """Schema for Role List Response"""
+    roles: List[RoleResponse]
+    total: int
+    page: int
+    page_size: int
+
+class BulkRoleAssignment(BaseSchema):
+    """Schema for Bulk Role Assignment"""
+    user_ids: List[UUID] = Field(..., min_items=1, description="User IDs to assign roles to")
+    role_ids: List[UUID] = Field(..., min_items=1, description="Role IDs to assign")
+    expires_at: Optional[datetime] = Field(None, description="Optional expiration for role assignments")
+
 class UserRoleAssignment(BaseSchema):
     """Schema für User-Role Zuordnung"""
     user_id: UUID = Field(..., description="User ID")

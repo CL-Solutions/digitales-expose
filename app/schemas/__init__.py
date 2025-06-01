@@ -360,6 +360,7 @@ __all__ = [
     # RBAC
     "RoleCreate", "RoleResponse", "PermissionResponse",
     "UserRoleAssignment", "UserPermissionsResponse",
+    "RoleDetailResponse", "RoleListResponse", "BulkRoleAssignment",
     
     # Business
     "ProjectCreate", "ProjectResponse", "ProjectDetailResponse",
