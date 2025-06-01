@@ -1,5 +1,5 @@
 # ================================
-# MAIN APPLICATION (main.py)
+# MAIN APPLICATION (main.py) - UPDATED WITH RBAC ROUTER
 # ================================
 
 from datetime import datetime
@@ -21,8 +21,8 @@ from app.core.middleware import (
     HealthCheckMiddleware
 )
 
-# API Routes
-from app.api.v1 import auth, users, tenants, projects, admin
+# API Routes - UPDATED TO INCLUDE RBAC
+from app.api.v1 import auth, users, tenants, projects, admin, rbac
 
 import logging
 import uvicorn
@@ -361,42 +361,77 @@ async def readiness_check():
         raise HTTPException(status_code=503, detail="Service not ready")
 
 # ================================
-# API ROUTES
+# API ROUTES - UPDATED TO INCLUDE RBAC
 # ================================
 
 # Authentication routes
 app.include_router(
     auth.router, 
     prefix="/api/v1/auth", 
-    tags=["Authentication"]
+    tags=["Authentication"],
+    responses={
+        401: {"description": "Authentication failed"},
+        403: {"description": "Access denied"}
+    }
 )
 
 # User management routes
 app.include_router(
     users.router, 
     prefix="/api/v1/users", 
-    tags=["User Management"]
+    tags=["User Management"],
+    responses={
+        401: {"description": "Authentication required"},
+        403: {"description": "Insufficient permissions"},
+        404: {"description": "User not found"}
+    }
+)
+
+# RBAC routes - NEW ADDITION
+app.include_router(
+    rbac.router, 
+    prefix="/api/v1/rbac", 
+    tags=["Role & Permission Management"],
+    responses={
+        401: {"description": "Authentication required"},
+        403: {"description": "Insufficient permissions"},
+        404: {"description": "Role or permission not found"}
+    }
 )
 
 # Tenant management routes (Super Admin only)
 app.include_router(
     tenants.router, 
     prefix="/api/v1/tenants", 
-    tags=["Tenant Management"]
+    tags=["Tenant Management"],
+    responses={
+        401: {"description": "Authentication required"},
+        403: {"description": "Super admin access required"},
+        404: {"description": "Tenant not found"}
+    }
 )
 
 # Business logic routes (example)
 app.include_router(
     projects.router, 
     prefix="/api/v1/projects", 
-    tags=["Projects"]
+    tags=["Projects & Documents"],
+    responses={
+        401: {"description": "Authentication required"},
+        403: {"description": "Insufficient permissions"},
+        404: {"description": "Resource not found"}
+    }
 )
 
 # Super Admin routes
 app.include_router(
     admin.router, 
     prefix="/api/v1/admin", 
-    tags=["Super Admin"]
+    tags=["Super Admin"],
+    responses={
+        401: {"description": "Authentication required"},
+        403: {"description": "Super admin access required"}
+    }
 )
 
 # ================================
@@ -410,7 +445,15 @@ async def root():
         "message": f"Welcome to {settings.APP_NAME}",
         "version": "1.0.0",
         "docs_url": "/docs" if settings.DEBUG else None,
-        "health_url": "/health"
+        "health_url": "/health",
+        "available_endpoints": {
+            "auth": "/api/v1/auth",
+            "users": "/api/v1/users", 
+            "rbac": "/api/v1/rbac",  # NEW
+            "tenants": "/api/v1/tenants",
+            "projects": "/api/v1/projects",
+            "admin": "/api/v1/admin"
+        }
     }
 
 # ================================

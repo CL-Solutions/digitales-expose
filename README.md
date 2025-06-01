@@ -256,213 +256,168 @@ This system allows for:
 - **Easy permission auditing** 
 - **Scalable security** as you add new features
 
-## 🌐 Complete API Documentation
+## 📋 API Endpoints Overview
 
-### Authentication Routes (`/api/v1/auth/`)
+All API endpoints are available at: **http://localhost:8000/docs**
+
+### 🔐 Authentication Routes (`/api/v1/auth/`)
 
 #### User Authentication
-```http
-POST /api/v1/auth/create-user              # Admin-only user creation
-POST /api/v1/auth/login                    # Local authentication  
-POST /api/v1/auth/logout                   # Session termination
-POST /api/v1/auth/refresh                  # Refresh access token
-```
+- `POST /api/v1/auth/create-user` - Admin-only user creation
+- `POST /api/v1/auth/login` - Local authentication  
+- `POST /api/v1/auth/logout` - Session termination
+- `POST /api/v1/auth/refresh` - Refresh access token
 
 #### Password Management
-```http
-POST /api/v1/auth/password-reset/request   # Request password reset
-POST /api/v1/auth/password-reset/confirm   # Confirm password reset
-POST /api/v1/auth/change-password          # Change password (authenticated)
-POST /api/v1/auth/verify-email             # Email verification
-```
+- `POST /api/v1/auth/password-reset/request` - Request password reset
+- `POST /api/v1/auth/password-reset/confirm` - Confirm password reset
+- `POST /api/v1/auth/change-password` - Change password (authenticated)
+- `POST /api/v1/auth/verify-email` - Email verification
 
 #### OAuth Authentication
-```http
-GET  /api/v1/auth/oauth/{provider}/login/{tenant_slug}    # Get OAuth authorization URL
-POST /api/v1/auth/oauth/{provider}/callback/{tenant_slug} # OAuth callback handling
-```
+- `GET /api/v1/auth/oauth/{provider}/login/{tenant_slug}` - Get OAuth authorization URL
+- `POST /api/v1/auth/oauth/{provider}/callback/{tenant_slug}` - OAuth callback handling
 
 #### Super Admin Impersonation
-```http
-POST /api/v1/auth/impersonate              # Super admin impersonation
-POST /api/v1/auth/end-impersonation        # End impersonation
-```
+- `POST /api/v1/auth/impersonate` - Super admin impersonation
+- `POST /api/v1/auth/end-impersonation` - End impersonation
 
 #### Authentication Status & History
-```http
-GET  /api/v1/auth/status                   # Authentication status
-GET  /api/v1/auth/history                  # Login history
-GET  /api/v1/auth/security-events          # Security events
-GET  /api/v1/auth/sessions                 # Get user sessions
-DELETE /api/v1/auth/sessions/{session_id}  # Terminate specific session
-DELETE /api/v1/auth/sessions               # Terminate all sessions
-```
+- `GET /api/v1/auth/status` - Authentication status
+- `GET /api/v1/auth/history` - Login history
+- `GET /api/v1/auth/security-events` - Security events
+- `GET /api/v1/auth/sessions` - Get user sessions
+- `DELETE /api/v1/auth/sessions/{session_id}` - Terminate specific session
 
-### User Management Routes (`/api/v1/users/`)
+### 👥 User Management Routes (`/api/v1/users/`)
 
 #### User Profile & Management
-```http
-GET  /api/v1/users/me                      # Current user profile
-PUT  /api/v1/users/me                      # Update current user
-GET  /api/v1/users/                        # List users (filtered, paginated)
-GET  /api/v1/users/{user_id}               # Get specific user
-PUT  /api/v1/users/{user_id}               # Update user
-DELETE /api/v1/users/{user_id}             # Deactivate user (soft delete)
-```
+- `GET /api/v1/users/me` - Current user profile
+- `PUT /api/v1/users/me` - Update current user
+- `GET /api/v1/users/` - List users (filtered, paginated)
+- `GET /api/v1/users/{user_id}` - Get specific user
+- `PUT /api/v1/users/{user_id}` - Update user
+- `DELETE /api/v1/users/{user_id}` - Deactivate user (soft delete)
 
-#### User Sessions
-```http
-GET  /api/v1/users/{user_id}/sessions      # Get user's active sessions
-DELETE /api/v1/users/{user_id}/sessions    # Terminate user sessions
-```
+#### User Sessions & Security
+- `GET /api/v1/users/{user_id}/sessions` - Get user's active sessions
+- `DELETE /api/v1/users/{user_id}/sessions` - Terminate user sessions
+- `GET /api/v1/users/{user_id}/security` - User security information
 
 #### User Invitations & Bulk Operations
-```http
-POST /api/v1/users/invite                  # Invite new user
-POST /api/v1/users/bulk/create             # Bulk user creation
-POST /api/v1/users/bulk/action             # Bulk user actions
-GET  /api/v1/users/export                  # Export users (CSV/JSON)
-```
+- `POST /api/v1/users/invite` - Invite new user
+- `POST /api/v1/users/bulk/create` - Bulk user creation
+- `POST /api/v1/users/bulk/action` - Bulk user actions
+- `GET /api/v1/users/export` - Export users (CSV/JSON)
 
-#### User Analytics & Security
-```http
-GET  /api/v1/users/stats                   # User statistics
-GET  /api/v1/users/{user_id}/security      # User security information
-```
+#### User Analytics
+- `GET /api/v1/users/stats` - User statistics
 
-#### Role Management for Users
-```http
-GET  /api/v1/users/{user_id}/roles         # Get user roles
-POST /api/v1/users/{user_id}/roles/{role_id} # Assign role to user
-DELETE /api/v1/users/{user_id}/roles/{role_id} # Remove role from user
-```
+#### User Role Management
+- `GET /api/v1/users/{user_id}/roles` - Get user roles
+- `POST /api/v1/users/{user_id}/roles/{role_id}` - Assign role to user
+- `DELETE /api/v1/users/{user_id}/roles/{role_id}` - Remove role from user
 
-### Tenant Management Routes (`/api/v1/tenants/`) - Super Admin Only
+### 🛡️ **RBAC Routes (`/api/v1/rbac/`) - NEW!**
+
+#### Role Management
+- `POST /api/v1/rbac/roles` - Create a new role
+- `GET /api/v1/rbac/roles` - List all roles in tenant
+- `GET /api/v1/rbac/roles/{role_id}` - Get role with permissions
+- `PUT /api/v1/rbac/roles/{role_id}` - Update role
+- `DELETE /api/v1/rbac/roles/{role_id}` - Delete role
+
+#### Role Permissions Management
+- `PUT /api/v1/rbac/roles/{role_id}/permissions` - Update role permissions
+- `POST /api/v1/rbac/roles/{role_id}/clone` - Clone an existing role
+
+#### Permission Management
+- `GET /api/v1/rbac/permissions` - List all available permissions
+- `POST /api/v1/rbac/permissions` - Create a new permission
+
+#### Bulk Role Operations
+- `POST /api/v1/rbac/roles/bulk-assign` - Assign roles to multiple users
+
+#### User Permission Checks
+- `GET /api/v1/rbac/users/{user_id}/permissions` - Get all permissions for a user
+- `GET /api/v1/rbac/users/{user_id}/permissions/check` - Check if user has specific permission
+
+#### RBAC Statistics & Reports
+- `GET /api/v1/rbac/stats` - Get RBAC statistics
+- `GET /api/v1/rbac/reports/role-usage` - Get role usage report
+- `GET /api/v1/rbac/reports/permission-usage` - Get permission usage report
+- `GET /api/v1/rbac/reports/compliance` - Get RBAC compliance report
+
+#### Super Admin RBAC Operations
+- `GET /api/v1/rbac/global/stats` - Get global RBAC statistics (Super Admin only)
+- `GET /api/v1/rbac/global/reports/permission-usage` - Get global permission usage report
+
+### 🏢 Tenant Management Routes (`/api/v1/tenants/`) - Super Admin Only
 
 #### Tenant CRUD
-```http
-POST /api/v1/tenants/                      # Create tenant + admin
-GET  /api/v1/tenants/                      # List tenants (filtered, paginated)
-GET  /api/v1/tenants/{tenant_id}           # Get tenant details
-PUT  /api/v1/tenants/{tenant_id}           # Update tenant
-DELETE /api/v1/tenants/{tenant_id}         # Delete tenant (cascades)
-```
+- `POST /api/v1/tenants/` - Create tenant + admin
+- `GET /api/v1/tenants/` - List tenants (filtered, paginated)
+- `GET /api/v1/tenants/{tenant_id}` - Get tenant details
+- `PUT /api/v1/tenants/{tenant_id}` - Update tenant
+- `DELETE /api/v1/tenants/{tenant_id}` - Delete tenant (cascades)
 
 #### Identity Provider Management
-```http
-POST /api/v1/tenants/{tenant_id}/identity-providers/microsoft  # Configure Microsoft OAuth
-POST /api/v1/tenants/{tenant_id}/identity-providers/google     # Configure Google OAuth
-GET  /api/v1/tenants/{tenant_id}/identity-providers            # List identity providers
-PUT  /api/v1/tenants/{tenant_id}/identity-providers/{provider_id}  # Update provider
-DELETE /api/v1/tenants/{tenant_id}/identity-providers/{provider_id}  # Delete provider
-```
+- `POST /api/v1/tenants/{tenant_id}/identity-providers/microsoft` - Configure Microsoft OAuth
+- `POST /api/v1/tenants/{tenant_id}/identity-providers/google` - Configure Google OAuth
+- `GET /api/v1/tenants/{tenant_id}/identity-providers` - List identity providers
+- `PUT /api/v1/tenants/{tenant_id}/identity-providers/{provider_id}` - Update provider
+- `DELETE /api/v1/tenants/{tenant_id}/identity-providers/{provider_id}` - Delete provider
 
 #### Tenant Operations & Analytics
-```http
-POST /api/v1/tenants/{tenant_id}/activate     # Activate tenant
-POST /api/v1/tenants/{tenant_id}/deactivate   # Deactivate tenant
-GET  /api/v1/tenants/stats                    # Global tenant statistics
-GET  /api/v1/tenants/{tenant_id}/stats        # Specific tenant statistics
-GET  /api/v1/tenants/{tenant_id}/usage-report # Detailed usage report
-GET  /api/v1/tenants/{tenant_id}/health       # Tenant health check
-GET  /api/v1/tenants/{tenant_id}/security-report # Security report
-```
+- `POST /api/v1/tenants/{tenant_id}/activate` - Activate tenant
+- `POST /api/v1/tenants/{tenant_id}/deactivate` - Deactivate tenant
+- `GET /api/v1/tenants/stats` - Global tenant statistics
+- `GET /api/v1/tenants/{tenant_id}/stats` - Specific tenant statistics
+- `GET /api/v1/tenants/{tenant_id}/usage-report` - Detailed usage report
 
-#### Tenant Data Operations
-```http
-GET  /api/v1/tenants/{tenant_id}/export       # Export tenant data
-POST /api/v1/tenants/{tenant_id}/clone        # Clone tenant
-POST /api/v1/tenants/{tenant_id}/maintenance/cleanup # Cleanup operations
-```
-
-#### Billing & Subscription
-```http
-GET  /api/v1/tenants/{tenant_id}/billing      # Billing information
-POST /api/v1/tenants/{tenant_id}/subscription/upgrade # Upgrade subscription
-```
-
-### Projects & Documents Routes (`/api/v1/projects/`)
+### 📁 Projects & Documents Routes (`/api/v1/projects/`)
 
 #### Project Management
-```http
-POST /api/v1/projects/                     # Create project
-GET  /api/v1/projects/                     # List projects (filtered, paginated)
-GET  /api/v1/projects/{project_id}         # Get project details
-PUT  /api/v1/projects/{project_id}         # Update project
-DELETE /api/v1/projects/{project_id}       # Delete project
-POST /api/v1/projects/{project_id}/export  # Export project
-```
+- `POST /api/v1/projects/` - Create project
+- `GET /api/v1/projects/` - List projects (filtered, paginated)
+- `GET /api/v1/projects/{project_id}` - Get project details
+- `PUT /api/v1/projects/{project_id}` - Update project
+- `DELETE /api/v1/projects/{project_id}` - Delete project
+- `POST /api/v1/projects/{project_id}/export` - Export project
 
 #### Document Management
-```http
-POST /api/v1/projects/{project_id}/documents # Create document in project
-GET  /api/v1/projects/documents             # List all documents
-GET  /api/v1/projects/documents/{document_id} # Get document details
-PUT  /api/v1/projects/documents/{document_id} # Update document
-DELETE /api/v1/projects/documents/{document_id} # Delete document
-```
+- `POST /api/v1/projects/{project_id}/documents` - Create document in project
+- `GET /api/v1/projects/documents` - List all documents
+- `GET /api/v1/projects/documents/{document_id}` - Get document details
+- `PUT /api/v1/projects/documents/{document_id}` - Update document
+- `DELETE /api/v1/projects/documents/{document_id}` - Delete document
 
 #### File Upload & Sharing
-```http
-POST /api/v1/projects/documents/upload     # Initiate file upload
-POST /api/v1/projects/documents/{document_id}/upload-complete # Complete upload
-POST /api/v1/projects/documents/{document_id}/share # Share document with users
-```
+- `POST /api/v1/projects/documents/upload` - Initiate file upload
+- `POST /api/v1/projects/documents/{document_id}/upload-complete` - Complete upload
+- `POST /api/v1/projects/documents/{document_id}/share` - Share document with users
 
 #### Search & Analytics
-```http
-GET  /api/v1/projects/activity             # Activity feed
-POST /api/v1/projects/search               # Search projects/documents
-GET  /api/v1/projects/stats                # Project statistics
-```
+- `GET /api/v1/projects/activity` - Activity feed
+- `POST /api/v1/projects/search` - Search projects/documents
+- `GET /api/v1/projects/stats` - Project statistics
 
-### Super Admin Routes (`/api/v1/admin/`)
+### 🔧 Super Admin Routes (`/api/v1/admin/`)
 
 #### System Overview & Analytics
-```http
-GET  /api/v1/admin/dashboard                # System overview dashboard
-GET  /api/v1/admin/analytics/growth         # Growth analytics
-GET  /api/v1/admin/audit/logs               # System audit logs
-GET  /api/v1/admin/security/threats         # Security threat detection
-GET  /api/v1/admin/performance/metrics      # Performance metrics
-```
+- `GET /api/v1/admin/dashboard` - System overview dashboard
+- `GET /api/v1/admin/analytics/growth` - Growth analytics
+- `GET /api/v1/admin/audit/logs` - System audit logs
+- `GET /api/v1/admin/security/threats` - Security threat detection
 
 #### Emergency Operations
-```http
-POST /api/v1/admin/emergency/disable-tenant # Emergency tenant disable
-POST /api/v1/admin/emergency/global-logout  # Emergency global logout
-```
+- `POST /api/v1/admin/emergency/disable-tenant` - Emergency tenant disable
+- `POST /api/v1/admin/emergency/global-logout` - Emergency global logout
 
 #### System Maintenance
-```http
-POST /api/v1/admin/maintenance/cleanup      # System cleanup operations
-GET  /api/v1/admin/maintenance/status       # Maintenance status
-POST /api/v1/admin/backup/create            # Create system backup
-```
-
-#### User & Tenant Management
-```http
-GET  /api/v1/admin/users/problematic        # Identify problematic users
-POST /api/v1/admin/users/{user_id}/unlock   # Unlock user account
-GET  /api/v1/admin/config/limits            # System configuration & limits
-GET  /api/v1/admin/config/features          # Feature configuration
-POST /api/v1/admin/config/features/{feature_name}/toggle # Toggle features
-```
-
-#### Notifications & Communication
-```http
-POST /api/v1/admin/notifications/send       # Send system-wide notifications
-```
-
-### Health Check Routes
-
-```http
-GET  /health                               # Basic health check
-GET  /health/detailed                      # Detailed health check with dependencies
-GET  /ready                                # Kubernetes readiness probe
-GET  /api/v1/health                        # V1 API health check
-GET  /api/v1/info                          # V1 API information
-```
+- `POST /api/v1/admin/maintenance/cleanup` - System cleanup operations
+- `GET /api/v1/admin/maintenance/status` - Maintenance status
+- `POST /api/v1/admin/backup/create` - Create system backup
 
 ## 🔧 Key Features
 
