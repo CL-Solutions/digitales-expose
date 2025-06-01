@@ -18,10 +18,10 @@ class Project(Base, TenantMixin, AuditMixin):
     
     # Relationships
     tenant = relationship("Tenant", back_populates="projects")
-    creator = relationship("User", foreign_keys=[AuditMixin.created_by], back_populates="created_projects")
-    updater = relationship("User", foreign_keys=[AuditMixin.updated_by], back_populates="updated_projects")
+    creator = relationship("User", foreign_keys="Project.created_by", back_populates="created_projects")
+    updater = relationship("User", foreign_keys="Project.updated_by", back_populates="updated_projects")
     documents = relationship("Document", back_populates="project", cascade="all, delete-orphan")
-    
+
     def __repr__(self):
         return f"<Project(name='{self.name}', tenant='{self.tenant_id}')>"
 
@@ -42,10 +42,10 @@ class Document(Base, TenantMixin, AuditMixin):
     mime_type = Column(String(100), nullable=True)
     
     # Relationships
-    tenant = relationship("Tenant", foreign_keys=[TenantMixin.tenant_id])
+    tenant = relationship("Tenant", foreign_keys="Document.tenant_id")
     project = relationship("Project", back_populates="documents")
-    creator = relationship("User", foreign_keys=[AuditMixin.created_by], back_populates="created_documents")
-    updater = relationship("User", foreign_keys=[AuditMixin.updated_by])
+    creator = relationship("User", foreign_keys="Document.created_by", back_populates="created_documents")
+    updater = relationship("User", foreign_keys="Document.updated_by")
     
     def __repr__(self):
         return f"<Document(title='{self.title}', project='{self.project_id}')>"

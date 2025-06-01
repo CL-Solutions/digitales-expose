@@ -47,17 +47,17 @@ class User(Base):
     
     # Relationships
     tenant = relationship("Tenant", back_populates="users")
-    user_roles = relationship("UserRole", back_populates="user", cascade="all, delete-orphan")
+    user_roles = relationship("UserRole", foreign_keys="UserRole.user_id", back_populates="user", cascade="all, delete-orphan")
     oauth_tokens = relationship("OAuthToken", back_populates="user", cascade="all, delete-orphan")
     user_sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
     password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
-    
+
     # Audit trails
     created_projects = relationship("Project", foreign_keys="Project.created_by", back_populates="creator")
     updated_projects = relationship("Project", foreign_keys="Project.updated_by", back_populates="updater")
     created_documents = relationship("Document", foreign_keys="Document.created_by", back_populates="creator")
     audit_logs = relationship("AuditLog", foreign_keys="AuditLog.user_id", back_populates="user")
-    
+
     @property
     def full_name(self) -> str:
         """Full name property"""
@@ -99,7 +99,7 @@ class UserSession(Base):
     user = relationship("User", back_populates="user_sessions")
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
     impersonated_tenant = relationship("Tenant", foreign_keys=[impersonated_tenant_id])
-    original_session = relationship("UserSession", remote_side=[id])
+    original_session = relationship("UserSession", remote_side="UserSession.id")
     
     def __repr__(self):
         return f"<UserSession(user='{self.user_id}', expires='{self.expires_at}')>"
