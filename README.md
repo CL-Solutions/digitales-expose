@@ -1,34 +1,28 @@
 # Enterprise Multi-Tenant System
 
-A production-ready, enterprise-grade multi-tenant application with OAuth integration, comprehensive RBAC, and super admin capabilities.
+A production-ready, enterprise-grade multi-tenant application with OAuth integration, comprehensive RBAC, and super admin capabilities built with FastAPI.
 
 ## 🏗️ Architecture Overview
 
-This system implements a **row-level multi-tenant architecture** with complete tenant isolation, OAuth integration for Microsoft Entra ID and Google Workspace, and a comprehensive role-based access control system.
+**Multi-tenant SaaS platform** with complete tenant isolation using PostgreSQL row-level security (RLS), OAuth integration for Microsoft Entra ID and Google Workspace, and comprehensive role-based access control.
 
-### Key Features
-
-- **Multi-Tenant Architecture**: Complete tenant isolation with row-level security
-- **OAuth Integration**: Microsoft Entra ID and Google Workspace per-tenant configuration
-- **Role-Based Access Control (RBAC)**: Granular permissions and role management
-- **Super Admin System**: Cross-tenant administration with impersonation capabilities
-- **Audit Logging**: Comprehensive tracking of all system activities
-- **Enterprise Security**: Account lockouts, unified error messages, threat detection
-- **AWS SES Integration**: Professional email delivery with fallback to SMTP
-- **Business Logic APIs**: Projects and documents management as examples
+### Tech Stack
+- **Backend**: FastAPI, SQLAlchemy 2.0, PostgreSQL
+- **Authentication**: JWT + OAuth 2.0 (Microsoft/Google)
+- **Email**: AWS SES with SMTP fallback
+- **Security**: bcrypt, Row-Level Security (RLS)
+- **Templates**: Jinja2 for email templates
 
 ## 📁 Project Structure
 
 ```
 backend/
 ├── app/
-│   ├── __init__.py
 │   ├── main.py                    # FastAPI App + Startup
 │   ├── config.py                  # Environment Configuration
 │   ├── dependencies.py            # FastAPI Dependencies & Permissions
 │   │
 │   ├── core/                      # Core Functionality
-│   │   ├── __init__.py
 │   │   ├── database.py            # DB Connection + Session + RLS
 │   │   ├── security.py            # JWT + Password Handling
 │   │   ├── middleware.py          # Custom Middleware (Tenant, Audit, Security)
@@ -54,7 +48,6 @@ backend/
 │   │   └── business.py           # Business Logic Schemas
 │   │
 │   ├── services/                  # Business Logic Layer
-│   │   ├── __init__.py
 │   │   ├── auth_service.py       # Authentication & User Management
 │   │   ├── oauth_service.py      # Enterprise OAuth Integration
 │   │   ├── tenant_service.py     # Tenant Management
@@ -88,247 +81,422 @@ backend/
 ## 🗄️ Database Schema
 
 ### Core Tables
-
-- **`tenants`**: Organization/tenant information with settings and limits
-- **`tenant_identity_providers`**: Per-tenant OAuth configuration (Microsoft/Google)
-- **`users`**: User accounts with multiple auth methods (local/OAuth)
-- **`user_sessions`**: Session management with impersonation support
-- **`oauth_tokens`**: Secure OAuth token storage (hashed)
-- **`password_reset_tokens`**: Secure password reset functionality
+- **tenants**: Organization/tenant information with settings and limits
+- **tenant_identity_providers**: Per-tenant OAuth configuration (Microsoft/Google)
+- **users**: User accounts with multiple auth methods (local/OAuth)
+- **user_sessions**: Session management with impersonation support
+- **oauth_tokens**: Secure OAuth token storage (hashed)
 
 ### RBAC System
-
-- **`permissions`**: Resource:action based permissions (e.g., "users:create")
-- **`roles`**: Tenant-specific roles with system/custom types
-- **`role_permissions`**: Many-to-many role-permission assignments
-- **`user_roles`**: User role assignments with optional expiration
+- **permissions**: Resource:action based permissions (e.g., "users:create")
+- **roles**: Tenant-specific roles with system/custom types
+- **role_permissions**: Many-to-many role-permission assignments
+- **user_roles**: User role assignments with optional expiration
 
 ### Business Logic (Examples)
-
-- **`projects`**: Sample business entity with tenant isolation
-- **`documents`**: File management with project association
-- **`audit_logs`**: Comprehensive activity tracking
-
-### Key Features
-
-- **Row-Level Security (RLS)**: Automatic tenant isolation at database level
-- **UUID Primary Keys**: All tables use UUID for security and scalability
-- **Audit Trails**: Every modification tracked with old/new values
-- **Soft Deletes**: Users deactivated instead of deleted
-- **Temporal Data**: Password reset tokens, session expiry, role expiration
+- **projects**: Sample business entity with tenant isolation
+- **documents**: File management with project association
+- **audit_logs**: Comprehensive activity tracking
 
 ## 🔐 Authentication & Authorization
 
 ### Authentication Methods
-
-1. **Local Authentication**: Email/password with bcrypt hashing
+1. **Local**: Email/password with bcrypt hashing
 2. **Microsoft Entra ID**: Per-tenant OAuth configuration
 3. **Google Workspace**: Per-tenant OAuth configuration
 
 ### Security Features
+- Account lockouts (5 failed attempts = 30-minute lockout)
+- Unified error messages for security
+- Email verification workflow
+- Session management with JWT + refresh tokens
+- Super admin impersonation with full audit trail
 
-- **Account Lockouts**: 5 failed attempts = 30-minute lockout
-- **Unified Error Messages**: Generic "Invalid email or password" for security
-- **Email Verification**: Optional email verification workflow
-- **Session Management**: JWT + database sessions with refresh tokens
-- **Super Admin Impersonation**: Cross-tenant access with full audit trail
+### Permission System (RBAC)
 
-### Authorization (RBAC)
+Your application uses a **granular Role-Based Access Control** system where permissions are defined as `resource:action` pairs and then grouped into roles.
 
+#### How Permissions Work
+
+**1. Atomic Permissions (Resource:Action format)**
 ```
-Resource:Action Permissions:
-├── users:create, users:read, users:update, users:delete, users:invite
-├── projects:create, projects:read, projects:update, projects:delete
-├── documents:create, documents:read, documents:update, documents:delete, documents:download
-├── tenant:manage, tenant:billing
-└── roles:create, roles:read, roles:update, roles:delete, roles:assign
+Format: "{resource}:{action}"
 
-Default Roles per Tenant:
-├── tenant_admin  (all permissions)
-├── project_manager  (projects + documents + user:read)
-├── user  (basic project/document access)
-└── viewer  (read-only access)
-```
-
-## 🌐 API Endpoints
-
-### Authentication (`/api/v1/auth/`)
-
-```
-POST /create-user              # Admin-only user creation
-POST /login                    # Local authentication
-POST /logout                   # Session termination
-GET  /oauth/{provider}/login/{tenant}  # OAuth authorization URLs
-POST /oauth/{provider}/callback/{tenant}  # OAuth callback handling
-POST /impersonate              # Super admin impersonation
-POST /end-impersonation        # End impersonation
-POST /password-reset/request   # Password reset request
-POST /password-reset/confirm   # Password reset confirmation
-POST /verify-email             # Email verification
-POST /change-password          # Password change
-GET  /status                   # Authentication status
-GET  /history                  # Login history
-GET  /security-events          # Security events
+Examples:
+├── users:create     → Can create new users
+├── users:read       → Can view user information  
+├── users:update     → Can modify user data
+├── users:delete     → Can deactivate users
+├── users:invite     → Can send user invitations
+├── projects:create  → Can create new projects
+├── projects:read    → Can view projects
+├── projects:update  → Can modify projects
+├── projects:delete  → Can delete projects
+├── documents:create → Can create/upload documents
+├── documents:read   → Can view documents
+├── documents:update → Can modify documents
+├── documents:delete → Can delete documents
+├── documents:download → Can download document files
+├── tenant:manage    → Can modify tenant settings
+├── tenant:billing   → Can access billing information
+├── roles:create     → Can create custom roles
+├── roles:read       → Can view roles
+├── roles:update     → Can modify roles
+├── roles:delete     → Can delete roles
+└── roles:assign     → Can assign roles to users
 ```
 
-### User Management (`/api/v1/users/`)
+**2. Roles Group Permissions**
+Roles are collections of permissions that make sense for specific job functions:
 
 ```
-GET  /me                       # Current user profile
-PUT  /me                       # Update current user
-GET  /                         # List users (filtered, paginated)
-GET  /{user_id}                # Get specific user
-PUT  /{user_id}                # Update user
-DELETE /{user_id}              # Deactivate user (soft delete)
-GET  /{user_id}/sessions       # Active sessions
-DELETE /{user_id}/sessions     # Terminate sessions
-POST /invite                   # Invite new user
-POST /bulk/create              # Bulk user creation
-POST /bulk/action              # Bulk user actions
-GET  /stats                    # User statistics
-GET  /{user_id}/security       # Security information
+┌─ tenant_admin (Full tenant control)
+│  ├── ALL permissions listed above
+│  ├── Can manage all users in tenant
+│  ├── Can configure OAuth providers
+│  └── Can access billing and tenant settings
+│
+├─ project_manager (Project oversight)
+│  ├── users:read (can see user list)
+│  ├── projects:* (all project permissions)
+│  ├── documents:* (all document permissions)
+│  ├── roles:read (can see available roles)
+│  └── Cannot manage users or tenant settings
+│
+├─ user (Standard business user)
+│  ├── users:read (can see colleagues)
+│  ├── projects:read (can view assigned projects)
+│  ├── documents:create, documents:read, documents:update, documents:download
+│  └── Cannot delete projects or manage users
+│
+└─ viewer (Read-only access)
+   ├── users:read
+   ├── projects:read  
+   ├── documents:read, documents:download
+   └── No create, update, or delete permissions
 ```
 
-### Tenant Management (`/api/v1/tenants/`) - Super Admin Only
+**3. Permission Checking Process**
 
-```
-POST /                         # Create tenant + admin
-GET  /                         # List tenants (filtered, paginated)
-GET  /{tenant_id}              # Get tenant details
-PUT  /{tenant_id}              # Update tenant
-DELETE /{tenant_id}            # Delete tenant (cascades)
-POST /{tenant_id}/identity-providers/microsoft  # Configure Microsoft OAuth
-POST /{tenant_id}/identity-providers/google     # Configure Google OAuth
-GET  /{tenant_id}/identity-providers            # List identity providers
-PUT  /{tenant_id}/identity-providers/{provider_id}  # Update provider
-DELETE /{tenant_id}/identity-providers/{provider_id}  # Delete provider
-GET  /stats                    # Global tenant statistics
-GET  /{tenant_id}/stats        # Specific tenant statistics
-POST /{tenant_id}/activate     # Activate tenant
-POST /{tenant_id}/deactivate   # Deactivate tenant
+When a user tries to access an endpoint, the system checks:
+
+```python
+# Example: User wants to create a project
+# Endpoint: POST /api/v1/projects/
+
+1. Extract user from JWT token
+2. Get user's tenant_id from token or user record
+3. Find all roles assigned to user in that tenant
+4. Collect all permissions from those roles
+5. Check if "projects:create" permission exists
+6. Allow or deny the request
 ```
 
-### Projects & Documents (`/api/v1/projects/`)
+**4. Multi-Tenant Isolation**
 
-```
-POST /                         # Create project
-GET  /                         # List projects (filtered, paginated)
-GET  /{project_id}             # Get project details
-PUT  /{project_id}             # Update project
-DELETE /{project_id}           # Delete project
-POST /{project_id}/documents   # Create document in project
-GET  /documents                # List all documents
-GET  /documents/{document_id}  # Get document details
-PUT  /documents/{document_id}  # Update document
-DELETE /documents/{document_id}  # Delete document
-POST /documents/upload         # Initiate file upload
-POST /documents/{document_id}/upload-complete  # Complete upload
-GET  /activity                 # Activity feed
-POST /search                   # Search projects/documents
-GET  /stats                    # Project statistics
-```
+- **Roles are tenant-specific**: The same user can have different roles in different tenants
+- **Permissions are always checked within tenant context**
+- **Super admins bypass tenant restrictions** but actions are logged
 
-### Super Admin (`/api/v1/admin/`)
+**5. Permission Dependencies**
 
-```
-GET  /dashboard                # System overview dashboard
-GET  /analytics/growth         # Growth analytics
-GET  /audit/logs               # System audit logs
-GET  /security/threats         # Security threat detection
-POST /maintenance/cleanup      # System cleanup operations
-GET  /maintenance/status       # Maintenance status
-GET  /users/problematic        # Identify problematic users
-POST /users/{user_id}/unlock   # Unlock user account
-GET  /config/limits            # System configuration & limits
+The `dependencies.py` file shows how permissions are enforced:
+
+```python
+# Decorator that requires specific permission
+@require_permission("users", "create")
+async def create_user_endpoint():
+    # This endpoint requires "users:create" permission
+    
+# Decorator that allows resource owners OR permission holders
+@require_own_resource_or_permission("documents", "update") 
+async def update_document(document_id):
+    # User can update IF they own the document OR have "documents:update"
 ```
 
-## 📧 Email Integration (AWS SES)
+**6. Special Permission Rules**
 
-### Features
+- **Super Admins**: Bypass all permission checks (but actions are audited)
+- **Resource Ownership**: Users can often modify their own resources even without broader permissions
+- **Tenant Isolation**: Permissions only apply within the user's current tenant context
+- **Impersonation**: Super admins can impersonate tenants, inheriting that tenant's permission context
 
-- **AWS SES Primary**: Production email delivery in EU region (Frankfurt)
-- **SMTP Fallback**: Automatic fallback to SMTP if SES unavailable
-- **Jinja2 Templates**: Professional HTML + plain text email templates
-- **Template Types**: Welcome, password reset, email verification, security alerts
-- **Bounce Handling**: Automatic suppression list management
-- **Configuration Sets**: Email tracking and analytics support
+**7. Role Assignment Examples**
 
-### Email Templates
+```http
+# Assign "project_manager" role to a user
+POST /api/v1/users/{user_id}/roles/{role_id}
 
-```
-app/templates/email/
-├── welcome.html & welcome.txt           # New user welcome
-├── password_reset.html & password_reset.txt  # Password reset
-├── email_verification.html & email_verification.txt  # Email verification
-└── security_alert.html & security_alert.txt  # Security notifications
-```
-
-## 🛠️ Technology Stack
-
-### Backend
-
-- **FastAPI**: Modern Python web framework with automatic API docs
-- **SQLAlchemy 2.0**: ORM with async support and modern patterns
-- **Alembic**: Database migration management
-- **Pydantic v2**: Data validation and serialization
-- **PostgreSQL**: Primary database with JSON support
-- **JWT**: Token-based authentication with refresh mechanism
-- **bcrypt**: Password hashing
-- **AWS SES**: Email delivery service
-- **Jinja2**: Email template engine
-
-### Authentication & OAuth
-
-- **python-jose**: JWT token handling
-- **authlib**: OAuth 2.0 client implementation
-- **httpx**: Modern HTTP client for OAuth flows
-
-### Development & Production
-
-- **pytest**: Testing framework
-- **black**: Code formatting
-- **mypy**: Static type checking
-- **uvicorn**: ASGI server
-- **gunicorn**: Production WSGI server
-
-## 🚀 Setup & Installation
-
-### 1. Environment Setup
-
-```bash
-# Clone repository
-git clone <repository-url>
-cd enterprise-multi-tenant
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
+# Create custom role with specific permissions
+POST /api/v1/roles/
+{
+  "name": "document_specialist",
+  "description": "Focused on document management",
+  "permission_ids": [
+    "documents:create", "documents:read", "documents:update", 
+    "documents:delete", "documents:download"
+  ]
+}
 ```
 
-### 2. Database Setup
+**8. Dynamic Permission Checking**
 
-```bash
-# PostgreSQL setup
-createdb enterprise_multitenant
+Users can check their own permissions:
+```http
+GET /api/v1/auth/status
+# Returns: permissions: ["users:read", "projects:create", ...]
 
-# Set environment variables
-cp .env.example .env
-# Edit .env with your database and AWS credentials
-
-# Run migrations
-alembic init alembic
-alembic revision --autogenerate -m "Initial migration"
-alembic upgrade head
+# Check if user has specific permission
+GET /api/v1/users/{user_id}/permissions/check?resource=projects&action=create
 ```
 
-### 3. Environment Variables
+This system allows for:
+- **Granular control** over what each user can do
+- **Flexible role definitions** per tenant
+- **Easy permission auditing** 
+- **Scalable security** as you add new features
+
+## 🌐 Complete API Documentation
+
+### Authentication Routes (`/api/v1/auth/`)
+
+#### User Authentication
+```http
+POST /api/v1/auth/create-user              # Admin-only user creation
+POST /api/v1/auth/login                    # Local authentication  
+POST /api/v1/auth/logout                   # Session termination
+POST /api/v1/auth/refresh                  # Refresh access token
+```
+
+#### Password Management
+```http
+POST /api/v1/auth/password-reset/request   # Request password reset
+POST /api/v1/auth/password-reset/confirm   # Confirm password reset
+POST /api/v1/auth/change-password          # Change password (authenticated)
+POST /api/v1/auth/verify-email             # Email verification
+```
+
+#### OAuth Authentication
+```http
+GET  /api/v1/auth/oauth/{provider}/login/{tenant_slug}    # Get OAuth authorization URL
+POST /api/v1/auth/oauth/{provider}/callback/{tenant_slug} # OAuth callback handling
+```
+
+#### Super Admin Impersonation
+```http
+POST /api/v1/auth/impersonate              # Super admin impersonation
+POST /api/v1/auth/end-impersonation        # End impersonation
+```
+
+#### Authentication Status & History
+```http
+GET  /api/v1/auth/status                   # Authentication status
+GET  /api/v1/auth/history                  # Login history
+GET  /api/v1/auth/security-events          # Security events
+GET  /api/v1/auth/sessions                 # Get user sessions
+DELETE /api/v1/auth/sessions/{session_id}  # Terminate specific session
+DELETE /api/v1/auth/sessions               # Terminate all sessions
+```
+
+### User Management Routes (`/api/v1/users/`)
+
+#### User Profile & Management
+```http
+GET  /api/v1/users/me                      # Current user profile
+PUT  /api/v1/users/me                      # Update current user
+GET  /api/v1/users/                        # List users (filtered, paginated)
+GET  /api/v1/users/{user_id}               # Get specific user
+PUT  /api/v1/users/{user_id}               # Update user
+DELETE /api/v1/users/{user_id}             # Deactivate user (soft delete)
+```
+
+#### User Sessions
+```http
+GET  /api/v1/users/{user_id}/sessions      # Get user's active sessions
+DELETE /api/v1/users/{user_id}/sessions    # Terminate user sessions
+```
+
+#### User Invitations & Bulk Operations
+```http
+POST /api/v1/users/invite                  # Invite new user
+POST /api/v1/users/bulk/create             # Bulk user creation
+POST /api/v1/users/bulk/action             # Bulk user actions
+GET  /api/v1/users/export                  # Export users (CSV/JSON)
+```
+
+#### User Analytics & Security
+```http
+GET  /api/v1/users/stats                   # User statistics
+GET  /api/v1/users/{user_id}/security      # User security information
+```
+
+#### Role Management for Users
+```http
+GET  /api/v1/users/{user_id}/roles         # Get user roles
+POST /api/v1/users/{user_id}/roles/{role_id} # Assign role to user
+DELETE /api/v1/users/{user_id}/roles/{role_id} # Remove role from user
+```
+
+### Tenant Management Routes (`/api/v1/tenants/`) - Super Admin Only
+
+#### Tenant CRUD
+```http
+POST /api/v1/tenants/                      # Create tenant + admin
+GET  /api/v1/tenants/                      # List tenants (filtered, paginated)
+GET  /api/v1/tenants/{tenant_id}           # Get tenant details
+PUT  /api/v1/tenants/{tenant_id}           # Update tenant
+DELETE /api/v1/tenants/{tenant_id}         # Delete tenant (cascades)
+```
+
+#### Identity Provider Management
+```http
+POST /api/v1/tenants/{tenant_id}/identity-providers/microsoft  # Configure Microsoft OAuth
+POST /api/v1/tenants/{tenant_id}/identity-providers/google     # Configure Google OAuth
+GET  /api/v1/tenants/{tenant_id}/identity-providers            # List identity providers
+PUT  /api/v1/tenants/{tenant_id}/identity-providers/{provider_id}  # Update provider
+DELETE /api/v1/tenants/{tenant_id}/identity-providers/{provider_id}  # Delete provider
+```
+
+#### Tenant Operations & Analytics
+```http
+POST /api/v1/tenants/{tenant_id}/activate     # Activate tenant
+POST /api/v1/tenants/{tenant_id}/deactivate   # Deactivate tenant
+GET  /api/v1/tenants/stats                    # Global tenant statistics
+GET  /api/v1/tenants/{tenant_id}/stats        # Specific tenant statistics
+GET  /api/v1/tenants/{tenant_id}/usage-report # Detailed usage report
+GET  /api/v1/tenants/{tenant_id}/health       # Tenant health check
+GET  /api/v1/tenants/{tenant_id}/security-report # Security report
+```
+
+#### Tenant Data Operations
+```http
+GET  /api/v1/tenants/{tenant_id}/export       # Export tenant data
+POST /api/v1/tenants/{tenant_id}/clone        # Clone tenant
+POST /api/v1/tenants/{tenant_id}/maintenance/cleanup # Cleanup operations
+```
+
+#### Billing & Subscription
+```http
+GET  /api/v1/tenants/{tenant_id}/billing      # Billing information
+POST /api/v1/tenants/{tenant_id}/subscription/upgrade # Upgrade subscription
+```
+
+### Projects & Documents Routes (`/api/v1/projects/`)
+
+#### Project Management
+```http
+POST /api/v1/projects/                     # Create project
+GET  /api/v1/projects/                     # List projects (filtered, paginated)
+GET  /api/v1/projects/{project_id}         # Get project details
+PUT  /api/v1/projects/{project_id}         # Update project
+DELETE /api/v1/projects/{project_id}       # Delete project
+POST /api/v1/projects/{project_id}/export  # Export project
+```
+
+#### Document Management
+```http
+POST /api/v1/projects/{project_id}/documents # Create document in project
+GET  /api/v1/projects/documents             # List all documents
+GET  /api/v1/projects/documents/{document_id} # Get document details
+PUT  /api/v1/projects/documents/{document_id} # Update document
+DELETE /api/v1/projects/documents/{document_id} # Delete document
+```
+
+#### File Upload & Sharing
+```http
+POST /api/v1/projects/documents/upload     # Initiate file upload
+POST /api/v1/projects/documents/{document_id}/upload-complete # Complete upload
+POST /api/v1/projects/documents/{document_id}/share # Share document with users
+```
+
+#### Search & Analytics
+```http
+GET  /api/v1/projects/activity             # Activity feed
+POST /api/v1/projects/search               # Search projects/documents
+GET  /api/v1/projects/stats                # Project statistics
+```
+
+### Super Admin Routes (`/api/v1/admin/`)
+
+#### System Overview & Analytics
+```http
+GET  /api/v1/admin/dashboard                # System overview dashboard
+GET  /api/v1/admin/analytics/growth         # Growth analytics
+GET  /api/v1/admin/audit/logs               # System audit logs
+GET  /api/v1/admin/security/threats         # Security threat detection
+GET  /api/v1/admin/performance/metrics      # Performance metrics
+```
+
+#### Emergency Operations
+```http
+POST /api/v1/admin/emergency/disable-tenant # Emergency tenant disable
+POST /api/v1/admin/emergency/global-logout  # Emergency global logout
+```
+
+#### System Maintenance
+```http
+POST /api/v1/admin/maintenance/cleanup      # System cleanup operations
+GET  /api/v1/admin/maintenance/status       # Maintenance status
+POST /api/v1/admin/backup/create            # Create system backup
+```
+
+#### User & Tenant Management
+```http
+GET  /api/v1/admin/users/problematic        # Identify problematic users
+POST /api/v1/admin/users/{user_id}/unlock   # Unlock user account
+GET  /api/v1/admin/config/limits            # System configuration & limits
+GET  /api/v1/admin/config/features          # Feature configuration
+POST /api/v1/admin/config/features/{feature_name}/toggle # Toggle features
+```
+
+#### Notifications & Communication
+```http
+POST /api/v1/admin/notifications/send       # Send system-wide notifications
+```
+
+### Health Check Routes
+
+```http
+GET  /health                               # Basic health check
+GET  /health/detailed                      # Detailed health check with dependencies
+GET  /ready                                # Kubernetes readiness probe
+GET  /api/v1/health                        # V1 API health check
+GET  /api/v1/info                          # V1 API information
+```
+
+## 🔧 Key Features
+
+### Multi-Tenant Architecture
+- **Row-Level Security**: Automatic tenant isolation at database level
+- **Per-Tenant OAuth**: Each tenant can configure their own Microsoft/Google OAuth
+- **Tenant-Specific Roles**: Custom roles and permissions per tenant
+- **Resource Isolation**: Complete data separation between tenants
+
+### Enterprise Security
+- **Account Lockouts**: Failed login protection
+- **Audit Logging**: Comprehensive activity tracking
+- **Super Admin Impersonation**: Cross-tenant access with audit trail
+- **Session Management**: JWT with refresh tokens
+- **Email Verification**: Optional verification workflow
+
+### OAuth Integration
+- **Microsoft Entra ID**: Per-tenant configuration with Azure tenant ID
+- **Google Workspace**: Per-tenant Google OAuth setup
+- **Auto-Provisioning**: Automatic user creation on first OAuth login
+- **Domain Restrictions**: Restrict OAuth access to specific domains
+- **Role Mapping**: Map OAuth claims to internal roles
+
+### Business Logic Examples
+- **Projects**: Sample business entities with full CRUD
+- **Documents**: File management with project association
+- **Activity Feeds**: Track all user and system activities
+- **Search**: Full-text search across projects and documents
+
+## 🔑 Environment Variables
 
 ```env
 # Database
-DATABASE_URL=postgresql://user:password@localhost/enterprise_multitenant
+DATABASE_URL=postgresql://user:password@localhost/dbname
 
 # Security
 SECRET_KEY=your-secret-key-here
@@ -356,155 +524,79 @@ SUPER_ADMIN_EMAIL=admin@yourapp.com
 SUPER_ADMIN_PASSWORD=secure-password-here
 ```
 
-### 4. Initialize Sample Data
+## 🚀 Quick Start
 
-```python
-from app.core.database import SessionLocal
-from app.models.utils import create_sample_data
-
-with SessionLocal() as db:
-    create_sample_data(db)
+1. **Setup Environment**
+```bash
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 ```
 
-### 5. Run Development Server
+2. **Configure Database**
+```bash
+# Set DATABASE_URL in .env
+alembic upgrade head
+```
 
+3. **Run Development Server**
 ```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Access the API documentation at: `http://localhost:8000/docs`
+4. **Access API Documentation**
+```
+http://localhost:8000/docs
+```
 
-## 🔧 Configuration
+## 📋 Common Use Cases
 
-### Multi-Tenant OAuth Setup
+### Creating a New Tenant (Super Admin)
+```http
+POST /api/v1/tenants/
+{
+  "name": "Acme Corp",
+  "slug": "acme-corp",
+  "admin_email": "admin@acme.com",
+  "admin_first_name": "John",
+  "admin_last_name": "Doe"
+}
+```
 
-Each tenant can have their own OAuth configuration:
-
-```python
-# Microsoft Entra ID Setup
+### Setting Up OAuth for Tenant
+```http
 POST /api/v1/tenants/{tenant_id}/identity-providers/microsoft
 {
-    "client_id": "your-azure-app-client-id",
-    "client_secret": "your-azure-app-client-secret",
-    "azure_tenant_id": "your-azure-tenant-id",
-    "auto_provision_users": true,
-    "allowed_domains": ["company.com"],
-    "default_role_name": "user"
+  "client_id": "your-azure-app-client-id",
+  "client_secret": "your-azure-app-client-secret",
+  "azure_tenant_id": "your-azure-tenant-id",
+  "auto_provision_users": true,
+  "allowed_domains": ["acme.com"]
 }
+```
 
-# Google Workspace Setup
-POST /api/v1/tenants/{tenant_id}/identity-providers/google
+### User Login with OAuth
+```http
+# 1. Get OAuth URL
+GET /api/v1/auth/oauth/microsoft/login/acme-corp
+
+# 2. Handle callback after user auth
+POST /api/v1/auth/oauth/microsoft/callback/acme-corp
 {
-    "client_id": "your-google-client-id",
-    "client_secret": "your-google-client-secret",
-    "auto_provision_users": true,
-    "allowed_domains": ["company.com"],
-    "default_role_name": "user"
+  "code": "oauth-authorization-code"
 }
 ```
 
-### Row-Level Security
-
-The system automatically filters all data by tenant using PostgreSQL RLS:
-
-```sql
--- Example RLS policy
-CREATE POLICY tenant_isolation_policy ON projects
-    FOR ALL
-    USING (tenant_id = current_setting('app.current_tenant_id')::UUID);
-```
-
-## 🧪 Testing
-
-```bash
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=app
-
-# Run specific test file
-pytest tests/test_auth.py
-
-# Run tests for specific functionality
-pytest -k "test_multi_tenant"
-```
-
-### Test Categories
-
-- **Unit Tests**: Individual function/method testing
-- **Integration Tests**: API endpoint testing
-- **Multi-Tenant Tests**: Tenant isolation verification
-- **Security Tests**: Authentication and authorization
-- **OAuth Tests**: OAuth flow testing
-
-## 📋 API Usage Examples
-
-### 1. User Registration & Login
-
-```bash
-# Create user (admin only)
-curl -X POST "http://localhost:8000/api/v1/auth/create-user" \
-  -H "Authorization: Bearer <admin-token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@company.com",
-    "first_name": "John",
-    "last_name": "Doe",
-    "send_welcome_email": true
-  }'
-
-# Local login
-curl -X POST "http://localhost:8000/api/v1/auth/login" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@company.com",
-    "password": "user-password"
-  }'
-```
-
-### 2. OAuth Authentication
-
-```bash
-# Get OAuth authorization URL
-curl "http://localhost:8000/api/v1/auth/oauth/microsoft/login/company-tenant"
-
-# OAuth callback (handled by frontend)
-curl -X POST "http://localhost:8000/api/v1/auth/oauth/microsoft/callback/company-tenant" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "code": "oauth-authorization-code"
-  }'
-```
-
-### 3. Super Admin Operations
-
-```bash
-# Create new tenant
-curl -X POST "http://localhost:8000/api/v1/tenants/" \
-  -H "Authorization: Bearer <super-admin-token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "New Company",
-    "slug": "new-company",
-    "admin_email": "admin@newcompany.com",
-    "admin_first_name": "Admin",
-    "admin_last_name": "User"
-  }'
-
-# Impersonate tenant
-curl -X POST "http://localhost:8000/api/v1/auth/impersonate" \
-  -H "Authorization: Bearer <super-admin-token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "tenant_id": "tenant-uuid-here",
-    "reason": "Customer support request"
-  }'
+### Super Admin Impersonation
+```http
+POST /api/v1/auth/impersonate
+{
+  "tenant_id": "tenant-uuid-here",
+  "reason": "Customer support request"
+}
 ```
 
 ## 🔍 Monitoring & Observability
-
-### Audit Logging
 
 Every action is logged with:
 - User ID and tenant context
@@ -513,137 +605,8 @@ Every action is logged with:
 - IP address and user agent
 - Timestamp and request ID
 
-### Health Checks
-
-```bash
-# Basic health check
-curl "http://localhost:8000/health"
-
-# Detailed health check
-curl "http://localhost:8000/health/detailed"
-
-# Kubernetes readiness probe
-curl "http://localhost:8000/ready"
-```
-
-### Security Monitoring
-
-- Failed login attempt tracking
-- Account lockout logging
-- Suspicious IP detection
-- Multi-tenant access patterns
-- Super admin impersonation audit
-
-## 🚀 Production Deployment
-
-### Docker Setup
-
-```dockerfile
-FROM python:3.11-slim
-
-WORKDIR /app
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY . .
-
-CMD ["gunicorn", "app.main:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
-```
-
-### Environment Considerations
-
-- **Database**: PostgreSQL with connection pooling
-- **Cache**: Redis for session storage and rate limiting
-- **File Storage**: AWS S3 for document uploads
-- **Email**: AWS SES with bounce handling
-- **Monitoring**: Structured logging with ELK stack
-- **Secrets**: AWS Secrets Manager or Kubernetes secrets
-
-## 🔒 Security Considerations
-
-### Implemented Security Measures
-
-- **Row-Level Security**: Database-level tenant isolation
-- **JWT Security**: Short-lived access tokens with refresh mechanism
-- **Password Security**: bcrypt hashing with failed attempt tracking
-- **OAuth Security**: State parameter validation, secure token storage
-- **Audit Logging**: Comprehensive activity tracking
-- **Rate Limiting**: Configurable per-endpoint limits
-- **HTTPS Only**: Force secure connections in production
-- **Security Headers**: XSS, CSRF, and clickjacking protection
-
-### Recommended Additional Measures
-
-- **2FA Implementation**: TOTP or SMS-based two-factor authentication
-- **API Rate Limiting**: Redis-based distributed rate limiting
-- **WAF Integration**: Web Application Firewall for additional protection
-- **Security Scanning**: Regular dependency and vulnerability scanning
-- **Backup Encryption**: Encrypted database backups
-- **Secret Rotation**: Regular rotation of JWT secrets and OAuth credentials
-
-## 📚 Development Guidelines
-
-### Code Standards
-
-- **Type Hints**: All functions must have type hints
-- **Pydantic v2**: Use latest Pydantic patterns and validation
-- **Error Handling**: Comprehensive exception handling with proper HTTP status codes
-- **Documentation**: All public APIs documented with docstrings
-- **Testing**: Minimum 80% test coverage for new features
-
-### Database Patterns
-
-- **Migrations**: All schema changes via Alembic migrations
-- **Indexes**: Performance-critical queries must have indexes
-- **Constraints**: Use database constraints for data integrity
-- **Audit Fields**: All business tables should have created_by/updated_by
-
-### API Patterns
-
-- **RESTful Design**: Follow REST conventions for all endpoints
-- **Pagination**: All list endpoints support pagination
-- **Filtering**: Implement filtering via query parameters
-- **Versioning**: API versioning via URL path (/v1/, /v2/)
-- **Error Responses**: Standardized error format across all endpoints
-
-## 🤝 Contributing
-
-### Development Workflow
-
-1. Create feature branch from `main`
-2. Implement feature with tests
-3. Run full test suite
-4. Submit pull request with description
-5. Code review and approval
-6. Merge to main and deploy
-
-### Testing Requirements
-
-- Unit tests for all new functions
-- Integration tests for API endpoints
-- Multi-tenant isolation tests
-- Security-focused tests for auth changes
-- Performance tests for critical paths
-
-## 📞 Support & Maintenance
-
-### Regular Maintenance Tasks
-
-- **Daily**: Monitor failed logins and security alerts
-- **Weekly**: Review audit logs for suspicious activity
-- **Monthly**: Update dependencies and security patches
-- **Quarterly**: Review and rotate OAuth client secrets
-
-### Troubleshooting
-
-Common issues and solutions:
-
-1. **OAuth Login Failures**: Check tenant-specific OAuth configuration
-2. **Tenant Isolation Issues**: Verify RLS policies are active
-3. **Email Delivery Issues**: Check AWS SES configuration and limits
-4. **Performance Issues**: Review database query performance and indexes
+Use `/api/v1/admin/audit/logs` and `/api/v1/admin/security/threats` for comprehensive monitoring.
 
 ---
 
-This system provides a solid foundation for enterprise multi-tenant applications with comprehensive security, scalability, and maintainability features. The modular architecture allows for easy extension and customization based on specific business requirements.
+**This system provides a solid foundation for enterprise multi-tenant applications with comprehensive security, scalability, and maintainability features.**
