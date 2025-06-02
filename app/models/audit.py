@@ -19,7 +19,7 @@ class AuditLog(Base):
     
     # Action Information
     action = Column(String(100), nullable=False)  # 'CREATE', 'UPDATE', 'DELETE', 'LOGIN', etc.
-    resource_type = Column(String(100), nullable=True)  # 'user', 'project', 'document'
+    resource_type = Column(String(100), nullable=True)  # 'user', 'property', 'expose_link', 'city', 'template'
     resource_id = Column(UUID(as_uuid=True), nullable=True)
     
     # Change Details

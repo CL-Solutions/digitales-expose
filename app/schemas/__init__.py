@@ -119,58 +119,41 @@ from app.schemas.rbac import (
 
 # Business Logic Schemas
 from app.schemas.business import (
-    # Project Schemas
-    ProjectBase,
-    ProjectCreate,
-    ProjectUpdate,
-    ProjectResponse,
-    ProjectDetailResponse,
-    ProjectListResponse,
-    ProjectFilterParams,
-    ProjectStatsResponse,
+    # Property Schemas
+    PropertyBase,
+    PropertyCreate,
+    PropertyUpdate,
+    PropertyResponse,
+    PropertyImageSchema,
+    PropertyImageCreate,
+    PropertyImageUpdate,
+    PropertyFilter,
+    PropertyListResponse,
     
-    # Document Schemas
-    DocumentBase,
-    DocumentCreate,
-    DocumentUpdate,
-    DocumentResponse,
-    DocumentDetailResponse,
-    DocumentListResponse,
-    DocumentFilterParams,
-    DocumentUploadRequest,
-    DocumentUploadResponse,
-    DocumentVersionResponse,
+    # City Schemas
+    CityBase,
+    CityCreate,
+    CityUpdate,
+    CityResponse,
+    CityImageCreate,
+    CityImageUpdate,
+    CityImageSchema,
     
-    # File Management
-    FileUploadRequest,
-    FileUploadResponse,
-    FileDownloadResponse,
+    # Expose Template Schemas
+    ExposeTemplateBase,
+    ExposeTemplateCreate,
+    ExposeTemplateUpdate,
+    ExposeTemplateResponse,
     
-    # Activity & Notifications
-    ActivityBase,
-    ActivityResponse,
-    ActivityFeedResponse,
-    NotificationBase,
-    NotificationResponse,
-    NotificationListResponse,
-    NotificationMarkReadRequest,
+    # Expose Link Schemas
+    ExposeLinkBase,
+    ExposeLinkCreate,
+    ExposeLinkUpdate,
+    ExposeLinkResponse,
+    ExposeLinkPublicResponse,
     
-    # Analytics
-    DashboardStatsResponse,
-    ProjectAnalyticsResponse,
-    DocumentAnalyticsResponse,
-    TenantAnalyticsResponse,
-    
-    # Search
-    SearchRequest,
-    SearchResultItem,
-    SearchResponse,
-    
-    # Export/Import
-    ExportRequest,
-    ExportResponse,
-    ImportRequest,
-    ImportResponse
+    # Sync Schemas
+    InvestagonSyncSchema
 )
 
 # ================================
@@ -200,10 +183,14 @@ REQUEST_SCHEMAS = {
     "permission_create": PermissionCreate,
     
     # Business Logic
-    "project_create": ProjectCreate,
-    "project_update": ProjectUpdate,
-    "document_create": DocumentCreate,
-    "document_update": DocumentUpdate,
+    "property_create": PropertyCreate,
+    "property_update": PropertyUpdate,
+    "city_create": CityCreate,
+    "city_update": CityUpdate,
+    "expose_template_create": ExposeTemplateCreate,
+    "expose_template_update": ExposeTemplateUpdate,
+    "expose_link_create": ExposeLinkCreate,
+    "expose_link_update": ExposeLinkUpdate,
 }
 
 # Response Schemas (für API Output)
@@ -227,12 +214,13 @@ RESPONSE_SCHEMAS = {
     "user_permissions": UserPermissionsResponse,
     
     # Business Logic
-    "project": ProjectResponse,
-    "project_detail": ProjectDetailResponse,
-    "project_list": ProjectListResponse,
-    "document": DocumentResponse,
-    "document_detail": DocumentDetailResponse,
-    "document_list": DocumentListResponse,
+    "property": PropertyResponse,
+    "property_list": PropertyListResponse,
+    "city": CityResponse,
+    "expose_template": ExposeTemplateResponse,
+    "expose_link": ExposeLinkResponse,
+    "expose_link_public": ExposeLinkPublicResponse,
+    "investagon_sync": InvestagonSyncSchema,
     
     # System
     "health": SystemHealthResponse,
@@ -244,8 +232,7 @@ RESPONSE_SCHEMAS = {
 FILTER_SCHEMAS = {
     "tenant_filter": TenantFilterParams,
     "user_filter": UserFilterParams,
-    "project_filter": ProjectFilterParams,
-    "document_filter": DocumentFilterParams,
+    "property_filter": PropertyFilter,
     "role_filter": RoleFilterParams,
     "permission_filter": PermissionFilterParams,
 }

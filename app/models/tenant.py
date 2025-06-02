@@ -29,7 +29,7 @@ class Tenant(Base):
     users = relationship("User", back_populates="tenant", cascade="all, delete-orphan")
     identity_providers = relationship("TenantIdentityProvider", back_populates="tenant", cascade="all, delete-orphan")
     roles = relationship("Role", back_populates="tenant", cascade="all, delete-orphan")
-    projects = relationship("Project", back_populates="tenant", cascade="all, delete-orphan")
+    properties = relationship("Property", back_populates="tenant", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="tenant", cascade="all, delete-orphan")
     
     def __repr__(self):

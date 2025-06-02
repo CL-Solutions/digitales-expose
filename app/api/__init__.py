@@ -55,7 +55,7 @@ from fastapi import APIRouter, Depends
 from app.dependencies import get_db, get_current_user
 
 # Import all route modules
-from app.api.v1 import auth, users, tenants, projects, admin, rbac
+from app.api.v1 import auth, users, tenants, properties, cities, exposes, admin, rbac
 
 # Create V1 router
 v1_router = APIRouter(prefix="/v1")
@@ -107,9 +107,33 @@ v1_router.include_router(
 )
 
 v1_router.include_router(
-    projects.router,
-    prefix="/projects",
-    tags=["Projects & Documents"],
+    properties.router,
+    prefix="/properties",
+    tags=["Properties"],
+    dependencies=[Depends(get_current_user)],
+    responses={
+        401: {"description": "Authentication required"},
+        403: {"description": "Insufficient permissions"},
+        404: {"description": "Resource not found"}
+    }
+)
+
+v1_router.include_router(
+    cities.router,
+    prefix="/cities",
+    tags=["Cities"],
+    dependencies=[Depends(get_current_user)],
+    responses={
+        401: {"description": "Authentication required"},
+        403: {"description": "Insufficient permissions"},
+        404: {"description": "Resource not found"}
+    }
+)
+
+v1_router.include_router(
+    exposes.router,
+    prefix="/exposes",
+    tags=["Exposes"],
     dependencies=[Depends(get_current_user)],
     responses={
         401: {"description": "Authentication required"},

@@ -53,9 +53,9 @@ class User(Base):
     password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
 
     # Audit trails
-    created_projects = relationship("Project", foreign_keys="Project.created_by", back_populates="creator")
-    updated_projects = relationship("Project", foreign_keys="Project.updated_by", back_populates="updater")
-    created_documents = relationship("Document", foreign_keys="Document.created_by", back_populates="creator")
+    created_properties = relationship("Property", foreign_keys="Property.created_by", back_populates="creator")
+    updated_properties = relationship("Property", foreign_keys="Property.updated_by", back_populates="updater")
+    created_expose_links = relationship("ExposeLink", foreign_keys="ExposeLink.created_by", back_populates="creator")
     audit_logs = relationship("AuditLog", foreign_keys="AuditLog.user_id", back_populates="user")
 
     @property

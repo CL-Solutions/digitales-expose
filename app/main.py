@@ -2,7 +2,7 @@
 # MAIN APPLICATION (main.py) - UPDATED WITH RBAC ROUTER
 # ================================
 
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -22,7 +22,7 @@ from app.core.middleware import (
 )
 
 # API Routes - UPDATED TO INCLUDE RBAC
-from app.api.v1 import auth, users, tenants, projects, admin, rbac
+from app.api.v1 import auth, users, tenants, properties, cities, exposes, admin, rbac, investagon
 
 import logging
 import uvicorn
@@ -67,11 +67,17 @@ async def startup_tasks():
     # Initialize email service
     await initialize_email_service()
     
+    # Initialize and start background scheduler
+    await initialize_background_scheduler()
+    
     # Run health checks
     await run_startup_health_checks()
 
 async def shutdown_tasks():
     """Tasks to run on application shutdown"""
+    
+    # Stop background scheduler
+    await stop_background_scheduler()
     
     # Close database connections
     from app.core.database import engine
@@ -174,6 +180,35 @@ async def initialize_email_service():
             
     except Exception as e:
         logger.error(f"Email service initialization failed: {e}")
+
+async def initialize_background_scheduler():
+    """Initialize and start the background task scheduler"""
+    try:
+        from app.core.scheduler import scheduler, initialize_scheduler
+        
+        # Initialize with default tasks
+        initialize_scheduler()
+        
+        # Start the scheduler
+        await scheduler.start()
+        
+        logger.info("Background scheduler started successfully")
+        
+    except Exception as e:
+        logger.error(f"Failed to start background scheduler: {e}")
+        # Don't raise - app should work even without scheduler
+
+async def stop_background_scheduler():
+    """Stop the background task scheduler"""
+    try:
+        from app.core.scheduler import scheduler
+        
+        await scheduler.stop()
+        
+        logger.info("Background scheduler stopped")
+        
+    except Exception as e:
+        logger.error(f"Error stopping background scheduler: {e}")
 
 async def run_startup_health_checks():
     """Run health checks on startup"""
@@ -318,7 +353,7 @@ async def detailed_health_check():
         "status": "healthy",
         "service": settings.APP_NAME,
         "version": "1.0.0",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "checks": {}
     }
     
@@ -330,7 +365,7 @@ async def detailed_health_check():
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         health_status["checks"]["database"] = "healthy"
-    except Exception as e:
+    except Exception:
         health_status["checks"]["database"] = "unhealthy"
         health_status["status"] = "degraded"
     
@@ -411,15 +446,51 @@ app.include_router(
     }
 )
 
-# Business logic routes (example)
+# Property management routes
 app.include_router(
-    projects.router, 
-    prefix="/api/v1/projects", 
-    tags=["Projects & Documents"],
+    properties.router, 
+    prefix="/api/v1/properties", 
+    tags=["Properties"],
     responses={
         401: {"description": "Authentication required"},
         403: {"description": "Insufficient permissions"},
         404: {"description": "Resource not found"}
+    }
+)
+
+# City management routes
+app.include_router(
+    cities.router,
+    prefix="/api/v1/cities",
+    tags=["Cities"],
+    responses={
+        401: {"description": "Authentication required"},
+        403: {"description": "Insufficient permissions"},
+        404: {"description": "Resource not found"}
+    }
+)
+
+# Expose management routes
+app.include_router(
+    exposes.router,
+    prefix="/api/v1/exposes",
+    tags=["Exposes"],
+    responses={
+        401: {"description": "Authentication required"},
+        403: {"description": "Insufficient permissions"},
+        404: {"description": "Resource not found"}
+    }
+)
+
+# Investagon sync routes
+app.include_router(
+    investagon.router,
+    prefix="/api/v1/investagon",
+    tags=["Investagon Integration"],
+    responses={
+        401: {"description": "Authentication required"},
+        403: {"description": "Insufficient permissions"},
+        502: {"description": "External API error"}
     }
 )
 
@@ -449,9 +520,12 @@ async def root():
         "available_endpoints": {
             "auth": "/api/v1/auth",
             "users": "/api/v1/users", 
-            "rbac": "/api/v1/rbac",  # NEW
+            "rbac": "/api/v1/rbac",
             "tenants": "/api/v1/tenants",
-            "projects": "/api/v1/projects",
+            "properties": "/api/v1/properties",
+            "cities": "/api/v1/cities",
+            "exposes": "/api/v1/exposes",
+            "investagon": "/api/v1/investagon",
             "admin": "/api/v1/admin"
         }
     }

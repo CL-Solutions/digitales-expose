@@ -1,420 +1,403 @@
 # ================================
-# BUSINESS LOGIC SCHEMAS (schemas/business.py)
+# DIGITALES EXPOSE SCHEMAS (schemas/business.py)
 # ================================
 
-from pydantic import Field
-from typing import Optional, List, Literal
+from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
+from typing import Optional, List, Dict, Any
+from datetime import datetime
 from uuid import UUID
-from app.schemas.base import BaseSchema, TimestampMixin, AuditMixin, PaginationParams, SortParams, SearchParams
+from decimal import Decimal
+
+from app.schemas.base import BaseSchema, PaginationParams
 
 # ================================
-# PROJECT SCHEMAS (schemas/project.py)
+# Property Schemas
 # ================================
 
-class ProjectBase(BaseSchema):
-    """Base Project Schema"""
-    name: str = Field(..., min_length=1, max_length=255, description="Project name")
-    description: Optional[str] = Field(None, description="Project description")
-    status: Literal["active", "completed", "archived"] = Field(default="active", description="Project status")
+class PropertyBase(BaseModel):
+    """Base schema for Property"""
+    address: str = Field(..., max_length=500)
+    city: str = Field(..., max_length=255)
+    state: str = Field(..., max_length=255)
+    zip_code: str = Field(..., max_length=20)
+    property_type: str = Field(..., max_length=100)
+    
+    size_sqm: float = Field(..., gt=0)
+    rooms: float = Field(..., gt=0)
+    bathrooms: Optional[int] = Field(None, ge=0)
+    floor: Optional[int] = Field(None)
+    total_floors: Optional[int] = Field(None, gt=0)
+    construction_year: Optional[int] = Field(None, ge=1800, le=2100)
+    
+    purchase_price: Decimal = Field(..., decimal_places=2, ge=0)
+    monthly_rent: Decimal = Field(..., decimal_places=2, ge=0)
+    additional_costs: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    management_fee: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    
+    energy_certificate_type: Optional[str] = Field(None, max_length=50)
+    energy_consumption: Optional[float] = Field(None, ge=0)
+    energy_class: Optional[str] = Field(None, max_length=10)
+    heating_type: Optional[str] = Field(None, max_length=100)
+    
+    status: str = Field(default="available", pattern="^(available|reserved|sold)$")
 
-class ProjectCreate(ProjectBase):
-    """Schema für Project-Erstellung"""
+    model_config = ConfigDict(from_attributes=True)
+
+class PropertyCreate(PropertyBase):
+    """Schema for creating a Property"""
+    investagon_id: Optional[str] = None
+
+class PropertyUpdate(BaseModel):
+    """Schema for updating a Property"""
+    address: Optional[str] = Field(None, max_length=500)
+    city: Optional[str] = Field(None, max_length=255)
+    state: Optional[str] = Field(None, max_length=255)
+    zip_code: Optional[str] = Field(None, max_length=20)
+    property_type: Optional[str] = Field(None, max_length=100)
+    
+    size_sqm: Optional[float] = Field(None, gt=0)
+    rooms: Optional[float] = Field(None, gt=0)
+    bathrooms: Optional[int] = Field(None, ge=0)
+    floor: Optional[int] = None
+    total_floors: Optional[int] = Field(None, gt=0)
+    construction_year: Optional[int] = Field(None, ge=1800, le=2100)
+    
+    purchase_price: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    monthly_rent: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    additional_costs: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    management_fee: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    
+    energy_certificate_type: Optional[str] = Field(None, max_length=50)
+    energy_consumption: Optional[float] = Field(None, ge=0)
+    energy_class: Optional[str] = Field(None, max_length=10)
+    heating_type: Optional[str] = Field(None, max_length=100)
+    
+    status: Optional[str] = Field(None, pattern="^(available|reserved|sold)$")
+
+    model_config = ConfigDict(from_attributes=True)
+
+class PropertyImageSchema(BaseSchema):
+    """Schema for PropertyImage"""
+    property_id: UUID
+    image_url: str
+    image_type: str
+    title: Optional[str] = None
+    description: Optional[str] = None
+    display_order: int = 0
+    file_size: Optional[int] = None
+    mime_type: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+
+class PropertyResponse(PropertyBase, BaseSchema):
+    """Schema for Property response"""
+    investagon_id: Optional[str] = None
+    investagon_data: Optional[Dict[str, Any]] = None
+    last_sync: Optional[datetime] = None
+    images: List[PropertyImageSchema] = []
+    
+    # Computed fields
+    total_investment: Optional[Decimal] = None
+    gross_rental_yield: Optional[float] = None
+    net_rental_yield: Optional[float] = None
+
+    @model_validator(mode='after')
+    def calculate_yields(self):
+        if self.purchase_price and self.monthly_rent:
+            annual_rent = self.monthly_rent * 12
+            self.total_investment = self.purchase_price
+            self.gross_rental_yield = float((annual_rent / self.purchase_price) * 100)
+            
+            if self.additional_costs and self.management_fee:
+                annual_costs = (self.additional_costs + self.management_fee) * 12
+                net_annual_rent = annual_rent - annual_costs
+                self.net_rental_yield = float((net_annual_rent / self.purchase_price) * 100)
+        return self
+
+# ================================
+# Property Image Schemas
+# ================================
+
+class PropertyImageCreate(BaseModel):
+    """Schema for creating a PropertyImage"""
+    image_url: str
+    image_type: str = Field(..., pattern="^(exterior|interior|floor_plan|energy_certificate|bathroom|kitchen|bedroom|living_room|balcony|garden|parking|basement|roof)$")
+    title: Optional[str] = Field(None, max_length=255)
+    description: Optional[str] = None
+    display_order: int = Field(default=0)
+    file_size: Optional[int] = Field(None, gt=0)
+    mime_type: Optional[str] = Field(None, max_length=100)
+    width: Optional[int] = Field(None, gt=0)
+    height: Optional[int] = Field(None, gt=0)
+
+class PropertyImageUpdate(BaseModel):
+    """Schema for updating a PropertyImage"""
+    image_url: Optional[str] = None
+    title: Optional[str] = Field(None, max_length=255)
+    description: Optional[str] = None
+    display_order: Optional[int] = None
+
+# ================================
+# City Schemas
+# ================================
+
+class CityBase(BaseModel):
+    """Base schema for City"""
+    name: str = Field(..., max_length=255)
+    state: str = Field(..., max_length=255)
+    country: str = Field(default="Germany", max_length=100)
+    
+    population: Optional[int] = Field(None, gt=0)
+    population_growth: Optional[float] = None
+    unemployment_rate: Optional[float] = Field(None, ge=0, le=100)
+    average_income: Optional[int] = Field(None, gt=0)
+    
+    universities: Optional[List[str]] = None
+    major_employers: Optional[List[str]] = None
+    public_transport: Optional[Dict[str, Any]] = None
+    
+    description: Optional[str] = None
+    highlights: Optional[List[str]] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+class CityCreate(CityBase):
+    """Schema for creating a City"""
     pass
 
-class ProjectUpdate(BaseSchema):
-    """Schema für Project-Updates"""
-    name: Optional[str] = Field(None, min_length=1, max_length=255)
+class CityUpdate(BaseModel):
+    """Schema for updating a City"""
+    population: Optional[int] = Field(None, gt=0)
+    population_growth: Optional[float] = None
+    unemployment_rate: Optional[float] = Field(None, ge=0, le=100)
+    average_income: Optional[int] = Field(None, gt=0)
+    
+    universities: Optional[List[str]] = None
+    major_employers: Optional[List[str]] = None
+    public_transport: Optional[Dict[str, Any]] = None
+    
     description: Optional[str] = None
-    status: Optional[Literal["active", "completed", "archived"]] = None
-
-class ProjectResponse(ProjectBase, TimestampMixin, AuditMixin):
-    """Schema für Project-Responses"""
-    id: UUID
-    tenant_id: UUID
-    
-    # Related data
-    document_count: Optional[int] = Field(None, description="Number of documents in project")
-    recent_activity: Optional[str] = Field(None, description="Recent activity timestamp")
-
-class ProjectDetailResponse(ProjectResponse):
-    """Extended Project Response mit Additional Data"""
-    creator_name: Optional[str] = Field(None, description="Name of project creator")
-    updater_name: Optional[str] = Field(None, description="Name of last updater")
-    documents: List['DocumentResponse'] = Field(default_factory=list)
-    team_members: List[dict] = Field(default_factory=list)
-    tags: List[str] = Field(default_factory=list)
-
-class ProjectListResponse(BaseSchema):
-    """Schema für Project-Listen"""
-    projects: List[ProjectResponse]
-    total: int
-    page: int
-    page_size: int
-
-class ProjectFilterParams(PaginationParams, SortParams, SearchParams):
-    """Schema für Project-Filtering"""
-    status: Optional[Literal["active", "completed", "archived"]] = None
-    created_by: Optional[UUID] = None
-    has_documents: Optional[bool] = None
-    created_after: Optional[str] = None
-    created_before: Optional[str] = None
-
-class ProjectStatsResponse(BaseSchema):
-    """Schema für Project Statistics"""
-    total_projects: int
-    active_projects: int
-    completed_projects: int
-    archived_projects: int
-    projects_by_month: dict[str, int]
-    average_documents_per_project: float
-    most_active_projects: List[dict]
+    highlights: Optional[List[str]] = None
 
 # ================================
-# DOCUMENT SCHEMAS (schemas/document.py)
+# City Image Schemas
 # ================================
 
-class DocumentBase(BaseSchema):
-    """Base Document Schema"""
-    title: str = Field(..., min_length=1, max_length=255, description="Document title")
-    content: Optional[str] = Field(None, description="Document content")
+class CityImageCreate(BaseModel):
+    """Schema for creating a CityImage"""
+    image_url: str
+    image_type: str = Field(..., pattern="^(skyline|landmark|downtown|residential|commercial|nature|transport|culture|nightlife|education|recreation|overview)$")
+    title: Optional[str] = Field(None, max_length=255)
+    description: Optional[str] = None
+    display_order: int = Field(default=0)
+    file_size: Optional[int] = Field(None, gt=0)
+    mime_type: Optional[str] = Field(None, max_length=100)
+    width: Optional[int] = Field(None, gt=0)
+    height: Optional[int] = Field(None, gt=0)
 
-class DocumentCreate(DocumentBase):
-    """Schema für Document-Erstellung"""
-    project_id: Optional[UUID] = Field(None, description="Associated project ID")
-    tags: List[str] = Field(default_factory=list, description="Document tags")
+class CityImageUpdate(BaseModel):
+    """Schema for updating a CityImage"""
+    image_url: Optional[str] = None
+    title: Optional[str] = Field(None, max_length=255)
+    description: Optional[str] = None
+    display_order: Optional[int] = None
 
-class DocumentUpdate(BaseSchema):
-    """Schema für Document-Updates"""
-    title: Optional[str] = Field(None, min_length=1, max_length=255)
-    content: Optional[str] = None
-    project_id: Optional[UUID] = None
-    tags: Optional[List[str]] = None
-
-class DocumentResponse(DocumentBase, TimestampMixin, AuditMixin):
-    """Schema für Document-Responses"""
-    id: UUID
-    tenant_id: UUID
-    project_id: Optional[UUID]
-    
-    # File Information
-    file_path: Optional[str] = None
-    file_size: Optional[int] = Field(None, description="File size in bytes")
+class CityImageSchema(BaseSchema):
+    """Schema for CityImage"""
+    city_id: UUID
+    image_url: str
+    image_type: str
+    title: Optional[str] = None
+    description: Optional[str] = None
+    display_order: int = 0
+    file_size: Optional[int] = None
     mime_type: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+
+class CityResponse(CityBase, BaseSchema):
+    """Schema for City response"""
+    images: List[CityImageSchema] = []
+
+# ================================
+# Expose Template Schemas
+# ================================
+
+class ExposeTemplateBase(BaseModel):
+    """Base schema for ExposeTemplate"""
+    name: str = Field(..., max_length=255)
+    property_type: Optional[str] = Field(None, max_length=100)
     
-    # Additional metadata
-    tags: List[str] = Field(default_factory=list)
-    version: int = Field(default=1, description="Document version")
+    investment_benefits: Optional[str] = None
+    location_description: Optional[str] = None
+    property_description: Optional[str] = None
+    financing_info: Optional[str] = None
+    tax_benefits: Optional[str] = None
+    risks_disclaimer: Optional[str] = None
+    company_info: Optional[str] = None
+    process_steps: Optional[str] = None
+    
+    default_equity_percentage: float = Field(default=20.0, ge=0, le=100)
+    default_interest_rate: float = Field(default=3.5, ge=0, le=20)
+    default_loan_term_years: int = Field(default=20, ge=1, le=50)
+    default_tax_rate: float = Field(default=42.0, ge=0, le=100)
+    
+    is_active: bool = True
+    is_default: bool = False
 
-class DocumentDetailResponse(DocumentResponse):
-    """Extended Document Response"""
-    creator_name: Optional[str] = Field(None, description="Name of document creator")
-    updater_name: Optional[str] = Field(None, description="Name of last updater")
-    project_name: Optional[str] = Field(None, description="Associated project name")
-    download_url: Optional[str] = Field(None, description="Download URL")
-    preview_url: Optional[str] = Field(None, description="Preview URL")
+    model_config = ConfigDict(from_attributes=True)
 
-class DocumentListResponse(BaseSchema):
-    """Schema für Document-Listen"""
-    documents: List[DocumentResponse]
-    total: int
-    page: int
-    page_size: int
-
-class DocumentFilterParams(PaginationParams, SortParams, SearchParams):
-    """Schema für Document-Filtering"""
-    project_id: Optional[UUID] = None
-    created_by: Optional[UUID] = None
-    mime_type: Optional[str] = None
-    has_content: Optional[bool] = None
-    tags: Optional[List[str]] = None
-    file_size_min: Optional[int] = None
-    file_size_max: Optional[int] = None
-
-class DocumentUploadRequest(BaseSchema):
-    """Schema für Document Upload"""
-    title: str = Field(..., min_length=1, max_length=255)
-    project_id: Optional[UUID] = None
-    tags: List[str] = Field(default_factory=list)
-    replace_existing: bool = Field(default=False, description="Replace existing document with same name")
-
-class DocumentUploadResponse(BaseSchema):
-    """Schema für Document Upload Response"""
-    document_id: UUID
-    upload_url: str = Field(..., description="Pre-signed upload URL")
-    fields: dict = Field(..., description="Form fields for upload")
-    expires_at: str = Field(..., description="Upload URL expiration")
-
-class DocumentVersionResponse(BaseSchema, TimestampMixin):
-    """Schema für Document Versions"""
-    id: UUID
-    document_id: UUID
-    version_number: int
-    title: str
-    file_size: Optional[int]
-    created_by: UUID
-    creator_name: Optional[str]
-    change_summary: Optional[str]
-
-# ================================
-# FILE MANAGEMENT SCHEMAS
-# ================================
-
-class FileUploadRequest(BaseSchema):
-    """Schema für File Upload Request"""
-    filename: str = Field(..., description="Original filename")
-    content_type: str = Field(..., description="File content type")
-    file_size: int = Field(..., ge=1, description="File size in bytes")
-
-class FileUploadResponse(BaseSchema):
-    """Schema für File Upload Response"""
-    file_id: UUID
-    upload_url: str
-    expires_in: int = Field(description="Upload URL expiry in seconds")
-
-class FileDownloadResponse(BaseSchema):
-    """Schema für File Download Response"""
-    download_url: str
-    expires_in: int = Field(description="Download URL expiry in seconds")
-    file_size: int
-    content_type: str
-
-# ================================
-# COLLABORATION SCHEMAS (Future Extension)
-# ================================
-
-class CommentBase(BaseSchema):
-    """Base Comment Schema"""
-    content: str = Field(..., min_length=1, max_length=1000, description="Comment content")
-    parent_comment_id: Optional[UUID] = Field(None, description="Parent comment for replies")
-
-class CommentCreate(CommentBase):
-    """Schema für Comment Creation"""
+class ExposeTemplateCreate(ExposeTemplateBase):
+    """Schema for creating an ExposeTemplate"""
     pass
 
-class CommentResponse(CommentBase, TimestampMixin):
-    """Schema für Comment Response"""
-    id: UUID
-    document_id: UUID
-    author_id: UUID
-    author_name: str
-    replies: List['CommentResponse'] = Field(default_factory=list)
-    is_resolved: bool = Field(default=False)
+class ExposeTemplateUpdate(BaseModel):
+    """Schema for updating an ExposeTemplate"""
+    name: Optional[str] = Field(None, max_length=255)
+    property_type: Optional[str] = Field(None, max_length=100)
+    
+    investment_benefits: Optional[str] = None
+    location_description: Optional[str] = None
+    property_description: Optional[str] = None
+    financing_info: Optional[str] = None
+    tax_benefits: Optional[str] = None
+    risks_disclaimer: Optional[str] = None
+    company_info: Optional[str] = None
+    process_steps: Optional[str] = None
+    
+    default_equity_percentage: Optional[float] = Field(None, ge=0, le=100)
+    default_interest_rate: Optional[float] = Field(None, ge=0, le=20)
+    default_loan_term_years: Optional[int] = Field(None, ge=1, le=50)
+    default_tax_rate: Optional[float] = Field(None, ge=0, le=100)
+    
+    is_active: Optional[bool] = None
+    is_default: Optional[bool] = None
 
-class ShareRequest(BaseSchema):
-    """Schema für Resource Sharing"""
-    resource_type: Literal["project", "document"] = Field(..., description="Type of resource to share")
-    resource_id: UUID = Field(..., description="Resource ID")
-    user_ids: List[UUID] = Field(..., min_items=1, description="User IDs to share with")
-    permission_level: Literal["read", "write", "admin"] = Field(..., description="Permission level")
-    expires_at: Optional[str] = Field(None, description="Share expiration")
-    message: Optional[str] = Field(None, description="Optional message")
-
-class ShareResponse(BaseSchema, TimestampMixin):
-    """Schema für Share Response"""
-    id: UUID
-    resource_type: str
-    resource_id: UUID
-    shared_with_user_id: UUID
-    shared_by_user_id: UUID
-    permission_level: str
-    expires_at: Optional[str]
-    is_active: bool
+class ExposeTemplateResponse(ExposeTemplateBase, BaseSchema):
+    """Schema for ExposeTemplate response"""
+    pass
 
 # ================================
-# ACTIVITY & NOTIFICATIONS SCHEMAS
+# Expose Link Schemas
 # ================================
 
-class ActivityBase(BaseSchema):
-    """Base Activity Schema"""
-    activity_type: str = Field(..., description="Type of activity")
-    resource_type: str = Field(..., description="Type of resource (project, document, etc.)")
-    resource_id: UUID = Field(..., description="Resource ID")
-    description: str = Field(..., description="Activity description")
+class ExposeLinkBase(BaseModel):
+    """Base schema for ExposeLink"""
+    property_id: UUID
+    template_id: Optional[UUID] = None
+    name: Optional[str] = Field(None, max_length=255)
+    
+    preset_equity_amount: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    preset_interest_rate: Optional[float] = Field(None, ge=0, le=20)
+    preset_loan_term_years: Optional[int] = Field(None, ge=1, le=50)
+    preset_monthly_rent: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    
+    expiration_date: Optional[datetime] = None
+    password_protected: bool = False
+    password: Optional[str] = Field(None, exclude=True)  # Only for creation
+    
+    visible_sections: Optional[Dict[str, bool]] = None
+    custom_message: Optional[str] = None
 
-class ActivityResponse(ActivityBase, TimestampMixin):
-    """Schema für Activity Response"""
-    id: UUID
-    user_id: UUID
-    user_name: str
-    tenant_id: UUID
-    metadata: dict = Field(default_factory=dict, description="Additional activity metadata")
+    model_config = ConfigDict(from_attributes=True)
 
-class ActivityFeedResponse(BaseSchema):
-    """Schema für Activity Feed"""
-    activities: List[ActivityResponse]
+class ExposeLinkCreate(ExposeLinkBase):
+    """Schema for creating an ExposeLink"""
+    @field_validator('password')
+    def validate_password(cls, v, values):
+        if values.data.get('password_protected') and not v:
+            raise ValueError('Password is required when password_protected is True')
+        return v
+
+class ExposeLinkUpdate(BaseModel):
+    """Schema for updating an ExposeLink"""
+    name: Optional[str] = Field(None, max_length=255)
+    
+    preset_equity_amount: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    preset_interest_rate: Optional[float] = Field(None, ge=0, le=20)
+    preset_loan_term_years: Optional[int] = Field(None, ge=1, le=50)
+    preset_monthly_rent: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    
+    expiration_date: Optional[datetime] = None
+    is_active: Optional[bool] = None
+    
+    visible_sections: Optional[Dict[str, bool]] = None
+    custom_message: Optional[str] = None
+
+class ExposeLinkResponse(ExposeLinkBase, BaseSchema):
+    """Schema for ExposeLink response"""
+    link_id: str
+    is_active: bool = True
+    view_count: int = 0
+    first_viewed_at: Optional[datetime] = None
+    last_viewed_at: Optional[datetime] = None
+    
+    # Include property basic info
+    property: Optional[PropertyResponse] = None
+    template: Optional[ExposeTemplateResponse] = None
+
+class ExposeLinkPublicResponse(BaseModel):
+    """Schema for public ExposeLink response (for viewers)"""
+    link_id: str
+    property: PropertyResponse
+    template: Optional[ExposeTemplateResponse] = None
+    
+    preset_equity_amount: Optional[Decimal] = None
+    preset_interest_rate: Optional[float] = None
+    preset_loan_term_years: Optional[int] = None
+    preset_monthly_rent: Optional[Decimal] = None
+    
+    visible_sections: Optional[Dict[str, bool]] = None
+    custom_message: Optional[str] = None
+    
+    # City information if available
+    city_info: Optional[CityResponse] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+# ================================
+# Investagon Sync Schemas
+# ================================
+
+class InvestagonSyncSchema(BaseSchema):
+    """Schema for InvestagonSync"""
+    property_id: Optional[UUID] = None
+    sync_type: str  # manual, full, incremental
+    sync_status: str  # queued, in_progress, success, partial, failed
+    started_at: datetime
+    completed_at: Optional[datetime] = None
+    records_synced: int = 0
+    records_created: int = 0
+    records_updated: int = 0
+    records_failed: int = 0
+    error_message: Optional[str] = None
+    sync_details: Optional[Dict[str, Any]] = None
+    initiated_by: UUID
+
+# ================================
+# Search and Filter Schemas
+# ================================
+
+class PropertyFilter(PaginationParams):
+    """Schema for property filtering"""
+    city: Optional[str] = None
+    state: Optional[str] = None
+    property_type: Optional[str] = None
+    status: Optional[str] = None
+    min_price: Optional[Decimal] = None
+    max_price: Optional[Decimal] = None
+    min_size: Optional[float] = None
+    max_size: Optional[float] = None
+    min_rooms: Optional[float] = None
+    max_rooms: Optional[float] = None
+    energy_class: Optional[str] = None
+
+class PropertyListResponse(BaseModel):
+    """Schema for paginated property list"""
+    items: List[PropertyResponse]
     total: int
-    has_more: bool
+    page: int
+    size: int
+    pages: int
 
-class NotificationBase(BaseSchema):
-    """Base Notification Schema"""
-    title: str = Field(..., min_length=1, max_length=200, description="Notification title")
-    message: str = Field(..., min_length=1, max_length=1000, description="Notification message")
-    notification_type: str = Field(..., description="Type of notification")
-    priority: Literal["low", "medium", "high", "urgent"] = Field(default="medium")
-
-class NotificationResponse(NotificationBase, TimestampMixin):
-    """Schema für Notification Response"""
-    id: UUID
-    user_id: UUID
-    is_read: bool = Field(default=False)
-    read_at: Optional[str] = None
-    action_url: Optional[str] = Field(None, description="URL for notification action")
-    metadata: dict = Field(default_factory=dict)
-
-class NotificationListResponse(BaseSchema):
-    """Schema für Notification List"""
-    notifications: List[NotificationResponse]
-    total: int
-    unread_count: int
-
-class NotificationMarkReadRequest(BaseSchema):
-    """Schema für Marking Notifications as Read"""
-    notification_ids: List[UUID] = Field(..., min_items=1, description="Notification IDs to mark as read")
-
-# ================================
-# DASHBOARD & ANALYTICS SCHEMAS
-# ================================
-
-class DashboardStatsResponse(BaseSchema):
-    """Schema für Dashboard Statistics"""
-    total_projects: int
-    active_projects: int
-    total_documents: int
-    recent_documents: int
-    team_members: int
-    storage_used: int = Field(description="Storage used in bytes")
-    storage_limit: int = Field(description="Storage limit in bytes")
-
-class ProjectAnalyticsResponse(BaseSchema):
-    """Schema für Project Analytics"""
-    project_id: UUID
-    project_name: str
-    total_documents: int
-    active_contributors: int
-    last_activity: Optional[str]
-    creation_trend: List[dict] = Field(description="Document creation trend over time")
-    contributor_activity: List[dict] = Field(description="Activity by contributors")
-
-class DocumentAnalyticsResponse(BaseSchema):
-    """Schema für Document Analytics"""
-    document_id: UUID
-    document_title: str
-    view_count: int
-    edit_count: int
-    download_count: int
-    last_accessed: Optional[str]
-    access_trend: List[dict] = Field(description="Access trend over time")
-
-class TenantAnalyticsResponse(BaseSchema):
-    """Schema für Tenant Analytics"""
-    tenant_id: UUID
-    user_growth: List[dict] = Field(description="User growth over time")
-    project_activity: List[dict] = Field(description="Project activity metrics")
-    storage_usage: List[dict] = Field(description="Storage usage over time")
-    feature_usage: dict = Field(description="Feature usage statistics")
-
-# ================================
-# SEARCH SCHEMAS
-# ================================
-
-class SearchRequest(BaseSchema):
-    """Schema für Search Request"""
-    query: str = Field(..., min_length=1, description="Search query")
-    resource_types: List[Literal["project", "document", "user"]] = Field(default_factory=lambda: ["project", "document"], description="Types of resources to search")
-    filters: dict = Field(default_factory=dict, description="Additional search filters")
-    limit: int = Field(default=20, ge=1, le=100, description="Maximum results per resource type")
-
-class SearchResultItem(BaseSchema):
-    """Schema für Search Result Item"""
-    id: UUID
-    type: str = Field(description="Resource type")
-    title: str
-    description: Optional[str]
-    url: str = Field(description="URL to the resource")
-    relevance_score: float = Field(description="Search relevance score")
-    metadata: dict = Field(default_factory=dict)
-
-class SearchResponse(BaseSchema):
-    """Schema für Search Response"""
-    query: str
-    total_results: int
-    results_by_type: dict[str, List[SearchResultItem]]
-    search_time_ms: int = Field(description="Search execution time in milliseconds")
-    suggestions: List[str] = Field(default_factory=list, description="Search suggestions")
-
-# ================================
-# EXPORT & IMPORT SCHEMAS
-# ================================
-
-class ExportRequest(BaseSchema):
-    """Schema für Export Request"""
-    resource_type: Literal["project", "document", "tenant_data"] = Field(..., description="Type of data to export")
-    resource_ids: Optional[List[UUID]] = Field(None, description="Specific resource IDs (if not provided, exports all)")
-    export_format: Literal["json", "csv", "xlsx", "pdf"] = Field(default="json", description="Export format")
-    include_metadata: bool = Field(default=True, description="Include metadata in export")
-    include_content: bool = Field(default=True, description="Include content in export")
-
-class ExportResponse(BaseSchema):
-    """Schema für Export Response"""
-    export_id: UUID
-    status: Literal["pending", "processing", "completed", "failed"] = Field(..., description="Export status")
-    download_url: Optional[str] = Field(None, description="Download URL when completed")
-    file_size: Optional[int] = Field(None, description="File size in bytes")
-    expires_at: Optional[str] = Field(None, description="Download URL expiration")
-    created_at: str
-
-class ImportRequest(BaseSchema):
-    """Schema für Import Request"""
-    import_type: Literal["projects", "documents", "users"] = Field(..., description="Type of data to import")
-    file_url: str = Field(..., description="URL of file to import")
-    import_settings: dict = Field(default_factory=dict, description="Import configuration")
-    merge_strategy: Literal["skip", "update", "replace"] = Field(default="skip", description="Strategy for existing data")
-
-class ImportResponse(BaseSchema):
-    """Schema für Import Response"""
-    import_id: UUID
-    status: Literal["pending", "processing", "completed", "failed"] = Field(..., description="Import status")
-    total_records: Optional[int] = None
-    processed_records: Optional[int] = None
-    success_count: Optional[int] = None
-    error_count: Optional[int] = None
-    errors: List[dict] = Field(default_factory=list, description="Import errors")
-    created_at: str
-
-# ================================
-# WORKFLOW & AUTOMATION SCHEMAS (Future Extension)
-# ================================
-
-class WorkflowTrigger(BaseSchema):
-    """Schema für Workflow Trigger"""
-    trigger_type: str = Field(..., description="Type of trigger")
-    conditions: dict = Field(..., description="Trigger conditions")
-
-class WorkflowAction(BaseSchema):
-    """Schema für Workflow Action"""
-    action_type: str = Field(..., description="Type of action")
-    parameters: dict = Field(..., description="Action parameters")
-
-class WorkflowRequest(BaseSchema):
-    """Schema für Workflow Creation"""
-    name: str = Field(..., min_length=1, max_length=100)
-    description: Optional[str] = None
-    triggers: List[WorkflowTrigger]
-    actions: List[WorkflowAction]
-    is_active: bool = Field(default=True)
-
-class WorkflowResponse(WorkflowRequest, TimestampMixin):
-    """Schema für Workflow Response"""
-    id: UUID
-    tenant_id: UUID
-    created_by: UUID
-    execution_count: int = Field(default=0)
-    last_executed: Optional[str] = None
-
-# ================================
-# FORWARD REFERENCES
-# ================================
-
-# Update forward references for circular dependencies
-ProjectDetailResponse.model_rebuild()
-CommentResponse.model_rebuild()
+    model_config = ConfigDict(from_attributes=True)

@@ -35,6 +35,19 @@ class settings(BaseSettings):
     AWS_SES_REPLY_TO: Optional[str] = None
     AWS_SES_CONFIGURATION_SET: Optional[str] = None  # Für tracking/analytics
     
+    # Hetzner S3-compatible Object Storage Settings
+    S3_ACCESS_KEY_ID: Optional[str] = None
+    S3_SECRET_ACCESS_KEY: Optional[str] = None
+    S3_ENDPOINT_URL: str = "https://fsn1.your-objectstorage.com"  # Update with your Hetzner endpoint
+    S3_BUCKET_NAME: str = "digitales-expose"  # Update with your actual bucket name
+    S3_REGION: str = "fsn1"  # Hetzner region (fsn1 = Falkenstein, nbg1 = Nuremberg, hel1 = Helsinki)
+    
+    # Investagon API Settings
+    INVESTAGON_API_URL: str = "https://api.investagon.com/api"
+    INVESTAGON_ORGANIZATION_ID: Optional[str] = None
+    INVESTAGON_API_KEY: Optional[str] = None
+    ENABLE_AUTO_SYNC: bool = True  # Enable automatic hourly sync
+    
     # Fallback SMTP (falls SES nicht verfügbar)
     SMTP_HOST: Optional[str] = None
     SMTP_PORT: int = 587

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from app.models.rbac import UserRole, Role, Permission, RolePermission
 from app.models.user import User
-from app.models.business import Project, Document
+from app.models.business import Property, PropertyImage, ExposeLink
 from typing import List, Optional
 import uuid
 
@@ -76,12 +76,15 @@ def has_role(db: Session, user_id: uuid.UUID, tenant_id: uuid.UUID, role_name: s
 def get_resource_owner(db: Session, resource_type: str, resource_id: uuid.UUID) -> Optional[uuid.UUID]:
     """Ermittelt den Owner einer Ressource"""
     
-    if resource_type == "project":
-        project = db.query(Project).filter(Project.id == resource_id).first()
-        return project.created_by if project else None
-    elif resource_type == "document":
-        document = db.query(Document).filter(Document.id == resource_id).first()
-        return document.created_by if document else None
+    if resource_type == "property":
+        property = db.query(Property).filter(Property.id == resource_id).first()
+        return property.created_by if property else None
+    elif resource_type == "property_image":
+        image = db.query(PropertyImage).filter(PropertyImage.id == resource_id).first()
+        return image.created_by if image else None
+    elif resource_type == "expose_link":
+        link = db.query(ExposeLink).filter(ExposeLink.id == resource_id).first()
+        return link.created_by if link else None
     
     return None
 
@@ -96,18 +99,30 @@ def create_default_permissions(db: Session) -> List[Permission]:
         ("users", "delete", "Delete users"),
         ("users", "invite", "Invite new users"),
         
-        # Project Management
-        ("projects", "create", "Create new projects"),
-        ("projects", "read", "View projects"),
-        ("projects", "update", "Update projects"),
-        ("projects", "delete", "Delete projects"),
+        # Property Management
+        ("properties", "create", "Create new properties"),
+        ("properties", "read", "View properties"),
+        ("properties", "update", "Update properties"),
+        ("properties", "delete", "Delete properties"),
         
-        # Document Management
-        ("documents", "create", "Create/upload documents"),
-        ("documents", "read", "View documents"),
-        ("documents", "update", "Update documents"),
-        ("documents", "delete", "Delete documents"),
-        ("documents", "download", "Download documents"),
+        # Expose Management
+        ("expose", "create", "Create shareable expose links"),
+        ("expose", "view", "View all properties and exposes"),
+        ("expose", "edit_content", "Edit text and images"),
+        ("expose", "manage_templates", "Manage expose templates"),
+        
+        # City Management
+        ("cities", "create", "Create city information"),
+        ("cities", "read", "View city information"),
+        ("cities", "update", "Update city information"),
+        ("cities", "delete", "Delete city information"),
+        
+        # Image Management
+        ("images", "upload", "Upload images"),
+        ("images", "delete", "Delete images"),
+        
+        # Investagon Integration
+        ("investagon", "sync", "Trigger data synchronization"),
         
         # Tenant Administration
         ("tenant", "manage", "Manage tenant settings"),
@@ -154,35 +169,44 @@ def create_default_roles_for_tenant(db: Session, tenant_id: uuid.UUID) -> List[R
             "description": "Full access to tenant administration",
             "permissions": [
                 "users:create", "users:read", "users:update", "users:delete", "users:invite",
-                "projects:create", "projects:read", "projects:update", "projects:delete",
-                "documents:create", "documents:read", "documents:update", "documents:delete", "documents:download",
+                "properties:create", "properties:read", "properties:update", "properties:delete",
+                "expose:create", "expose:view", "expose:edit_content", "expose:manage_templates",
+                "cities:create", "cities:read", "cities:update", "cities:delete",
+                "images:upload", "images:delete",
+                "investagon:sync",
                 "tenant:manage", "tenant:billing",
                 "roles:create", "roles:read", "roles:update", "roles:delete", "roles:assign"
             ]
         },
-        "project_manager": {
-            "description": "Manage projects and documents",
+        "property_manager": {
+            "description": "Manage properties and expose content",
             "permissions": [
                 "users:read",
-                "projects:create", "projects:read", "projects:update", "projects:delete",
-                "documents:create", "documents:read", "documents:update", "documents:delete", "documents:download",
+                "properties:create", "properties:read", "properties:update", "properties:delete",
+                "expose:view", "expose:edit_content", "expose:manage_templates",
+                "cities:create", "cities:read", "cities:update", "cities:delete",
+                "images:upload", "images:delete",
+                "investagon:sync",
                 "roles:read"
             ]
         },
-        "user": {
-            "description": "Basic user permissions",
+        "sales_person": {
+            "description": "View properties and create shareable links",
             "permissions": [
                 "users:read",
-                "projects:read",
-                "documents:create", "documents:read", "documents:update", "documents:download"
+                "properties:read",
+                "expose:create", "expose:view",
+                "cities:read",
+                "roles:read"
             ]
         },
         "viewer": {
-            "description": "Read-only access",
+            "description": "Read-only access to properties",
             "permissions": [
                 "users:read",
-                "projects:read",
-                "documents:read", "documents:download"
+                "properties:read",
+                "expose:view",
+                "cities:read"
             ]
         }
     }
@@ -309,26 +333,47 @@ def create_sample_data(db: Session):
     # Assign user role
     assign_user_to_role(db, regular_user.id, "user", sample_tenant.id)
     
-    # Create sample project
-    sample_project = Project(
+    # Create sample property
+    from decimal import Decimal
+    sample_property = Property(
         tenant_id=sample_tenant.id,
-        name="Sample Project",
-        description="This is a sample project for demonstration",
-        status="active",
+        address="Musterstraße 123",
+        city="München",
+        state="Bayern",
+        zip_code="80333",
+        property_type="apartment",
+        size_sqm=65.5,
+        rooms=2.5,
+        bathrooms=1,
+        floor=3,
+        total_floors=5,
+        construction_year=2020,
+        purchase_price=Decimal('450000.00'),
+        monthly_rent=Decimal('1800.00'),
+        additional_costs=Decimal('250.00'),
+        management_fee=Decimal('150.00'),
+        energy_certificate_type="consumption",
+        energy_consumption=75.5,
+        energy_class="B",
+        heating_type="Zentralheizung",
+        status="available",
         created_by=admin_user.id
     )
-    db.add(sample_project)
+    db.add(sample_property)
     db.flush()
     
-    # Create sample document
-    sample_document = Document(
+    # Create sample expose link
+    sample_expose_link = ExposeLink(
         tenant_id=sample_tenant.id,
-        project_id=sample_project.id,
-        title="Sample Document",
-        content="This is a sample document content",
+        property_id=sample_property.id,
+        name="Sample Expose Link",
+        preset_equity_amount=Decimal('90000.00'),
+        preset_interest_rate=3.5,
+        preset_loan_term_years=20,
+        is_active=True,
         created_by=admin_user.id
     )
-    db.add(sample_document)
+    db.add(sample_expose_link)
     
     # Microsoft OAuth configuration for sample tenant
     from app.models.tenant import TenantIdentityProvider

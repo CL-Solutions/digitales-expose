@@ -14,7 +14,12 @@ from app.models.base import Base
 from app.models.tenant import Tenant, TenantIdentityProvider
 from app.models.user import User, UserSession, OAuthToken, PasswordResetToken
 from app.models.rbac import Permission, Role, RolePermission, UserRole
-from app.models.business import Project, Document
+from app.models.business import (
+    Property, PropertyImage, 
+    City, CityImage,
+    ExposeTemplate, ExposeLink, ExposeLinkView,
+    InvestagonSync
+)
 from app.models.audit import AuditLog, SuperAdminSession
 
 # Export all models
@@ -30,8 +35,14 @@ __all__ = [
     "Role", 
     "RolePermission", 
     "UserRole",
-    "Project", 
-    "Document",
+    "Property",
+    "PropertyImage",
+    "City",
+    "CityImage",
+    "ExposeTemplate",
+    "ExposeLink",
+    "ExposeLinkView",
+    "InvestagonSync",
     "AuditLog", 
     "SuperAdminSession"
 ]
