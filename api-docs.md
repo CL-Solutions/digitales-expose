@@ -2835,13 +2835,61 @@ Perform maintenance cleanup for specific tenant
 
 ---
 
-### Projects & Documents
+### Properties
 
-#### Create Project
+#### List Properties
 
-**POST** `/api/v1/projects/`
+**GET** `/api/v1/properties/`
 
-Create new project - Uses ProjectService
+List all properties with filtering
+
+**Parameters:**
+
+- `page` (query) `integer`: 
+- `page_size` (query) `integer`: 
+- `city` (query) `string`: 
+- `state` (query) `string`: 
+- `property_type` (query) `string`: 
+- `status` (query) `string`: 
+- `min_price` (query) `string`: 
+- `max_price` (query) `string`: 
+- `min_size` (query) `string`: 
+- `max_size` (query) `string`: 
+- `min_rooms` (query) `string`: 
+- `max_rooms` (query) `string`: 
+- `energy_class` (query) `string`: 
+
+**Responses:**
+
+**200** - Successful Response
+  - Content-Type: `application/json`
+  - Schema: `PropertyListResponse`
+  - Key Properties:
+    - `items` (array) *(required)*: 
+    - `total` (integer) *(required)*: 
+    - `page` (integer) *(required)*: 
+    - `size` (integer) *(required)*: 
+    - `pages` (integer) *(required)*: 
+
+**401** - Authentication required
+
+**403** - Insufficient permissions
+
+**404** - Resource not found
+
+**422** - Validation Error
+  - Content-Type: `application/json`
+  - Schema: `HTTPValidationError`
+  - Key Properties:
+    - `detail` (array): 
+
+---
+
+#### Create Property
+
+**POST** `/api/v1/properties/`
+
+Create a new property
 
 **Request Body:**
 
@@ -2849,16 +2897,354 @@ Create new project - Uses ProjectService
 
 **Type:** `object`
 **Properties:**
-  - `name` (string) (minLength: 1, maxLength: 255) *(required)*: Project name
-  - `description` (unknown): Project description
-  - `status` (string) (options: active, completed, archived): Project status
+  - `address` (string) (maxLength: 500) *(required)*: 
+  - `city` (string) (maxLength: 255) *(required)*: 
+  - `state` (string) (maxLength: 255) *(required)*: 
+  - `zip_code` (string) (maxLength: 20) *(required)*: 
+  - `property_type` (string) (maxLength: 100) *(required)*: 
+  - `size_sqm` (number) *(required)*: 
+  - `rooms` (number) *(required)*: 
+  - `bathrooms` (unknown): 
+  - `floor` (unknown): 
+  - `total_floors` (unknown): 
+  - `construction_year` (unknown): 
+  - `purchase_price` (unknown) *(required)*: 
+  - `monthly_rent` (unknown) *(required)*: 
+  - `additional_costs` (unknown): 
+  - `management_fee` (unknown): 
+  - `energy_certificate_type` (unknown): 
+  - `energy_consumption` (unknown): 
+  - `energy_class` (unknown): 
+  - `heating_type` (unknown): 
+  - `status` (string): 
+  - `investagon_id` (unknown): 
 
 **Generated Example:**
 ```json
 {
-  "name": "string",
+  "address": "string",
+  "city": "string",
+  "state": "string",
+  "zip_code": "string",
+  "property_type": "string",
+  "size_sqm": 0.0,
+  "rooms": 0.0,
+  "purchase_price": {},
+  "monthly_rent": {}
+}
+```
+
+**Responses:**
+
+**201** - Successful Response
+  - Content-Type: `application/json`
+  - Schema: `PropertyResponse`
+  - Key Properties:
+    - `address` (string) *(required)*: 
+    - `city` (string) *(required)*: 
+    - `state` (string) *(required)*: 
+    - `zip_code` (string) *(required)*: 
+    - `property_type` (string) *(required)*: 
+    - ... and 22 more properties
+
+**401** - Authentication required
+
+**403** - Insufficient permissions
+
+**404** - Resource not found
+
+**422** - Validation Error
+  - Content-Type: `application/json`
+  - Schema: `HTTPValidationError`
+  - Key Properties:
+    - `detail` (array): 
+
+---
+
+#### Get Property
+
+**GET** `/api/v1/properties/{property_id}`
+
+Get property details
+
+**Parameters:**
+
+- `property_id` (path) `string` (format: uuid) *(required)*: Property ID
+
+**Responses:**
+
+**200** - Successful Response
+  - Content-Type: `application/json`
+  - Schema: `PropertyResponse`
+  - Key Properties:
+    - `address` (string) *(required)*: 
+    - `city` (string) *(required)*: 
+    - `state` (string) *(required)*: 
+    - `zip_code` (string) *(required)*: 
+    - `property_type` (string) *(required)*: 
+    - ... and 22 more properties
+
+**401** - Authentication required
+
+**403** - Insufficient permissions
+
+**404** - Resource not found
+
+**422** - Validation Error
+  - Content-Type: `application/json`
+  - Schema: `HTTPValidationError`
+  - Key Properties:
+    - `detail` (array): 
+
+---
+
+#### Update Property
+
+**PUT** `/api/v1/properties/{property_id}`
+
+Update property details
+
+**Parameters:**
+
+- `property_id` (path) `string` (format: uuid) *(required)*: Property ID
+
+**Request Body:**
+
+**Content-Type:** `application/json`
+
+**Type:** `object`
+**Properties:**
+  - `address` (unknown): 
+  - `city` (unknown): 
+  - `state` (unknown): 
+  - `zip_code` (unknown): 
+  - `property_type` (unknown): 
+  - `size_sqm` (unknown): 
+  - `rooms` (unknown): 
+  - `bathrooms` (unknown): 
+  - `floor` (unknown): 
+  - `total_floors` (unknown): 
+  - `construction_year` (unknown): 
+  - `purchase_price` (unknown): 
+  - `monthly_rent` (unknown): 
+  - `additional_costs` (unknown): 
+  - `management_fee` (unknown): 
+  - `energy_certificate_type` (unknown): 
+  - `energy_consumption` (unknown): 
+  - `energy_class` (unknown): 
+  - `heating_type` (unknown): 
+  - `status` (unknown): 
+
+**Generated Example:**
+```json
+{}
+```
+
+**Responses:**
+
+**200** - Successful Response
+  - Content-Type: `application/json`
+  - Schema: `PropertyResponse`
+  - Key Properties:
+    - `address` (string) *(required)*: 
+    - `city` (string) *(required)*: 
+    - `state` (string) *(required)*: 
+    - `zip_code` (string) *(required)*: 
+    - `property_type` (string) *(required)*: 
+    - ... and 22 more properties
+
+**401** - Authentication required
+
+**403** - Insufficient permissions
+
+**404** - Resource not found
+
+**422** - Validation Error
+  - Content-Type: `application/json`
+  - Schema: `HTTPValidationError`
+  - Key Properties:
+    - `detail` (array): 
+
+---
+
+#### Delete Property
+
+**DELETE** `/api/v1/properties/{property_id}`
+
+Delete a property
+
+**Parameters:**
+
+- `property_id` (path) `string` (format: uuid) *(required)*: Property ID
+
+**Responses:**
+
+**204** - Successful Response
+
+**401** - Authentication required
+
+**403** - Insufficient permissions
+
+**404** - Resource not found
+
+**422** - Validation Error
+  - Content-Type: `application/json`
+  - Schema: `HTTPValidationError`
+  - Key Properties:
+    - `detail` (array): 
+
+---
+
+#### Upload Property Image
+
+**POST** `/api/v1/properties/{property_id}/images/upload`
+
+Upload an image file for a property
+
+**Parameters:**
+
+- `property_id` (path) `string` (format: uuid) *(required)*: Property ID
+
+**Request Body:**
+
+**Content-Type:** `multipart/form-data`
+
+**Type:** `object`
+**Properties:**
+  - `image` (string) (format: binary) *(required)*: Image file to upload
+  - `image_type` (string) *(required)*: Image type (exterior, interior, floor_plan, energy_certificate, bathroom, kitchen, bedroom, living_room, balcony, garden, parking, basement, roof)
+  - `title` (unknown): Image title
+  - `description` (unknown): Image description
+  - `display_order` (integer): Display order
+
+**Generated Example:**
+```json
+{
+  "image": "string",
+  "image_type": "string",
+  "title": {},
   "description": {},
-  "status": "active"
+  "display_order": 0
+}
+```
+
+**Responses:**
+
+**201** - Successful Response
+  - Content-Type: `application/json`
+  - Schema: `PropertyImageSchema`
+  - Key Properties:
+    - `property_id` (string) *(required)*: 
+    - `image_url` (string) *(required)*: 
+    - `image_type` (string) *(required)*: 
+    - `title` (unknown): 
+    - `description` (unknown): 
+    - ... and 5 more properties
+
+**401** - Authentication required
+
+**403** - Insufficient permissions
+
+**404** - Resource not found
+
+**422** - Validation Error
+  - Content-Type: `application/json`
+  - Schema: `HTTPValidationError`
+  - Key Properties:
+    - `detail` (array): 
+
+---
+
+#### Add Property Image
+
+**POST** `/api/v1/properties/{property_id}/images`
+
+Add an image URL to a property (for external images)
+
+**Parameters:**
+
+- `property_id` (path) `string` (format: uuid) *(required)*: Property ID
+
+**Request Body:**
+
+**Content-Type:** `application/json`
+
+**Type:** `object`
+**Properties:**
+  - `image_url` (string) *(required)*: 
+  - `image_type` (string) *(required)*: 
+  - `title` (unknown): 
+  - `description` (unknown): 
+  - `display_order` (integer): 
+  - `file_size` (unknown): 
+  - `mime_type` (unknown): 
+  - `width` (unknown): 
+  - `height` (unknown): 
+
+**Generated Example:**
+```json
+{
+  "image_url": "string",
+  "image_type": "string"
+}
+```
+
+**Responses:**
+
+**201** - Successful Response
+  - Content-Type: `application/json`
+  - Schema: `PropertyImageSchema`
+  - Key Properties:
+    - `property_id` (string) *(required)*: 
+    - `image_url` (string) *(required)*: 
+    - `image_type` (string) *(required)*: 
+    - `title` (unknown): 
+    - `description` (unknown): 
+    - ... and 5 more properties
+
+**401** - Authentication required
+
+**403** - Insufficient permissions
+
+**404** - Resource not found
+
+**422** - Validation Error
+  - Content-Type: `application/json`
+  - Schema: `HTTPValidationError`
+  - Key Properties:
+    - `detail` (array): 
+
+---
+
+#### Update Property Image
+
+**PUT** `/api/v1/properties/{property_id}/images/{image_id}`
+
+Update a property image metadata
+
+**Parameters:**
+
+- `property_id` (path) `string` (format: uuid) *(required)*: Property ID
+- `image_id` (path) `string` (format: uuid) *(required)*: Image ID
+
+**Request Body:**
+
+**Content-Type:** `application/json`
+
+**Type:** `object`
+**Properties:**
+  - `image_url` (unknown): 
+  - `title` (unknown): 
+  - `description` (unknown): 
+  - `display_order` (unknown): 
+
+**Generated Example:**
+```json
+{
+  "image_url": {},
+  "title": {},
+  "description": {},
+  "display_order": {}
 }
 ```
 
@@ -2866,14 +3252,14 @@ Create new project - Uses ProjectService
 
 **200** - Successful Response
   - Content-Type: `application/json`
-  - Schema: `ProjectResponse`
+  - Schema: `PropertyImageSchema`
   - Key Properties:
-    - `created_by` (string) *(required)*: User who created this resource
-    - `updated_by` (unknown): User who last updated this resource
-    - `created_at` (string) *(required)*: Creation timestamp
-    - `updated_at` (string) *(required)*: Last update timestamp
-    - `name` (string) *(required)*: Project name
-    - ... and 6 more properties
+    - `property_id` (string) *(required)*: 
+    - `image_url` (string) *(required)*: 
+    - `image_type` (string) *(required)*: 
+    - `title` (unknown): 
+    - `description` (unknown): 
+    - ... and 5 more properties
 
 **401** - Authentication required
 
@@ -2889,35 +3275,20 @@ Create new project - Uses ProjectService
 
 ---
 
-#### List Projects
+#### Delete Property Image
 
-**GET** `/api/v1/projects/`
+**DELETE** `/api/v1/properties/{property_id}/images/{image_id}`
 
-List all projects in tenant - Uses ProjectService
+Delete a property image
 
 **Parameters:**
 
-- `search` (query) `string`: 
-- `sort_by` (query) `string`: 
-- `sort_order` (query) `string` (options: asc, desc): 
-- `page` (query) `integer`: 
-- `page_size` (query) `integer`: 
-- `status` (query) `string`: 
-- `created_by` (query) `string`: 
-- `has_documents` (query) `string`: 
-- `created_after` (query) `string`: 
-- `created_before` (query) `string`: 
+- `property_id` (path) `string` (format: uuid) *(required)*: Property ID
+- `image_id` (path) `string` (format: uuid) *(required)*: Image ID
 
 **Responses:**
 
-**200** - Successful Response
-  - Content-Type: `application/json`
-  - Schema: `ProjectListResponse`
-  - Key Properties:
-    - `projects` (array) *(required)*: 
-    - `total` (integer) *(required)*: 
-    - `page` (integer) *(required)*: 
-    - `page_size` (integer) *(required)*: 
+**204** - Successful Response
 
 **401** - Authentication required
 
@@ -2933,21 +3304,44 @@ List all projects in tenant - Uses ProjectService
 
 ---
 
-#### Delete Project
+#### Get Property Statistics
 
-**DELETE** `/api/v1/projects/{project_id}`
+**GET** `/api/v1/properties/stats/overview`
 
-Delete project - Uses ProjectService
-
-**Parameters:**
-
-- `project_id` (path) `string` (format: uuid) *(required)*: Project ID
-- `resource_id` (query) `string` (format: uuid) *(required)*: 
+Get property statistics for the tenant
 
 **Responses:**
 
 **200** - Successful Response
   - Content-Type: `application/json`
+  - Type: `object`
+
+**401** - Authentication required
+
+**403** - Insufficient permissions
+
+**404** - Resource not found
+
+---
+
+### Cities
+
+#### List Cities
+
+**GET** `/api/v1/cities/`
+
+List all cities
+
+**Parameters:**
+
+- `state` (query) `string`: Filter by state
+- `search` (query) `string`: Search by city name
+
+**Responses:**
+
+**200** - Successful Response
+  - Content-Type: `application/json`
+  - Type: `array`
 
 **401** - Authentication required
 
@@ -2963,27 +3357,479 @@ Delete project - Uses ProjectService
 
 ---
 
-#### Get Project By Id
+#### Create City
 
-**GET** `/api/v1/projects/{project_id}`
+**POST** `/api/v1/cities/`
 
-Get specific project - Uses ProjectService
+Create a new city
 
-**Parameters:**
+**Request Body:**
 
-- `project_id` (path) `string` (format: uuid) *(required)*: Project ID
+**Content-Type:** `application/json`
+
+**Type:** `object`
+**Properties:**
+  - `name` (string) (maxLength: 255) *(required)*: 
+  - `state` (string) (maxLength: 255) *(required)*: 
+  - `country` (string) (maxLength: 100): 
+  - `population` (unknown): 
+  - `population_growth` (unknown): 
+  - `unemployment_rate` (unknown): 
+  - `average_income` (unknown): 
+  - `universities` (unknown): 
+  - `major_employers` (unknown): 
+  - `public_transport` (unknown): 
+  - `description` (unknown): 
+  - `highlights` (unknown): 
+
+**Generated Example:**
+```json
+{
+  "name": "string",
+  "state": "string"
+}
+```
+
+**Responses:**
+
+**201** - Successful Response
+  - Content-Type: `application/json`
+  - Schema: `CityResponse`
+  - Key Properties:
+    - `name` (string) *(required)*: 
+    - `state` (string) *(required)*: 
+    - `country` (string): 
+    - `population` (unknown): 
+    - `population_growth` (unknown): 
+    - ... and 8 more properties
+
+**401** - Authentication required
+
+**403** - Insufficient permissions
+
+**404** - Resource not found
+
+**422** - Validation Error
+  - Content-Type: `application/json`
+  - Schema: `HTTPValidationError`
+  - Key Properties:
+    - `detail` (array): 
+
+---
+
+#### Get Cities With Properties
+
+**GET** `/api/v1/cities/with-properties`
+
+Get cities that have properties available
 
 **Responses:**
 
 **200** - Successful Response
   - Content-Type: `application/json`
-  - Schema: `ProjectDetailResponse`
+  - Type: `array`
+
+**401** - Authentication required
+
+**403** - Insufficient permissions
+
+**404** - Resource not found
+
+---
+
+#### Get City
+
+**GET** `/api/v1/cities/{city_id}`
+
+Get city details
+
+**Parameters:**
+
+- `city_id` (path) `string` (format: uuid) *(required)*: City ID
+
+**Responses:**
+
+**200** - Successful Response
+  - Content-Type: `application/json`
+  - Schema: `CityResponse`
   - Key Properties:
-    - `created_by` (string) *(required)*: User who created this resource
-    - `updated_by` (unknown): User who last updated this resource
-    - `created_at` (string) *(required)*: Creation timestamp
-    - `updated_at` (string) *(required)*: Last update timestamp
-    - `name` (string) *(required)*: Project name
+    - `name` (string) *(required)*: 
+    - `state` (string) *(required)*: 
+    - `country` (string): 
+    - `population` (unknown): 
+    - `population_growth` (unknown): 
+    - ... and 8 more properties
+
+**401** - Authentication required
+
+**403** - Insufficient permissions
+
+**404** - Resource not found
+
+**422** - Validation Error
+  - Content-Type: `application/json`
+  - Schema: `HTTPValidationError`
+  - Key Properties:
+    - `detail` (array): 
+
+---
+
+#### Update City
+
+**PUT** `/api/v1/cities/{city_id}`
+
+Update city details
+
+**Parameters:**
+
+- `city_id` (path) `string` (format: uuid) *(required)*: City ID
+
+**Request Body:**
+
+**Content-Type:** `application/json`
+
+**Type:** `object`
+**Properties:**
+  - `population` (unknown): 
+  - `population_growth` (unknown): 
+  - `unemployment_rate` (unknown): 
+  - `average_income` (unknown): 
+  - `universities` (unknown): 
+  - `major_employers` (unknown): 
+  - `public_transport` (unknown): 
+  - `description` (unknown): 
+  - `highlights` (unknown): 
+
+**Generated Example:**
+```json
+{}
+```
+
+**Responses:**
+
+**200** - Successful Response
+  - Content-Type: `application/json`
+  - Schema: `CityResponse`
+  - Key Properties:
+    - `name` (string) *(required)*: 
+    - `state` (string) *(required)*: 
+    - `country` (string): 
+    - `population` (unknown): 
+    - `population_growth` (unknown): 
+    - ... and 8 more properties
+
+**401** - Authentication required
+
+**403** - Insufficient permissions
+
+**404** - Resource not found
+
+**422** - Validation Error
+  - Content-Type: `application/json`
+  - Schema: `HTTPValidationError`
+  - Key Properties:
+    - `detail` (array): 
+
+---
+
+#### Delete City
+
+**DELETE** `/api/v1/cities/{city_id}`
+
+Delete a city
+
+**Parameters:**
+
+- `city_id` (path) `string` (format: uuid) *(required)*: City ID
+
+**Responses:**
+
+**204** - Successful Response
+
+**401** - Authentication required
+
+**403** - Insufficient permissions
+
+**404** - Resource not found
+
+**422** - Validation Error
+  - Content-Type: `application/json`
+  - Schema: `HTTPValidationError`
+  - Key Properties:
+    - `detail` (array): 
+
+---
+
+#### Upload City Image
+
+**POST** `/api/v1/cities/{city_id}/images/upload`
+
+Upload an image file for a city
+
+**Parameters:**
+
+- `city_id` (path) `string` (format: uuid) *(required)*: City ID
+
+**Request Body:**
+
+**Content-Type:** `multipart/form-data`
+
+**Type:** `object`
+**Properties:**
+  - `image` (string) (format: binary) *(required)*: Image file to upload
+  - `image_type` (string) *(required)*: Image type (skyline, landmark, downtown, residential, commercial, nature, transport, culture, nightlife, education, recreation, overview)
+  - `title` (unknown): Image title
+  - `description` (unknown): Image description
+  - `display_order` (integer): Display order
+
+**Generated Example:**
+```json
+{
+  "image": "string",
+  "image_type": "string",
+  "title": {},
+  "description": {},
+  "display_order": 0
+}
+```
+
+**Responses:**
+
+**201** - Successful Response
+  - Content-Type: `application/json`
+  - Schema: `CityImageSchema`
+  - Key Properties:
+    - `city_id` (string) *(required)*: 
+    - `image_url` (string) *(required)*: 
+    - `image_type` (string) *(required)*: 
+    - `title` (unknown): 
+    - `description` (unknown): 
+    - ... and 5 more properties
+
+**401** - Authentication required
+
+**403** - Insufficient permissions
+
+**404** - Resource not found
+
+**422** - Validation Error
+  - Content-Type: `application/json`
+  - Schema: `HTTPValidationError`
+  - Key Properties:
+    - `detail` (array): 
+
+---
+
+#### Add City Image
+
+**POST** `/api/v1/cities/{city_id}/images`
+
+Add an image to a city
+
+**Parameters:**
+
+- `city_id` (path) `string` (format: uuid) *(required)*: City ID
+- `image_url` (query) `string` *(required)*: 
+- `image_type` (query) `string` *(required)*: 
+- `title` (query) `string`: 
+- `description` (query) `string`: 
+- `display_order` (query) `integer`: 
+
+**Responses:**
+
+**201** - Successful Response
+  - Content-Type: `application/json`
+  - Schema: `CityImageSchema`
+  - Key Properties:
+    - `city_id` (string) *(required)*: 
+    - `image_url` (string) *(required)*: 
+    - `image_type` (string) *(required)*: 
+    - `title` (unknown): 
+    - `description` (unknown): 
+    - ... and 5 more properties
+
+**401** - Authentication required
+
+**403** - Insufficient permissions
+
+**404** - Resource not found
+
+**422** - Validation Error
+  - Content-Type: `application/json`
+  - Schema: `HTTPValidationError`
+  - Key Properties:
+    - `detail` (array): 
+
+---
+
+#### Update City Image
+
+**PUT** `/api/v1/cities/{city_id}/images/{image_id}`
+
+Update a city image metadata
+
+**Parameters:**
+
+- `city_id` (path) `string` (format: uuid) *(required)*: City ID
+- `image_id` (path) `string` (format: uuid) *(required)*: Image ID
+
+**Request Body:**
+
+**Content-Type:** `application/json`
+
+**Type:** `object`
+**Properties:**
+  - `image_url` (unknown): 
+  - `title` (unknown): 
+  - `description` (unknown): 
+  - `display_order` (unknown): 
+
+**Generated Example:**
+```json
+{
+  "image_url": {},
+  "title": {},
+  "description": {},
+  "display_order": {}
+}
+```
+
+**Responses:**
+
+**200** - Successful Response
+  - Content-Type: `application/json`
+  - Schema: `CityImageSchema`
+  - Key Properties:
+    - `city_id` (string) *(required)*: 
+    - `image_url` (string) *(required)*: 
+    - `image_type` (string) *(required)*: 
+    - `title` (unknown): 
+    - `description` (unknown): 
+    - ... and 5 more properties
+
+**401** - Authentication required
+
+**403** - Insufficient permissions
+
+**404** - Resource not found
+
+**422** - Validation Error
+  - Content-Type: `application/json`
+  - Schema: `HTTPValidationError`
+  - Key Properties:
+    - `detail` (array): 
+
+---
+
+#### Delete City Image
+
+**DELETE** `/api/v1/cities/{city_id}/images/{image_id}`
+
+Delete a city image
+
+**Parameters:**
+
+- `city_id` (path) `string` (format: uuid) *(required)*: City ID
+- `image_id` (path) `string` (format: uuid) *(required)*: Image ID
+
+**Responses:**
+
+**204** - Successful Response
+
+**401** - Authentication required
+
+**403** - Insufficient permissions
+
+**404** - Resource not found
+
+**422** - Validation Error
+  - Content-Type: `application/json`
+  - Schema: `HTTPValidationError`
+  - Key Properties:
+    - `detail` (array): 
+
+---
+
+### Exposes
+
+#### List Templates
+
+**GET** `/api/v1/exposes/templates`
+
+List all expose templates
+
+**Parameters:**
+
+- `property_type` (query) `string`: Filter by property type
+- `is_active` (query) `string`: Filter by active status
+
+**Responses:**
+
+**200** - Successful Response
+  - Content-Type: `application/json`
+  - Type: `array`
+
+**401** - Authentication required
+
+**403** - Insufficient permissions
+
+**404** - Resource not found
+
+**422** - Validation Error
+  - Content-Type: `application/json`
+  - Schema: `HTTPValidationError`
+  - Key Properties:
+    - `detail` (array): 
+
+---
+
+#### Create Template
+
+**POST** `/api/v1/exposes/templates`
+
+Create a new expose template
+
+**Request Body:**
+
+**Content-Type:** `application/json`
+
+**Type:** `object`
+**Properties:**
+  - `name` (string) (maxLength: 255) *(required)*: 
+  - `property_type` (unknown): 
+  - `investment_benefits` (unknown): 
+  - `location_description` (unknown): 
+  - `property_description` (unknown): 
+  - `financing_info` (unknown): 
+  - `tax_benefits` (unknown): 
+  - `risks_disclaimer` (unknown): 
+  - `company_info` (unknown): 
+  - `process_steps` (unknown): 
+  - `default_equity_percentage` (number) (min: 0.0, max: 100.0): 
+  - `default_interest_rate` (number) (min: 0.0, max: 20.0): 
+  - `default_loan_term_years` (integer) (min: 1.0, max: 50.0): 
+  - `default_tax_rate` (number) (min: 0.0, max: 100.0): 
+  - `is_active` (boolean): 
+  - `is_default` (boolean): 
+
+**Generated Example:**
+```json
+{
+  "name": "string"
+}
+```
+
+**Responses:**
+
+**201** - Successful Response
+  - Content-Type: `application/json`
+  - Schema: `ExposeTemplateResponse`
+  - Key Properties:
+    - `name` (string) *(required)*: 
+    - `property_type` (unknown): 
+    - `investment_benefits` (unknown): 
+    - `location_description` (unknown): 
+    - `property_description` (unknown): 
     - ... and 11 more properties
 
 **401** - Authentication required
@@ -3000,16 +3846,52 @@ Get specific project - Uses ProjectService
 
 ---
 
-#### Update Project
+#### Get Template
 
-**PUT** `/api/v1/projects/{project_id}`
+**GET** `/api/v1/exposes/templates/{template_id}`
 
-Update project - Uses ProjectService
+Get a specific expose template
 
 **Parameters:**
 
-- `project_id` (path) `string` (format: uuid) *(required)*: Project ID
-- `resource_id` (query) `string` (format: uuid) *(required)*: 
+- `template_id` (path) `string` (format: uuid) *(required)*: Template ID
+
+**Responses:**
+
+**200** - Successful Response
+  - Content-Type: `application/json`
+  - Schema: `ExposeTemplateResponse`
+  - Key Properties:
+    - `name` (string) *(required)*: 
+    - `property_type` (unknown): 
+    - `investment_benefits` (unknown): 
+    - `location_description` (unknown): 
+    - `property_description` (unknown): 
+    - ... and 11 more properties
+
+**401** - Authentication required
+
+**403** - Insufficient permissions
+
+**404** - Resource not found
+
+**422** - Validation Error
+  - Content-Type: `application/json`
+  - Schema: `HTTPValidationError`
+  - Key Properties:
+    - `detail` (array): 
+
+---
+
+#### Update Template
+
+**PUT** `/api/v1/exposes/templates/{template_id}`
+
+Update an expose template
+
+**Parameters:**
+
+- `template_id` (path) `string` (format: uuid) *(required)*: Template ID
 
 **Request Body:**
 
@@ -3018,132 +3900,21 @@ Update project - Uses ProjectService
 **Type:** `object`
 **Properties:**
   - `name` (unknown): 
-  - `description` (unknown): 
-  - `status` (unknown): 
-
-**Generated Example:**
-```json
-{
-  "name": {},
-  "description": {},
-  "status": {}
-}
-```
-
-**Responses:**
-
-**200** - Successful Response
-  - Content-Type: `application/json`
-  - Schema: `ProjectResponse`
-  - Key Properties:
-    - `created_by` (string) *(required)*: User who created this resource
-    - `updated_by` (unknown): User who last updated this resource
-    - `created_at` (string) *(required)*: Creation timestamp
-    - `updated_at` (string) *(required)*: Last update timestamp
-    - `name` (string) *(required)*: Project name
-    - ... and 6 more properties
-
-**401** - Authentication required
-
-**403** - Insufficient permissions
-
-**404** - Resource not found
-
-**422** - Validation Error
-  - Content-Type: `application/json`
-  - Schema: `HTTPValidationError`
-  - Key Properties:
-    - `detail` (array): 
-
----
-
-#### Create Document
-
-**POST** `/api/v1/projects/{project_id}/documents`
-
-Create new document in project - Uses DocumentService
-
-**Parameters:**
-
-- `project_id` (path) `string` (format: uuid) *(required)*: Project ID
-
-**Request Body:**
-
-**Content-Type:** `application/json`
-
-**Type:** `object`
-**Properties:**
-  - `title` (string) (minLength: 1, maxLength: 255) *(required)*: Document title
-  - `content` (unknown): Document content
-  - `project_id` (unknown): Associated project ID
-  - `tags` (array): Document tags
-    **Array items:**
-      **Type:** `string`
-
-**Generated Example:**
-```json
-{
-  "title": "string",
-  "content": {},
-  "project_id": {},
-  "tags": [
-    "string"
-  ]
-}
-```
-
-**Responses:**
-
-**200** - Successful Response
-  - Content-Type: `application/json`
-  - Schema: `DocumentResponse`
-  - Key Properties:
-    - `created_by` (string) *(required)*: User who created this resource
-    - `updated_by` (unknown): User who last updated this resource
-    - `created_at` (string) *(required)*: Creation timestamp
-    - `updated_at` (string) *(required)*: Last update timestamp
-    - `title` (string) *(required)*: Document title
-    - ... and 9 more properties
-
-**401** - Authentication required
-
-**403** - Insufficient permissions
-
-**404** - Resource not found
-
-**422** - Validation Error
-  - Content-Type: `application/json`
-  - Schema: `HTTPValidationError`
-  - Key Properties:
-    - `detail` (array): 
-
----
-
-#### List All Documents
-
-**GET** `/api/v1/projects/documents`
-
-List all documents in tenant - Uses DocumentService
-
-**Parameters:**
-
-- `search` (query) `string`: 
-- `sort_by` (query) `string`: 
-- `sort_order` (query) `string` (options: asc, desc): 
-- `page` (query) `integer`: 
-- `page_size` (query) `integer`: 
-- `project_id` (query) `string`: 
-- `created_by` (query) `string`: 
-- `mime_type` (query) `string`: 
-- `has_content` (query) `string`: 
-- `file_size_min` (query) `string`: 
-- `file_size_max` (query) `string`: 
-
-**Request Body:**
-
-**Content-Type:** `application/json`
-
-**Type:** `object`
+  - `property_type` (unknown): 
+  - `investment_benefits` (unknown): 
+  - `location_description` (unknown): 
+  - `property_description` (unknown): 
+  - `financing_info` (unknown): 
+  - `tax_benefits` (unknown): 
+  - `risks_disclaimer` (unknown): 
+  - `company_info` (unknown): 
+  - `process_steps` (unknown): 
+  - `default_equity_percentage` (unknown): 
+  - `default_interest_rate` (unknown): 
+  - `default_loan_term_years` (unknown): 
+  - `default_tax_rate` (unknown): 
+  - `is_active` (unknown): 
+  - `is_default` (unknown): 
 
 **Generated Example:**
 ```json
@@ -3154,12 +3925,14 @@ List all documents in tenant - Uses DocumentService
 
 **200** - Successful Response
   - Content-Type: `application/json`
-  - Schema: `DocumentListResponse`
+  - Schema: `ExposeTemplateResponse`
   - Key Properties:
-    - `documents` (array) *(required)*: 
-    - `total` (integer) *(required)*: 
-    - `page` (integer) *(required)*: 
-    - `page_size` (integer) *(required)*: 
+    - `name` (string) *(required)*: 
+    - `property_type` (unknown): 
+    - `investment_benefits` (unknown): 
+    - `location_description` (unknown): 
+    - `property_description` (unknown): 
+    - ... and 11 more properties
 
 **401** - Authentication required
 
@@ -3175,28 +3948,50 @@ List all documents in tenant - Uses DocumentService
 
 ---
 
-#### Get Document By Id
+#### Delete Template
 
-**GET** `/api/v1/projects/documents/{document_id}`
+**DELETE** `/api/v1/exposes/templates/{template_id}`
 
-Get specific document - Uses DocumentService
+Delete an expose template
 
 **Parameters:**
 
-- `document_id` (path) `string` (format: uuid) *(required)*: Document ID
+- `template_id` (path) `string` (format: uuid) *(required)*: Template ID
+
+**Responses:**
+
+**204** - Successful Response
+
+**401** - Authentication required
+
+**403** - Insufficient permissions
+
+**404** - Resource not found
+
+**422** - Validation Error
+  - Content-Type: `application/json`
+  - Schema: `HTTPValidationError`
+  - Key Properties:
+    - `detail` (array): 
+
+---
+
+#### List Expose Links
+
+**GET** `/api/v1/exposes/links`
+
+List all expose links
+
+**Parameters:**
+
+- `property_id` (query) `string`: Filter by property ID
+- `is_active` (query) `string`: Filter by active status
 
 **Responses:**
 
 **200** - Successful Response
   - Content-Type: `application/json`
-  - Schema: `DocumentDetailResponse`
-  - Key Properties:
-    - `created_by` (string) *(required)*: User who created this resource
-    - `updated_by` (unknown): User who last updated this resource
-    - `created_at` (string) *(required)*: Creation timestamp
-    - `updated_at` (string) *(required)*: Last update timestamp
-    - `title` (string) *(required)*: Document title
-    - ... and 14 more properties
+  - Type: `array`
 
 **401** - Authentication required
 
@@ -3212,16 +4007,11 @@ Get specific document - Uses DocumentService
 
 ---
 
-#### Update Document
+#### Create Expose Link
 
-**PUT** `/api/v1/projects/documents/{document_id}`
+**POST** `/api/v1/exposes/links`
 
-Update document - Uses DocumentService
-
-**Parameters:**
-
-- `document_id` (path) `string` (format: uuid) *(required)*: Document ID
-- `resource_id` (query) `string` (format: uuid) *(required)*: 
+Create a new expose link
 
 **Request Body:**
 
@@ -3229,33 +4019,38 @@ Update document - Uses DocumentService
 
 **Type:** `object`
 **Properties:**
-  - `title` (unknown): 
-  - `content` (unknown): 
-  - `project_id` (unknown): 
-  - `tags` (unknown): 
+  - `property_id` (string) (format: uuid) *(required)*: 
+  - `template_id` (unknown): 
+  - `name` (unknown): 
+  - `preset_equity_amount` (unknown): 
+  - `preset_interest_rate` (unknown): 
+  - `preset_loan_term_years` (unknown): 
+  - `preset_monthly_rent` (unknown): 
+  - `expiration_date` (unknown): 
+  - `password_protected` (boolean): 
+  - `password` (unknown): 
+  - `visible_sections` (unknown): 
+  - `custom_message` (unknown): 
 
 **Generated Example:**
 ```json
 {
-  "title": {},
-  "content": {},
-  "project_id": {},
-  "tags": {}
+  "property_id": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
 
 **Responses:**
 
-**200** - Successful Response
+**201** - Successful Response
   - Content-Type: `application/json`
-  - Schema: `DocumentResponse`
+  - Schema: `ExposeLinkResponse`
   - Key Properties:
-    - `created_by` (string) *(required)*: User who created this resource
-    - `updated_by` (unknown): User who last updated this resource
-    - `created_at` (string) *(required)*: Creation timestamp
-    - `updated_at` (string) *(required)*: Last update timestamp
-    - `title` (string) *(required)*: Document title
-    - ... and 9 more properties
+    - `property_id` (string) *(required)*: 
+    - `template_id` (unknown): 
+    - `name` (unknown): 
+    - `preset_equity_amount` (unknown): 
+    - `preset_interest_rate` (unknown): 
+    - ... and 13 more properties
 
 **401** - Authentication required
 
@@ -3271,21 +4066,28 @@ Update document - Uses DocumentService
 
 ---
 
-#### Delete Document
+#### Get Expose Link Details
 
-**DELETE** `/api/v1/projects/documents/{document_id}`
+**GET** `/api/v1/exposes/links/{link_id}`
 
-Delete document - Uses DocumentService
+Get details of an expose link (for management)
 
 **Parameters:**
 
-- `document_id` (path) `string` (format: uuid) *(required)*: Document ID
-- `resource_id` (query) `string` (format: uuid) *(required)*: 
+- `link_id` (path) `string` (format: uuid) *(required)*: Expose link UUID
 
 **Responses:**
 
 **200** - Successful Response
   - Content-Type: `application/json`
+  - Schema: `ExposeLinkResponse`
+  - Key Properties:
+    - `property_id` (string) *(required)*: 
+    - `template_id` (unknown): 
+    - `name` (unknown): 
+    - `preset_equity_amount` (unknown): 
+    - `preset_interest_rate` (unknown): 
+    - ... and 13 more properties
 
 **401** - Authentication required
 
@@ -3301,11 +4103,15 @@ Delete document - Uses DocumentService
 
 ---
 
-#### Upload Document
+#### Update Expose Link
 
-**POST** `/api/v1/projects/documents/upload`
+**PUT** `/api/v1/exposes/links/{link_id}`
 
-Initiate document upload (Pre-signed URL)
+Update an expose link
+
+**Parameters:**
+
+- `link_id` (path) `string` (format: uuid) *(required)*: Expose link UUID
 
 **Request Body:**
 
@@ -3313,35 +4119,33 @@ Initiate document upload (Pre-signed URL)
 
 **Type:** `object`
 **Properties:**
-  - `title` (string) (minLength: 1, maxLength: 255) *(required)*: 
-  - `project_id` (unknown): 
-  - `tags` (array): 
-    **Array items:**
-      **Type:** `string`
-  - `replace_existing` (boolean): Replace existing document with same name
+  - `name` (unknown): 
+  - `preset_equity_amount` (unknown): 
+  - `preset_interest_rate` (unknown): 
+  - `preset_loan_term_years` (unknown): 
+  - `preset_monthly_rent` (unknown): 
+  - `expiration_date` (unknown): 
+  - `is_active` (unknown): 
+  - `visible_sections` (unknown): 
+  - `custom_message` (unknown): 
 
 **Generated Example:**
 ```json
-{
-  "title": "string",
-  "project_id": {},
-  "tags": [
-    "string"
-  ],
-  "replace_existing": true
-}
+{}
 ```
 
 **Responses:**
 
 **200** - Successful Response
   - Content-Type: `application/json`
-  - Schema: `DocumentUploadResponse`
+  - Schema: `ExposeLinkResponse`
   - Key Properties:
-    - `document_id` (string) *(required)*: 
-    - `upload_url` (string) *(required)*: Pre-signed upload URL
-    - `fields` (object) *(required)*: Form fields for upload
-    - `expires_at` (string) *(required)*: Upload URL expiration
+    - `property_id` (string) *(required)*: 
+    - `template_id` (unknown): 
+    - `name` (unknown): 
+    - `preset_equity_amount` (unknown): 
+    - `preset_interest_rate` (unknown): 
+    - ... and 13 more properties
 
 **401** - Authentication required
 
@@ -3357,22 +4161,19 @@ Initiate document upload (Pre-signed URL)
 
 ---
 
-#### Complete Document Upload
+#### Delete Expose Link
 
-**POST** `/api/v1/projects/documents/{document_id}/upload-complete`
+**DELETE** `/api/v1/exposes/links/{link_id}`
 
-Complete document upload after file is uploaded
+Delete an expose link
 
 **Parameters:**
 
-- `document_id` (path) `string` (format: uuid) *(required)*: Document ID
-- `file_size` (query) `integer` *(required)*: Uploaded file size
-- `mime_type` (query) `string` *(required)*: File MIME type
+- `link_id` (path) `string` (format: uuid) *(required)*: Expose link UUID
 
 **Responses:**
 
-**200** - Successful Response
-  - Content-Type: `application/json`
+**204** - Successful Response
 
 **401** - Authentication required
 
@@ -3388,53 +4189,21 @@ Complete document upload after file is uploaded
 
 ---
 
-#### Get Project Statistics
+#### Get Expose Link Stats
 
-**GET** `/api/v1/projects/stats`
+**GET** `/api/v1/exposes/links/{link_id}/stats`
 
-Project statistics for current tenant - Uses ProjectService
-
-**Responses:**
-
-**200** - Successful Response
-  - Content-Type: `application/json`
-  - Schema: `ProjectStatsResponse`
-  - Key Properties:
-    - `total_projects` (integer) *(required)*: 
-    - `active_projects` (integer) *(required)*: 
-    - `completed_projects` (integer) *(required)*: 
-    - `archived_projects` (integer) *(required)*: 
-    - `projects_by_month` (object) *(required)*: 
-    - ... and 2 more properties
-
-**401** - Authentication required
-
-**403** - Insufficient permissions
-
-**404** - Resource not found
-
----
-
-#### Get Project Activity
-
-**GET** `/api/v1/projects/activity`
-
-Activity feed for projects and documents - Uses BusinessSearchService
+Get statistics for an expose link
 
 **Parameters:**
 
-- `limit` (query) `integer`: 
-- `project_id` (query) `string`: Filter by project ID
+- `link_id` (path) `string` (format: uuid) *(required)*: Expose link UUID
 
 **Responses:**
 
 **200** - Successful Response
   - Content-Type: `application/json`
-  - Schema: `ActivityFeedResponse`
-  - Key Properties:
-    - `activities` (array) *(required)*: 
-    - `total` (integer) *(required)*: 
-    - `has_more` (boolean) *(required)*: 
+  - Type: `object`
 
 **401** - Authentication required
 
@@ -3450,81 +4219,29 @@ Activity feed for projects and documents - Uses BusinessSearchService
 
 ---
 
-#### Search Projects And Documents
+#### Get Public Expose
 
-**POST** `/api/v1/projects/search`
+**GET** `/api/v1/exposes/public/{link_id}`
 
-Search in projects and documents - Uses BusinessSearchService
-
-**Request Body:**
-
-**Content-Type:** `application/json`
-
-**Type:** `object`
-**Properties:**
-  - `query` (string) (minLength: 1) *(required)*: Search query
-  - `resource_types` (array): Types of resources to search
-    **Array items:**
-      **Type:** `string`
-  - `filters` (object): Additional search filters
-    **Type:** `object`
-  - `limit` (integer) (min: 1.0, max: 100.0): Maximum results per resource type
-
-**Generated Example:**
-```json
-{
-  "query": "string",
-  "resource_types": [
-    "project"
-  ],
-  "filters": {},
-  "limit": 1.0
-}
-```
-
-**Responses:**
-
-**200** - Successful Response
-  - Content-Type: `application/json`
-  - Schema: `SearchResponse`
-  - Key Properties:
-    - `query` (string) *(required)*: 
-    - `total_results` (integer) *(required)*: 
-    - `results_by_type` (object) *(required)*: 
-    - `search_time_ms` (integer) *(required)*: Search execution time in milliseconds
-    - `suggestions` (array): Search suggestions
-
-**401** - Authentication required
-
-**403** - Insufficient permissions
-
-**404** - Resource not found
-
-**422** - Validation Error
-  - Content-Type: `application/json`
-  - Schema: `HTTPValidationError`
-  - Key Properties:
-    - `detail` (array): 
-
----
-
-#### Share Document
-
-**POST** `/api/v1/projects/documents/{document_id}/share`
-
-Share document with other users - Uses DocumentService
+Access a public expose link
 
 **Parameters:**
 
-- `document_id` (path) `string` (format: uuid) *(required)*: Document ID
-- `share_with_emails` (query) `array` *(required)*: Emails to share with
-- `permission_level` (query) `string`: Permission level: read, write
-- `message` (query) `string`: Optional message
+- `link_id` (path) `string` *(required)*: Public expose link ID
+- `password` (query) `string`: Password if required
 
 **Responses:**
 
 **200** - Successful Response
   - Content-Type: `application/json`
+  - Schema: `ExposeLinkPublicResponse`
+  - Key Properties:
+    - `link_id` (string) *(required)*: 
+    - `property` (unknown) *(required)*: 
+    - `template` (unknown): 
+    - `preset_equity_amount` (unknown): 
+    - `preset_interest_rate` (unknown): 
+    - ... and 5 more properties
 
 **401** - Authentication required
 
@@ -3540,34 +4257,179 @@ Share document with other users - Uses DocumentService
 
 ---
 
-#### Export Project
+### Investagon Integration
 
-**POST** `/api/v1/projects/{project_id}/export`
+#### Check Sync Status
 
-Export project with all documents - Uses ProjectService
+**GET** `/api/v1/investagon/sync/status`
 
-**Parameters:**
-
-- `project_id` (path) `string` (format: uuid) *(required)*: Project ID
-- `format` (query) `string`: Export format: json, zip
-- `include_documents` (query) `boolean`: Include document content
+Check if sync is allowed and get current sync status
 
 **Responses:**
 
 **200** - Successful Response
   - Content-Type: `application/json`
+  - Type: `object`
 
 **401** - Authentication required
 
 **403** - Insufficient permissions
 
-**404** - Resource not found
+**502** - External API error
+
+---
+
+#### Get Sync History
+
+**GET** `/api/v1/investagon/sync/history`
+
+Get sync history for the tenant
+
+**Parameters:**
+
+- `limit` (query) `integer`: Number of sync records to return
+
+**Responses:**
+
+**200** - Successful Response
+  - Content-Type: `application/json`
+  - Type: `array`
+
+**401** - Authentication required
+
+**403** - Insufficient permissions
+
+**502** - External API error
 
 **422** - Validation Error
   - Content-Type: `application/json`
   - Schema: `HTTPValidationError`
   - Key Properties:
     - `detail` (array): 
+
+---
+
+#### Sync Single Property
+
+**POST** `/api/v1/investagon/sync/property/{investagon_id}`
+
+Sync a single property from Investagon
+
+**Parameters:**
+
+- `investagon_id` (path) `string` *(required)*: Investagon property ID
+
+**Responses:**
+
+**200** - Successful Response
+  - Content-Type: `application/json`
+  - Type: `object`
+
+**401** - Authentication required
+
+**403** - Insufficient permissions
+
+**502** - External API error
+
+**422** - Validation Error
+  - Content-Type: `application/json`
+  - Schema: `HTTPValidationError`
+  - Key Properties:
+    - `detail` (array): 
+
+---
+
+#### Sync All Properties
+
+**POST** `/api/v1/investagon/sync/all`
+
+Start a full or incremental sync of all properties from Investagon
+
+**Parameters:**
+
+- `incremental` (query) `boolean`: If true, only sync properties modified since last sync
+
+**Responses:**
+
+**202** - Successful Response
+  - Content-Type: `application/json`
+  - Schema: `InvestagonSyncSchema`
+  - Key Properties:
+    - `property_id` (unknown): 
+    - `sync_type` (string) *(required)*: 
+    - `sync_status` (string) *(required)*: 
+    - `started_at` (string) *(required)*: 
+    - `completed_at` (unknown): 
+    - ... and 7 more properties
+
+**401** - Authentication required
+
+**403** - Insufficient permissions
+
+**502** - External API error
+
+**422** - Validation Error
+  - Content-Type: `application/json`
+  - Schema: `HTTPValidationError`
+  - Key Properties:
+    - `detail` (array): 
+
+---
+
+#### Sync All Properties Sync
+
+**POST** `/api/v1/investagon/sync/all-sync`
+
+Synchronously sync all properties from Investagon (blocks until complete)
+
+**Parameters:**
+
+- `incremental` (query) `boolean`: If true, only sync properties modified since last sync
+
+**Responses:**
+
+**200** - Successful Response
+  - Content-Type: `application/json`
+  - Schema: `InvestagonSyncSchema`
+  - Key Properties:
+    - `property_id` (unknown): 
+    - `sync_type` (string) *(required)*: 
+    - `sync_status` (string) *(required)*: 
+    - `started_at` (string) *(required)*: 
+    - `completed_at` (unknown): 
+    - ... and 7 more properties
+
+**401** - Authentication required
+
+**403** - Insufficient permissions
+
+**502** - External API error
+
+**422** - Validation Error
+  - Content-Type: `application/json`
+  - Schema: `HTTPValidationError`
+  - Key Properties:
+    - `detail` (array): 
+
+---
+
+#### Test Investagon Connection
+
+**GET** `/api/v1/investagon/test-connection`
+
+Test connection to Investagon API
+
+**Responses:**
+
+**200** - Successful Response
+  - Content-Type: `application/json`
+  - Type: `object`
+
+**401** - Authentication required
+
+**403** - Insufficient permissions
+
+**502** - External API error
 
 ---
 
