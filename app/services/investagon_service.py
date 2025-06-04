@@ -43,13 +43,84 @@ class InvestagonAPIClient:
             "api_key": self.api_key
         }
         
+    async def get_projects(self) -> List[Dict[str, Any]]:
+        """Get all projects from Investagon API"""
+        async with httpx.AsyncClient() as client:
+            try:
+                params = self._get_auth_params()
+                response = await client.get(
+                    f"{self.base_url}/api_projects",
+                    params=params,
+                    headers={"Accept": "application/json"},
+                    timeout=self.timeout
+                )
+                response.raise_for_status()
+                return response.json()
+                
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 401:
+                    raise AppException(
+                        status_code=401,
+                        detail="Invalid Investagon API credentials"
+                    )
+                else:
+                    logger.error(f"Investagon API error: {e.response.status_code} - {e.response.text}")
+                    raise AppException(
+                        status_code=502,
+                        detail=f"Investagon API error: {e.response.status_code}"
+                    )
+            except httpx.RequestError as e:
+                logger.error(f"Request error to Investagon API: {str(e)}")
+                raise AppException(
+                    status_code=502,
+                    detail="Failed to connect to Investagon API"
+                )
+    
+    async def get_project_by_id(self, project_id: str) -> Dict[str, Any]:
+        """Get a single project details from Investagon API"""
+        async with httpx.AsyncClient() as client:
+            try:
+                params = self._get_auth_params()
+                response = await client.get(
+                    f"{self.base_url}/api_projects/{project_id}",
+                    params=params,
+                    headers={"Accept": "application/json"},
+                    timeout=self.timeout
+                )
+                response.raise_for_status()
+                return response.json()
+                
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 404:
+                    raise AppException(
+                        status_code=404,
+                        detail=f"Project not found in Investagon: {project_id}"
+                    )
+                elif e.response.status_code == 401:
+                    raise AppException(
+                        status_code=401,
+                        detail="Invalid Investagon API credentials"
+                    )
+                else:
+                    logger.error(f"Investagon API error: {e.response.status_code} - {e.response.text}")
+                    raise AppException(
+                        status_code=502,
+                        detail=f"Investagon API error: {e.response.status_code}"
+                    )
+            except httpx.RequestError as e:
+                logger.error(f"Request error to Investagon API: {str(e)}")
+                raise AppException(
+                    status_code=502,
+                    detail="Failed to connect to Investagon API"
+                )
+    
     async def get_property(self, investagon_id: str) -> Dict[str, Any]:
         """Get a single property from Investagon API"""
         async with httpx.AsyncClient() as client:
             try:
                 params = self._get_auth_params()
                 response = await client.get(
-                    f"{self.base_url}/properties/{investagon_id}.json",
+                    f"{self.base_url}/properties/{investagon_id}",
                     params=params,
                     headers={"Accept": "application/json"},
                     timeout=self.timeout
@@ -80,64 +151,6 @@ class InvestagonAPIClient:
                     status_code=502,
                     detail="Failed to connect to Investagon API"
                 )
-    
-    async def list_properties(
-        self, 
-        page: int = 1, 
-        per_page: int = 100,
-        modified_since: Optional[datetime] = None
-    ) -> Dict[str, Any]:
-        """List properties from Investagon API with pagination"""
-        async with httpx.AsyncClient() as client:
-            try:
-                params = self._get_auth_params()
-                params.update({
-                    "page": page,
-                    "per_page": per_page
-                })
-                
-                if modified_since:
-                    # Investagon might expect a specific date format
-                    params["updated_since"] = modified_since.strftime("%Y-%m-%d %H:%M:%S")
-                
-                response = await client.get(
-                    f"{self.base_url}/properties.json",
-                    params=params,
-                    headers={"Accept": "application/json"},
-                    timeout=self.timeout
-                )
-                response.raise_for_status()
-                
-                # Parse response - Investagon might return array directly or wrapped
-                data = response.json()
-                if isinstance(data, list):
-                    # Wrap in expected format
-                    return {
-                        "items": data,
-                        "page": page,
-                        "per_page": per_page,
-                        "total": len(data),  # This might not be accurate for pagination
-                        "has_more": len(data) == per_page  # Assume more if full page
-                    }
-                return data
-                
-            except httpx.HTTPStatusError as e:
-                logger.error(f"Investagon API error: {e.response.status_code} - {e.response.text}")
-                if e.response.status_code == 401:
-                    raise AppException(
-                        status_code=401,
-                        detail="Invalid Investagon API credentials"
-                    )
-                raise AppException(
-                    status_code=502,
-                    detail=f"Investagon API error: {e.response.status_code}"
-                )
-            except httpx.RequestError as e:
-                logger.error(f"Request error to Investagon API: {str(e)}")
-                raise AppException(
-                    status_code=502,
-                    detail="Failed to connect to Investagon API"
-                )
 
 class InvestagonSyncService:
     """Service for syncing property data from Investagon API"""
@@ -145,56 +158,127 @@ class InvestagonSyncService:
     def __init__(self):
         self.api_client = InvestagonAPIClient()
     
-    @staticmethod
-    def _map_investagon_to_property(investagon_data: Dict[str, Any]) -> Dict[str, Any]:
+    @staticmethod  
+    def _map_investagon_to_property(investagon_data: Dict[str, Any], db: Session = None, tenant_id: UUID = None) -> Dict[str, Any]:
         """Map Investagon API data to our Property model fields"""
-        # Based on the actual Investagon API fields from documentation
+        from app.models.business import City
+        
+        # Handle city creation/lookup
+        city_id = None
+        city_name = investagon_data.get("object_city") or "Unknown"
+        state_name = investagon_data.get("province") or "Unknown"
+        
+        if db and tenant_id and city_name != "Unknown":
+            # Look for existing city
+            existing_city = db.query(City).filter(
+                City.tenant_id == tenant_id,
+                City.name == city_name,
+                City.state == state_name
+            ).first()
+            
+            if existing_city:
+                city_id = existing_city.id
+            else:
+                # Create new city
+                new_city = City(
+                    tenant_id=tenant_id,
+                    name=city_name,
+                    state=state_name,
+                    country=investagon_data.get("object_country", "Deutschland")
+                )
+                db.add(new_city)
+                db.flush()  # Get the ID
+                city_id = new_city.id
+        
+        # Extract numeric values safely
+        def safe_decimal(value, default=0):
+            try:
+                return Decimal(str(value or default))
+            except:
+                return Decimal(str(default))
+        
+        def safe_float(value, default=0):
+            try:
+                return float(value or default)
+            except:
+                return float(default)
+        
+        def safe_int(value, default=None):
+            try:
+                return int(value) if value is not None else default
+            except:
+                return default
+        
+        # Map property type - adjust based on actual API values
+        property_type_map = {
+            "apartment": "apartment",
+            "house": "house",
+            "co-living": "co-living",
+            "multi-family": "house",
+            "single-family": "house"
+        }
+        api_property_type = investagon_data.get("property_type", "apartment")
+        mapped_property_type = property_type_map.get(str(api_property_type).lower(), "apartment")
+        
+        # Determine property status from active field (0 = sold, 1 = available)
+        status = "available" if investagon_data.get("active") == 1 else "sold"
+        
         return {
             # Basic Information
-            "address": investagon_data.get("object_street", ""),
-            "city": investagon_data.get("object_city", ""),
-            "state": investagon_data.get("object_state", investagon_data.get("object_country", "")),
-            "zip_code": investagon_data.get("object_postal_code", ""),
-            "neighborhood": investagon_data.get("object_district", ""),
-            "property_type": investagon_data.get("object_type", "apartment"),
-            "year_built": investagon_data.get("object_year_built"),
-            "size_m2": Decimal(str(investagon_data.get("object_size", 0) or 0)),
-            "rooms": investagon_data.get("object_rooms"),
-            "bedrooms": investagon_data.get("object_bedrooms"),
-            "bathrooms": investagon_data.get("object_bathrooms"),
-            "floor": investagon_data.get("object_floor"),
-            "total_floors": investagon_data.get("object_total_floors"),
-            "has_elevator": investagon_data.get("object_has_elevator", False),
-            "has_parking": investagon_data.get("object_has_parking", False),
-            "has_balcony": investagon_data.get("object_has_balcony", False),
-            "has_garden": investagon_data.get("object_has_garden", False),
-            "has_basement": investagon_data.get("object_has_basement", False),
+            "street": investagon_data.get("object_street", ""),
+            "house_number": investagon_data.get("object_house_number", ""),
+            "apartment_number": investagon_data.get("object_apartment_number", ""),
+            "city": city_name,
+            "city_id": city_id,
+            "state": state_name, 
+            "country": investagon_data.get("object_country", "Deutschland"),
+            "zip_code": investagon_data.get("object_postal_code") or "00000",
+            "latitude": safe_float(investagon_data.get("lat")) if investagon_data.get("lat") else None,
+            "longitude": safe_float(investagon_data.get("lng")) if investagon_data.get("lng") else None,
+            "property_type": mapped_property_type,
+            
+            # Property Details
+            "size_sqm": safe_float(investagon_data.get("object_size", 0)),
+            "rooms": safe_float(investagon_data.get("object_rooms", 0)),
+            "bathrooms": safe_int(investagon_data.get("object_bathrooms")),
+            "floor": safe_int(investagon_data.get("object_floor")),
+            "total_floors": safe_int(investagon_data.get("object_total_floors")),
+            "construction_year": safe_int(investagon_data.get("object_building_year")),
+            "renovation_year": safe_int(investagon_data.get("object_renovation_year")),
             
             # Financial Data
-            "purchase_price": Decimal(str(investagon_data.get("purchase_price_apartment", 0) or 0)),
-            "additional_costs": Decimal(str(investagon_data.get("transaction_broker_rate", 0) or 0)),
-            "renovation_costs": Decimal(str(investagon_data.get("renovation_costs", 0) or 0)),
-            "monthly_rent": Decimal(str(investagon_data.get("rent_apartment_month", 0) or 0)),
-            "management_fee": Decimal(str(investagon_data.get("property_management_costs", 0) or 0)),
-            "maintenance_reserve": Decimal(str(investagon_data.get("maintenance_reserve", 0) or 0)),
+            "purchase_price": safe_decimal(investagon_data.get("purchase_price_apartment", 0)),
+            "purchase_price_parking": safe_decimal(investagon_data.get("purchase_price_parking", 0)),
+            "purchase_price_furniture": safe_decimal(investagon_data.get("purchase_price_furniture", 0)),
+            "monthly_rent": safe_decimal(investagon_data.get("rent_apartment_month", 0)),
+            "rent_parking_month": safe_decimal(investagon_data.get("rent_parking_month", 0)),
+            "additional_costs": safe_decimal(investagon_data.get("additional_costs", 0)),
+            "management_fee": safe_decimal(investagon_data.get("property_management_fee", 0)) or safe_decimal(investagon_data.get("property_management_fee_sev", 0)),
+            
+            # Transaction Costs (as percentages)
+            "transaction_broker_rate": safe_decimal(investagon_data.get("transaction_broker_rate", 0)),
+            "transaction_tax_rate": safe_decimal(investagon_data.get("transaction_tax_rate", 0)),
+            "transaction_notary_rate": safe_decimal(investagon_data.get("transaction_notary_rate", 0)),
+            "transaction_register_rate": safe_decimal(investagon_data.get("transaction_register_rate", 0)),
+            
+            # Operating Costs
+            "operation_cost_landlord": safe_decimal(investagon_data.get("operation_cost_landlord_apartment", 0)),
+            "operation_cost_tenant": safe_decimal(investagon_data.get("operation_cost_tenant_apartment", 0)),
+            "operation_cost_reserve": safe_decimal(investagon_data.get("operation_cost_reserve_apartment", 0)),
             
             # Energy Data
+            "energy_certificate_type": investagon_data.get("energy_certificate_type"),
+            "energy_consumption": safe_float(investagon_data.get("power_consumption")) if investagon_data.get("power_consumption") else None,
             "energy_class": investagon_data.get("energy_efficiency_class"),
-            "energy_consumption": Decimal(str(investagon_data.get("energy_consumption", 0) or 0)),
             "heating_type": investagon_data.get("heating_type"),
             
-            # Location data
-            "latitude": Decimal(str(investagon_data.get("lat", 0) or 0)) if investagon_data.get("lat") else None,
-            "longitude": Decimal(str(investagon_data.get("lng", 0) or 0)) if investagon_data.get("lng") else None,
-            
-            # Status - map from Investagon status
-            "status": "available" if investagon_data.get("status") == "available" else "sold",
+            # Status
+            "status": status,
             
             # Investagon Integration
             "investagon_id": str(investagon_data.get("id", "")),
-            "investagon_url": investagon_data.get("public_url", ""),
-            "investagon_last_sync": datetime.now(timezone.utc),
-            "investagon_data": investagon_data  # Store full data for reference
+            "investagon_data": investagon_data,  # Store full data for reference
+            "last_sync": datetime.now(timezone.utc),
         }
     
     async def sync_single_property(
@@ -228,7 +312,7 @@ class InvestagonSyncService:
             ).first()
             
             # Map data
-            property_data = self._map_investagon_to_property(investagon_data)
+            property_data = self._map_investagon_to_property(investagon_data, db, current_user.tenant_id)
             
             if existing_property:
                 # Update existing property
@@ -252,32 +336,31 @@ class InvestagonSyncService:
             
             # Record sync
             sync_record = InvestagonSync(
-                property_id=property_obj.id,
                 tenant_id=current_user.tenant_id,
-                sync_type="manual",
-                sync_status="success",
-                records_synced=1,
-                records_created=1 if action == "CREATE" else 0,
-                records_updated=1 if action == "UPDATE" else 0,
+                sync_type="single_property",
+                status="completed",
+                properties_created=1 if action == "CREATE" else 0,
+                properties_updated=1 if action == "UPDATE" else 0,
                 started_at=datetime.now(timezone.utc),
                 completed_at=datetime.now(timezone.utc),
-                initiated_by=current_user.id
+                created_by=current_user.id
             )
             db.add(sync_record)
             
             db.flush()
             
             # Log activity
-            audit_logger.log_event(
+            audit_logger.log_business_event(
                 db=db,
                 action=f"INVESTAGON_SYNC_{action}",
                 user_id=current_user.id,
                 tenant_id=current_user.tenant_id,
                 resource_type="property",
                 resource_id=property_obj.id,
-                details={
+                new_values={
                     "investagon_id": investagon_id,
-                    "address": property_obj.address
+                    "street": property_obj.street,
+                    "apartment_number": property_obj.apartment_number
                 }
             )
             
@@ -291,12 +374,12 @@ class InvestagonSyncService:
             # Record failed sync
             sync_record = InvestagonSync(
                 tenant_id=current_user.tenant_id,
-                sync_type="manual",
-                sync_status="failed",
-                error_message=str(e),
+                sync_type="single_property",
+                status="failed",
+                error_details={"error": str(e)},
                 started_at=datetime.now(timezone.utc),
                 completed_at=datetime.now(timezone.utc),
-                initiated_by=current_user.id
+                created_by=current_user.id
             )
             db.add(sync_record)
             db.flush()
@@ -331,9 +414,9 @@ class InvestagonSyncService:
             sync_record = InvestagonSync(
                 tenant_id=current_user.tenant_id,
                 sync_type="full" if not modified_since else "incremental",
-                sync_status="in_progress",
+                status="in_progress",
                 started_at=datetime.now(timezone.utc),
-                initiated_by=current_user.id
+                created_by=current_user.id
             )
             db.add(sync_record)
             db.flush()
@@ -359,97 +442,123 @@ class InvestagonSyncService:
                 if prop.investagon_id:
                     existing_properties[prop.investagon_id] = prop
             
-            # Paginate through Investagon API
-            page = 1
-            has_more = True
-            
-            while has_more:
-                try:
-                    # Get page of properties
-                    result = await self.api_client.list_properties(
-                        page=page,
-                        per_page=100,
-                        modified_since=modified_since
-                    )
+            # First, get all projects
+            try:
+                projects = await self.api_client.get_projects()
+                logger.info(f"Found {len(projects)} projects to sync")
+                
+                # Process each project
+                for project in projects:
+                    project_id = project.get("id")
+                    if not project_id:
+                        continue
                     
-                    properties = result.get("items", [])
-                    has_more = result.get("has_more", False)
-                    
-                    # Process each property
-                    for investagon_data in properties:
-                        try:
-                            investagon_id = str(investagon_data.get("id", ""))
-                            if not investagon_id:
-                                continue
+                    try:
+                        # Get project details including property list
+                        project_details = await self.api_client.get_project_by_id(project_id)
+                        property_urls = project_details.get("properties", [])
+                        
+                        logger.info(f"Project {project_id} has {len(property_urls)} properties")
+                        
+                        # Process each property URL
+                        for property_url in property_urls:
+                            try:
+                                # Extract property ID from URL (format: /api/api_properties/{id})
+                                if "/api_properties/" in property_url:
+                                    property_id = property_url.split("/api_properties/")[-1]
+                                else:
+                                    logger.warning(f"Unexpected property URL format: {property_url}")
+                                    continue
                                 
-                            property_data = self._map_investagon_to_property(investagon_data)
-                            
-                            if investagon_id in existing_properties:
-                                # Update existing
-                                prop = existing_properties[investagon_id]
-                                for key, value in property_data.items():
-                                    if key != "investagon_data":  # Skip JSON field for now
-                                        setattr(prop, key, value)
-                                prop.updated_by = current_user.id
-                                prop.updated_at = datetime.now(timezone.utc)
-                                total_updated += 1
-                            else:
-                                # Create new
-                                prop = Property(
-                                    **property_data,
-                                    tenant_id=current_user.tenant_id,
-                                    created_by=current_user.id
-                                )
-                                db.add(prop)
-                                total_created += 1
-                            
-                            total_synced += 1
-                            
-                        except Exception as e:
-                            total_errors += 1
-                            errors.append({
-                                "investagon_id": investagon_data.get("id"),
-                                "error": str(e)
-                            })
-                            logger.error(f"Error syncing property {investagon_data.get('id')}: {str(e)}")
-                    
-                    # Move to next page
-                    page += 1
-                    
-                    # Commit batch
-                    db.flush()
-                    
-                except Exception as e:
-                    logger.error(f"Error fetching page {page} from Investagon: {str(e)}")
-                    errors.append({
-                        "page": page,
-                        "error": str(e)
-                    })
-                    break
+                                # Get property details
+                                investagon_data = await self.api_client.get_property(property_id)
+                                
+                                # Add project information to property data
+                                investagon_data["project_id"] = project_id
+                                investagon_data["project_name"] = project_details.get("name", "")
+                                
+                                # Map property data
+                                property_data = self._map_investagon_to_property(investagon_data, db, current_user.tenant_id)
+                                
+                                # Use the investagon_id from the API response, not the URL property_id
+                                investagon_id = str(investagon_data.get("id", ""))
+                                
+                                if investagon_id in existing_properties:
+                                    # Update existing
+                                    prop = existing_properties[investagon_id]
+                                    for key, value in property_data.items():
+                                        if key != "investagon_data":  # Skip JSON field for now
+                                            setattr(prop, key, value)
+                                    prop.updated_by = current_user.id
+                                    prop.updated_at = datetime.now(timezone.utc)
+                                    total_updated += 1
+                                else:
+                                    # Create new
+                                    prop = Property(
+                                        **property_data,
+                                        tenant_id=current_user.tenant_id,
+                                        created_by=current_user.id
+                                    )
+                                    db.add(prop)
+                                    total_created += 1
+                                
+                                total_synced += 1
+                                
+                                # Commit every 50 properties to avoid memory issues
+                                if total_synced % 50 == 0:
+                                    db.flush()
+                                    logger.info(f"Synced {total_synced} properties so far...")
+                                
+                            except Exception as e:
+                                # Rollback transaction on error to prevent session corruption
+                                db.rollback()
+                                total_errors += 1
+                                errors.append({
+                                    "property_id": property_id,
+                                    "investagon_id": investagon_data.get("id") if 'investagon_data' in locals() else None,
+                                    "project_id": project_id,
+                                    "error": str(e)
+                                })
+                                logger.error(f"Error syncing property {property_id}: {str(e)}")
+                        
+                    except Exception as e:
+                        logger.error(f"Error processing project {project_id}: {str(e)}")
+                        errors.append({
+                            "project_id": project_id,
+                            "error": str(e)
+                        })
+                
+                # Final flush
+                db.flush()
+                
+            except Exception as e:
+                logger.error(f"Error fetching projects from Investagon: {str(e)}")
+                raise AppException(
+                    status_code=502,
+                    detail=f"Failed to fetch projects from Investagon: {str(e)}"
+                )
             
             # Update sync record
-            sync_record.sync_status = "success" if total_errors == 0 else "partial"
-            sync_record.records_synced = total_synced
-            sync_record.records_created = total_created
-            sync_record.records_updated = total_updated
-            sync_record.records_failed = total_errors
+            sync_record.status = "completed" if total_errors == 0 else "partial"
+            sync_record.properties_created = total_created
+            sync_record.properties_updated = total_updated
+            sync_record.properties_failed = total_errors
             sync_record.completed_at = datetime.now(timezone.utc)
             
             if errors:
-                sync_record.error_message = f"Synced with {total_errors} errors"
-                sync_record.sync_details = {"errors": errors}
+                sync_record.error_details = {"message": f"Synced with {total_errors} errors", "errors": errors}
             
             db.flush()
             
             # Log activity
-            audit_logger.log_event(
+            audit_logger.log_business_event(
                 db=db,
                 action="INVESTAGON_SYNC_BULK",
                 user_id=current_user.id,
                 tenant_id=current_user.tenant_id,
                 resource_type="investagon_sync",
                 resource_id=sync_record.id,
-                details={
+                new_values={
                     "type": sync_record.sync_type,
                     "synced": total_synced,
                     "created": total_created,
@@ -462,18 +571,18 @@ class InvestagonSyncService:
             
         except AppException:
             if sync_record:
-                sync_record.sync_status = "failed"
+                sync_record.status = "failed"
                 sync_record.completed_at = datetime.now(timezone.utc)
-                sync_record.error_message = "Permission denied"
+                sync_record.error_details = {"error": "Permission denied"}
                 db.flush()
             raise
         except Exception as e:
             logger.error(f"Failed to sync properties from Investagon: {str(e)}")
             
             if sync_record:
-                sync_record.sync_status = "failed"
+                sync_record.status = "failed"
                 sync_record.completed_at = datetime.now(timezone.utc)
-                sync_record.error_message = str(e)
+                sync_record.error_details = {"error": str(e)}
                 db.flush()
             
             raise AppException(
@@ -507,6 +616,23 @@ class InvestagonSyncService:
             )
     
     @staticmethod
+    def _calculate_duration(started_at: Optional[datetime], completed_at: Optional[datetime]) -> Optional[float]:
+        """Calculate duration between two datetimes, handling timezone issues"""
+        if not started_at or not completed_at:
+            return None
+        
+        try:
+            # Ensure both are timezone-aware
+            if started_at.tzinfo is None:
+                started_at = started_at.replace(tzinfo=timezone.utc)
+            if completed_at.tzinfo is None:
+                completed_at = completed_at.replace(tzinfo=timezone.utc)
+            
+            return (completed_at - started_at).total_seconds()
+        except:
+            return None
+    
+    @staticmethod
     def can_sync(db: Session, current_user: User) -> Dict[str, Any]:
         """Check if sync is allowed and when it can be performed"""
         try:
@@ -532,7 +658,7 @@ class InvestagonSyncService:
             in_progress = db.query(InvestagonSync).filter(
                 and_(
                     InvestagonSync.tenant_id == current_user.tenant_id,
-                    InvestagonSync.sync_status == "in_progress"
+                    InvestagonSync.status == "in_progress"
                 )
             ).first()
             
@@ -548,24 +674,46 @@ class InvestagonSyncService:
                 and_(
                     InvestagonSync.tenant_id == current_user.tenant_id,
                     InvestagonSync.sync_type == "full",
-                    InvestagonSync.sync_status.in_(["success", "partial"])
+                    InvestagonSync.status.in_(["completed", "partial"])
                 )
             ).order_by(InvestagonSync.completed_at.desc()).first()
             
-            if last_full_sync:
-                time_since_last = datetime.now(timezone.utc) - last_full_sync.completed_at
+            if last_full_sync and last_full_sync.completed_at:
+                # Ensure we have timezone-aware datetime
+                completed_at = last_full_sync.completed_at
+                if completed_at.tzinfo is None:
+                    completed_at = completed_at.replace(tzinfo=timezone.utc)
+                
+                time_since_last = datetime.now(timezone.utc) - completed_at
                 if time_since_last < timedelta(hours=1):
-                    next_allowed = last_full_sync.completed_at + timedelta(hours=1)
+                    next_allowed = completed_at + timedelta(hours=1)
                     return {
                         "can_sync": False,
                         "reason": "Rate limit: Full sync allowed once per hour",
                         "next_allowed_at": next_allowed.isoformat(),
-                        "last_sync": last_full_sync.completed_at.isoformat()
+                        "last_sync": completed_at.isoformat()
                     }
+            
+            # Get the most recent sync (any status)
+            recent_sync = db.query(InvestagonSync).filter(
+                InvestagonSync.tenant_id == current_user.tenant_id
+            ).order_by(InvestagonSync.started_at.desc()).first()
             
             return {
                 "can_sync": True,
-                "last_sync": last_full_sync.completed_at.isoformat() if last_full_sync else None
+                "last_completed_sync": last_full_sync.completed_at.isoformat() if last_full_sync and last_full_sync.completed_at else None,
+                "current_status": {
+                    "id": str(recent_sync.id),
+                    "type": recent_sync.sync_type,
+                    "status": recent_sync.status,
+                    "started_at": recent_sync.started_at.isoformat() if recent_sync.started_at else None,
+                    "completed_at": recent_sync.completed_at.isoformat() if recent_sync.completed_at else None,
+                    "properties_created": recent_sync.properties_created,
+                    "properties_updated": recent_sync.properties_updated,
+                    "properties_failed": recent_sync.properties_failed,
+                    "error_details": recent_sync.error_details,
+                    "duration_seconds": InvestagonSyncService._calculate_duration(recent_sync.started_at, recent_sync.completed_at)
+                } if recent_sync else None
             }
             
         except Exception as e:

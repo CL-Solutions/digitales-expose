@@ -203,7 +203,7 @@ async def sync_investagon_properties():
         # Get last successful sync to do incremental sync
         last_sync = db.query(InvestagonSync).filter(
             InvestagonSync.tenant_id == sync_user.tenant_id,
-            InvestagonSync.sync_status.in_(["success", "partial"]),
+            InvestagonSync.status.in_(["completed", "partial"]),
             InvestagonSync.sync_type.in_(["full", "incremental"])
         ).order_by(InvestagonSync.completed_at.desc()).first()
         
@@ -222,9 +222,9 @@ async def sync_investagon_properties():
         
         logger.info(
             f"Investagon sync completed: "
-            f"{sync_record.records_created} created, "
-            f"{sync_record.records_updated} updated, "
-            f"{sync_record.records_failed} failed"
+            f"{sync_record.properties_created} created, "
+            f"{sync_record.properties_updated} updated, "
+            f"{sync_record.properties_failed} failed"
         )
         
     except Exception as e:
@@ -276,7 +276,7 @@ def initialize_scheduler():
         func=sync_investagon_properties,
         interval_seconds=3600,  # 1 hour
         initial_delay=300,  # Wait 5 minutes after startup
-        enabled=getattr(settings, 'ENABLE_AUTO_SYNC', True)
+        enabled=settings.ENABLE_AUTO_SYNC
     )
     
     # Session cleanup - every 6 hours

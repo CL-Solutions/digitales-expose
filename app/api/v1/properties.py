@@ -14,6 +14,7 @@ from app.schemas.business import (
     PropertyCreate,
     PropertyUpdate,
     PropertyResponse,
+    PropertyOverview,
     PropertyFilter,
     PropertyListResponse,
     PropertyImageCreate,
@@ -35,13 +36,13 @@ async def list_properties(
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("properties", "read"))
 ):
-    """List all properties with filtering"""
+    """List all properties with filtering (overview only)"""
     try:
         result = PropertyService.list_properties(db, current_user, filter_params)
         db.commit()
         
         return PropertyListResponse(
-            items=[PropertyResponse.model_validate(p) for p in result["items"]],
+            items=[PropertyOverview.model_validate(p) for p in result["items"]],
             total=result["total"],
             page=result["page"],
             size=result["size"],

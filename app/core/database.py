@@ -2,7 +2,7 @@
 # DATABASE CONNECTION (core/database.py)
 # ================================
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
@@ -26,9 +26,9 @@ Base = declarative_base()
 def set_tenant_context(db: Session, tenant_id: uuid.UUID = None):
     """Setzt den Tenant-Kontext für RLS"""
     if tenant_id:
-        db.execute(f"SET app.current_tenant_id = '{tenant_id}'")
+        db.execute(text(f"SET app.current_tenant_id = '{tenant_id}'"))
     else:
-        db.execute("SET app.current_tenant_id = ''")
+        db.execute(text("SET app.current_tenant_id = ''"))
 
 @contextmanager
 def get_db_session():

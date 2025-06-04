@@ -14,10 +14,16 @@ class Property(Base, TenantMixin, AuditMixin):
     __tablename__ = "properties"
     
     # Basic Information
-    address = Column(String(500), nullable=False)
+    street = Column(String(255), nullable=True)
+    house_number = Column(String(50), nullable=True)
+    apartment_number = Column(String(100), nullable=True)
     city = Column(String(255), nullable=False)
+    city_id = Column(UUID(as_uuid=True), ForeignKey('cities.id'), nullable=True)
     state = Column(String(255), nullable=False)
+    country = Column(String(100), nullable=True, default="Deutschland")
     zip_code = Column(String(20), nullable=False)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
     property_type = Column(String(100), nullable=False)  # 'apartment', 'house', 'co-living', etc.
     
     # Property Details
@@ -27,12 +33,27 @@ class Property(Base, TenantMixin, AuditMixin):
     floor = Column(Integer, nullable=True)
     total_floors = Column(Integer, nullable=True)
     construction_year = Column(Integer, nullable=True)
+    renovation_year = Column(Integer, nullable=True)
     
     # Financial Data
     purchase_price = Column(Numeric(12, 2), nullable=False)
+    purchase_price_parking = Column(Numeric(10, 2), nullable=True)
+    purchase_price_furniture = Column(Numeric(10, 2), nullable=True)
     monthly_rent = Column(Numeric(10, 2), nullable=False)
+    rent_parking_month = Column(Numeric(10, 2), nullable=True)
     additional_costs = Column(Numeric(10, 2), nullable=True)
     management_fee = Column(Numeric(10, 2), nullable=True)
+    
+    # Transaction Costs (as percentages)
+    transaction_broker_rate = Column(Numeric(5, 2), nullable=True)
+    transaction_tax_rate = Column(Numeric(5, 2), nullable=True)
+    transaction_notary_rate = Column(Numeric(5, 2), nullable=True)
+    transaction_register_rate = Column(Numeric(5, 2), nullable=True)
+    
+    # Operating Costs
+    operation_cost_landlord = Column(Numeric(10, 2), nullable=True)
+    operation_cost_tenant = Column(Numeric(10, 2), nullable=True)
+    operation_cost_reserve = Column(Numeric(10, 2), nullable=True)
     
     # Energy Data
     energy_certificate_type = Column(String(50), nullable=True)  # 'consumption', 'demand'
@@ -54,15 +75,12 @@ class Property(Base, TenantMixin, AuditMixin):
     updater = relationship("User", foreign_keys="Property.updated_by", back_populates="updated_properties")
     images = relationship("PropertyImage", back_populates="property", cascade="all, delete-orphan", order_by="PropertyImage.display_order")
     expose_links = relationship("ExposeLink", back_populates="property", cascade="all, delete-orphan")
-    city_ref = relationship(
-        "City", 
-        primaryjoin="and_(Property.city==foreign(City.name), Property.tenant_id==foreign(City.tenant_id))",
-        viewonly=True,
-        uselist=False
-    )
+    city_ref = relationship("City", foreign_keys="Property.city_id", back_populates="properties")
 
     def __repr__(self):
-        return f"<Property(address='{self.address}', status='{self.status}')>"
+        address_parts = [self.street, self.house_number, self.apartment_number]
+        address = " ".join(filter(None, address_parts)) or "No address"
+        return f"<Property(address='{address}', city='{self.city}', status='{self.status}')>"
 
 class PropertyImage(Base, TenantMixin, AuditMixin):
     """Property Image Model"""
@@ -122,6 +140,7 @@ class City(Base, TenantMixin, AuditMixin):
     creator = relationship("User", foreign_keys="City.created_by")
     updater = relationship("User", foreign_keys="City.updated_by")
     images = relationship("CityImage", back_populates="city", cascade="all, delete-orphan", order_by="CityImage.display_order")
+    properties = relationship("Property", back_populates="city_ref")
 
     def __repr__(self):
         return f"<City(name='{self.name}', state='{self.state}')>"

@@ -7,9 +7,10 @@ from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime, timezone
+from types import SimpleNamespace
 import logging
 
-from app.dependencies import get_db, get_current_active_user, require_permission
+from app.dependencies import get_db, get_current_active_user, require_permission, get_current_tenant_id
 from app.models.user import User
 from app.models.business import InvestagonSync
 from app.schemas.business import InvestagonSyncSchema
@@ -22,12 +23,29 @@ router = APIRouter()
 @router.get("/sync/status", response_model=Dict[str, Any])
 async def check_sync_status(
     current_user: User = Depends(get_current_active_user),
+    tenant_id: Optional[UUID] = Depends(get_current_tenant_id),
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("investagon", "sync"))
 ):
     """Check if sync is allowed and get current sync status"""
     try:
-        status = InvestagonSyncService.can_sync(db, current_user)
+        # Check tenant context
+        if not tenant_id:
+            return {
+                "can_sync": False,
+                "reason": "No tenant context. Super admins must impersonate a tenant to sync properties."
+            }
+        
+        # Create a user-like object with effective tenant ID for service
+        from types import SimpleNamespace
+        effective_user = SimpleNamespace(
+            id=current_user.id,
+            tenant_id=tenant_id if tenant_id else current_user.tenant_id,
+            is_super_admin=current_user.is_super_admin,
+            is_active=current_user.is_active
+        )
+        
+        status = InvestagonSyncService.can_sync(db, effective_user)
         return status
     
     except AppException as e:
@@ -44,6 +62,10 @@ async def get_sync_history(
 ):
     """Get sync history for the tenant"""
     try:
+        # Check tenant context  
+        if not current_user.tenant_id:
+            return []
+        
         syncs = InvestagonSyncService.get_sync_history(db, current_user, limit)
         return [InvestagonSyncSchema.model_validate(sync) for sync in syncs]
     
@@ -61,6 +83,13 @@ async def sync_single_property(
 ):
     """Sync a single property from Investagon"""
     try:
+        # Check tenant context
+        if not current_user.tenant_id:
+            raise HTTPException(
+                status_code=400,
+                detail="No tenant context. Super admins must impersonate a tenant to sync properties."
+            )
+        
         sync_service = InvestagonSyncService()
         property = await sync_service.sync_single_property(db, investagon_id, current_user)
         db.commit()
@@ -87,13 +116,28 @@ async def sync_all_properties(
         description="If true, only sync properties modified since last sync"
     ),
     current_user: User = Depends(get_current_active_user),
+    tenant_id: Optional[UUID] = Depends(get_current_tenant_id),
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("investagon", "sync"))
 ):
     """Start a full or incremental sync of all properties from Investagon"""
     try:
+        # Check tenant context
+        if not tenant_id:
+            raise HTTPException(
+                status_code=400,
+                detail="No tenant context. Super admins must impersonate a tenant to sync properties."
+            )
+        
+        # Create effective user with tenant context
+        effective_user = SimpleNamespace(
+            id=current_user.id,
+            tenant_id=tenant_id,
+            is_super_admin=current_user.is_super_admin
+        )
+        
         # Check if sync is allowed
-        can_sync_status = InvestagonSyncService.can_sync(db, current_user)
+        can_sync_status = InvestagonSyncService.can_sync(db, effective_user)
         if not can_sync_status["can_sync"]:
             raise HTTPException(
                 status_code=429,
@@ -104,8 +148,8 @@ async def sync_all_properties(
         modified_since = None
         if incremental:
             last_sync = db.query(InvestagonSync).filter(
-                InvestagonSync.tenant_id == current_user.tenant_id,
-                InvestagonSync.sync_status.in_(["success", "partial"])
+                InvestagonSync.tenant_id == tenant_id,
+                InvestagonSync.status.in_(["completed", "partial"])
             ).order_by(InvestagonSync.completed_at.desc()).first()
             
             if last_sync:
@@ -119,8 +163,14 @@ async def sync_all_properties(
                 bg_db = SessionLocal()
                 
                 try:
+                    # Create effective user with tenant context for background task
+                    bg_user = SimpleNamespace(
+                        id=current_user.id,
+                        tenant_id=tenant_id,
+                        is_super_admin=current_user.is_super_admin
+                    )
                     sync_service = InvestagonSyncService()
-                    await sync_service.sync_all_properties(bg_db, current_user, modified_since)
+                    await sync_service.sync_all_properties(bg_db, bg_user, modified_since)
                     bg_db.commit()
                 finally:
                     bg_db.close()
@@ -132,11 +182,11 @@ async def sync_all_properties(
         
         # Create initial sync record
         sync_record = InvestagonSync(
-            tenant_id=current_user.tenant_id,
+            tenant_id=tenant_id,
             sync_type="incremental" if incremental else "full",
-            sync_status="queued",
+            status="pending",
             started_at=datetime.now(timezone.utc),
-            initiated_by=current_user.id
+            created_by=current_user.id
         )
         db.add(sync_record)
         db.commit()
@@ -164,6 +214,13 @@ async def sync_all_properties_sync(
 ):
     """Synchronously sync all properties from Investagon (blocks until complete)"""
     try:
+        # Check tenant context
+        if not current_user.tenant_id:
+            raise HTTPException(
+                status_code=400,
+                detail="No tenant context. Super admins must impersonate a tenant to sync properties."
+            )
+        
         # Check if sync is allowed
         can_sync_status = InvestagonSyncService.can_sync(db, current_user)
         if not can_sync_status["can_sync"]:
@@ -176,8 +233,8 @@ async def sync_all_properties_sync(
         modified_since = None
         if incremental:
             last_sync = db.query(InvestagonSync).filter(
-                InvestagonSync.tenant_id == current_user.tenant_id,
-                InvestagonSync.sync_status.in_(["success", "partial"])
+                InvestagonSync.tenant_id == tenant_id,
+                InvestagonSync.status.in_(["completed", "partial"])
             ).order_by(InvestagonSync.completed_at.desc()).first()
             
             if last_sync:
@@ -211,13 +268,23 @@ async def test_investagon_connection(
         
         client = InvestagonAPIClient()
         
-        # Try to fetch first page with 1 item to test connection
-        result = await client.list_properties(page=1, per_page=1)
+        # Try to fetch projects to test connection
+        projects = await client.get_projects()
+        
+        # Count total properties across all projects
+        total_properties = 0
+        if projects:
+            # Get details for first project to verify property fetching works
+            first_project = projects[0]
+            project_details = await client.get_project_by_id(first_project.get("id"))
+            property_urls = project_details.get("properties", [])
+            total_properties = len(property_urls)
         
         return {
             "connected": True,
             "message": "Successfully connected to Investagon API",
-            "properties_found": len(result.get("items", []))
+            "projects_found": len(projects),
+            "properties_in_first_project": total_properties
         }
     
     except AppException as e:

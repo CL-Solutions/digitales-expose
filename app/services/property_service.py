@@ -43,19 +43,6 @@ class PropertyService:
                         detail="You don't have permission to create properties"
                     )
             
-            # Check if property with same address already exists in tenant
-            existing = db.query(Property).filter(
-                and_(
-                    Property.address == property_data.address,
-                    Property.tenant_id == current_user.tenant_id
-                )
-            ).first()
-            
-            if existing:
-                raise AppException(
-                    status_code=400,
-                    detail="Property with this address already exists"
-                )
             
             # Create property
             property_dict = property_data.model_dump()
@@ -76,7 +63,12 @@ class PropertyService:
                 tenant_id=current_user.tenant_id,
                 resource_type="property",
                 resource_id=property.id,
-                details={"address": property.address}
+                details={
+                    "street": property.street,
+                    "house_number": property.house_number,
+                    "apartment_number": property.apartment_number,
+                    "city": property.city
+                }
             )
             
             return property
@@ -132,9 +124,7 @@ class PropertyService:
     ) -> Dict[str, Any]:
         """List properties with filtering and pagination"""
         try:
-            query = db.query(Property).options(
-                joinedload(Property.images)
-            )
+            query = db.query(Property)
             
             # Apply tenant filter if not super admin
             if not current_user.is_super_admin:
@@ -185,15 +175,15 @@ class PropertyService:
                 query = query.order_by(sort_field.asc())
             
             # Apply pagination
-            offset = (filter_params.page - 1) * filter_params.size
-            properties = query.offset(offset).limit(filter_params.size).all()
+            offset = (filter_params.page - 1) * filter_params.page_size
+            properties = query.offset(offset).limit(filter_params.page_size).all()
             
             return {
                 "items": properties,
                 "total": total,
                 "page": filter_params.page,
-                "size": filter_params.size,
-                "pages": (total + filter_params.size - 1) // filter_params.size
+                "size": filter_params.page_size,
+                "pages": (total + filter_params.page_size - 1) // filter_params.page_size
             }
             
         except Exception as e:
@@ -284,7 +274,12 @@ class PropertyService:
                 tenant_id=current_user.tenant_id,
                 resource_type="property",
                 resource_id=property.id,
-                details={"address": property.address}
+                details={
+                    "street": property.street,
+                    "house_number": property.house_number,
+                    "apartment_number": property.apartment_number,
+                    "city": property.city
+                }
             )
             
             db.delete(property)

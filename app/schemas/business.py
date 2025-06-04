@@ -16,23 +16,43 @@ from app.schemas.base import BaseSchema, PaginationParams
 
 class PropertyBase(BaseModel):
     """Base schema for Property"""
-    address: str = Field(..., max_length=500)
+    street: Optional[str] = Field(None, max_length=255)
+    house_number: Optional[str] = Field(None, max_length=50)
+    apartment_number: Optional[str] = Field(None, max_length=100)
     city: str = Field(..., max_length=255)
     state: str = Field(..., max_length=255)
+    country: Optional[str] = Field(None, max_length=100)
     zip_code: str = Field(..., max_length=20)
+    latitude: Optional[float] = Field(None, ge=-90, le=90)
+    longitude: Optional[float] = Field(None, ge=-180, le=180)
     property_type: str = Field(..., max_length=100)
     
-    size_sqm: float = Field(..., gt=0)
-    rooms: float = Field(..., gt=0)
+    size_sqm: float = Field(..., ge=0)
+    rooms: float = Field(..., ge=0)
     bathrooms: Optional[int] = Field(None, ge=0)
     floor: Optional[int] = Field(None)
     total_floors: Optional[int] = Field(None, gt=0)
     construction_year: Optional[int] = Field(None, ge=1800, le=2100)
+    renovation_year: Optional[int] = Field(None, ge=1800, le=2100)
     
     purchase_price: Decimal = Field(..., decimal_places=2, ge=0)
+    purchase_price_parking: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    purchase_price_furniture: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
     monthly_rent: Decimal = Field(..., decimal_places=2, ge=0)
+    rent_parking_month: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
     additional_costs: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
     management_fee: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    
+    # Transaction Costs (as percentages)
+    transaction_broker_rate: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    transaction_tax_rate: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    transaction_notary_rate: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    transaction_register_rate: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    
+    # Operating Costs
+    operation_cost_landlord: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    operation_cost_tenant: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    operation_cost_reserve: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
     
     energy_certificate_type: Optional[str] = Field(None, max_length=50)
     energy_consumption: Optional[float] = Field(None, ge=0)
@@ -45,27 +65,49 @@ class PropertyBase(BaseModel):
 
 class PropertyCreate(PropertyBase):
     """Schema for creating a Property"""
+    city_id: Optional[UUID] = None
     investagon_id: Optional[str] = None
 
 class PropertyUpdate(BaseModel):
     """Schema for updating a Property"""
-    address: Optional[str] = Field(None, max_length=500)
+    street: Optional[str] = Field(None, max_length=255)
+    house_number: Optional[str] = Field(None, max_length=50)
+    apartment_number: Optional[str] = Field(None, max_length=100)
     city: Optional[str] = Field(None, max_length=255)
+    city_id: Optional[UUID] = None
     state: Optional[str] = Field(None, max_length=255)
+    country: Optional[str] = Field(None, max_length=100)
     zip_code: Optional[str] = Field(None, max_length=20)
+    latitude: Optional[float] = Field(None, ge=-90, le=90)
+    longitude: Optional[float] = Field(None, ge=-180, le=180)
     property_type: Optional[str] = Field(None, max_length=100)
     
-    size_sqm: Optional[float] = Field(None, gt=0)
-    rooms: Optional[float] = Field(None, gt=0)
+    size_sqm: Optional[float] = Field(None, ge=0)
+    rooms: Optional[float] = Field(None, ge=0)
     bathrooms: Optional[int] = Field(None, ge=0)
     floor: Optional[int] = None
     total_floors: Optional[int] = Field(None, gt=0)
     construction_year: Optional[int] = Field(None, ge=1800, le=2100)
+    renovation_year: Optional[int] = Field(None, ge=1800, le=2100)
     
     purchase_price: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    purchase_price_parking: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    purchase_price_furniture: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
     monthly_rent: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    rent_parking_month: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
     additional_costs: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
     management_fee: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    
+    # Transaction Costs
+    transaction_broker_rate: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    transaction_tax_rate: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    transaction_notary_rate: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    transaction_register_rate: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    
+    # Operating Costs
+    operation_cost_landlord: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    operation_cost_tenant: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    operation_cost_reserve: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
     
     energy_certificate_type: Optional[str] = Field(None, max_length=50)
     energy_consumption: Optional[float] = Field(None, ge=0)
@@ -91,6 +133,7 @@ class PropertyImageSchema(BaseSchema):
 
 class PropertyResponse(PropertyBase, BaseSchema):
     """Schema for Property response"""
+    city_id: Optional[UUID] = None
     investagon_id: Optional[str] = None
     investagon_data: Optional[Dict[str, Any]] = None
     last_sync: Optional[datetime] = None
@@ -103,15 +146,19 @@ class PropertyResponse(PropertyBase, BaseSchema):
 
     @model_validator(mode='after')
     def calculate_yields(self):
-        if self.purchase_price and self.monthly_rent:
-            annual_rent = self.monthly_rent * 12
-            self.total_investment = self.purchase_price
-            self.gross_rental_yield = float((annual_rent / self.purchase_price) * 100)
-            
-            if self.additional_costs and self.management_fee:
-                annual_costs = (self.additional_costs + self.management_fee) * 12
-                net_annual_rent = annual_rent - annual_costs
-                self.net_rental_yield = float((net_annual_rent / self.purchase_price) * 100)
+        try:
+            if self.purchase_price and self.monthly_rent:
+                annual_rent = self.monthly_rent * 12
+                self.total_investment = self.purchase_price
+                self.gross_rental_yield = float((annual_rent / self.purchase_price) * 100)
+                
+                if self.additional_costs and self.management_fee:
+                    annual_costs = (self.additional_costs + self.management_fee) * 12
+                    net_annual_rent = annual_rent - annual_costs
+                    self.net_rental_yield = float((net_annual_rent / self.purchase_price) * 100)
+        except Exception:
+            # Prevent recursion by catching any calculation errors
+            pass
         return self
 
 # ================================
@@ -361,18 +408,15 @@ class ExposeLinkPublicResponse(BaseModel):
 
 class InvestagonSyncSchema(BaseSchema):
     """Schema for InvestagonSync"""
-    property_id: Optional[UUID] = None
-    sync_type: str  # manual, full, incremental
-    sync_status: str  # queued, in_progress, success, partial, failed
+    sync_type: str  # single_property, full, incremental
+    status: str  # pending, in_progress, completed, partial, failed
     started_at: datetime
     completed_at: Optional[datetime] = None
-    records_synced: int = 0
-    records_created: int = 0
-    records_updated: int = 0
-    records_failed: int = 0
-    error_message: Optional[str] = None
-    sync_details: Optional[Dict[str, Any]] = None
-    initiated_by: UUID
+    properties_created: int = 0
+    properties_updated: int = 0
+    properties_failed: int = 0
+    error_details: Optional[Dict[str, Any]] = None
+    created_by: UUID
 
 # ================================
 # Search and Filter Schemas
@@ -391,10 +435,30 @@ class PropertyFilter(PaginationParams):
     min_rooms: Optional[float] = None
     max_rooms: Optional[float] = None
     energy_class: Optional[str] = None
+    sort_by: str = Field(default="created_at", description="Field to sort by")
+    sort_order: str = Field(default="desc", pattern="^(asc|desc)$", description="Sort order")
+
+class PropertyOverview(BaseModel):
+    """Schema for Property overview (list view)"""
+    id: UUID
+    street: Optional[str] = None
+    house_number: Optional[str] = None
+    apartment_number: Optional[str] = None
+    city: str
+    state: str
+    property_type: str
+    status: str
+    purchase_price: Decimal
+    monthly_rent: Decimal
+    size_sqm: float
+    rooms: float
+    investagon_id: Optional[str] = None
+    
+    model_config = ConfigDict(from_attributes=True)
 
 class PropertyListResponse(BaseModel):
     """Schema for paginated property list"""
-    items: List[PropertyResponse]
+    items: List[PropertyOverview]
     total: int
     page: int
     size: int
