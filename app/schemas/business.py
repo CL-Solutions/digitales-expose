@@ -54,12 +54,27 @@ class PropertyBase(BaseModel):
     operation_cost_tenant: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
     operation_cost_reserve: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
     
+    # Additional Property Data
+    object_share_owner: Optional[float] = Field(None, ge=0)  # Can be percentage value from Investagon
+    share_land: Optional[float] = Field(None, ge=0)
+    property_usage: Optional[str] = Field(None, max_length=100)
+    initial_maintenance_expenses: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    
+    # Depreciation Settings
+    degressive_depreciation_building_onoff: Optional[int] = Field(None, ge=-1, le=1)
+    depreciation_rate_building_manual: Optional[float] = Field(None, ge=0, le=100)
+    
     energy_certificate_type: Optional[str] = Field(None, max_length=50)
     energy_consumption: Optional[float] = Field(None, ge=0)
     energy_class: Optional[str] = Field(None, max_length=10)
     heating_type: Optional[str] = Field(None, max_length=100)
     
     status: str = Field(default="available", pattern="^(available|reserved|sold)$")
+    
+    # Investagon Status Flags
+    active: Optional[int] = Field(None, ge=0)
+    pre_sale: Optional[int] = Field(None, ge=0, le=1)
+    draft: Optional[int] = Field(None, ge=0, le=1)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -109,12 +124,27 @@ class PropertyUpdate(BaseModel):
     operation_cost_tenant: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
     operation_cost_reserve: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
     
+    # Additional Property Data
+    object_share_owner: Optional[float] = Field(None, ge=0, le=1)
+    share_land: Optional[float] = Field(None, ge=0)
+    property_usage: Optional[str] = Field(None, max_length=100)
+    initial_maintenance_expenses: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    
+    # Depreciation Settings
+    degressive_depreciation_building_onoff: Optional[int] = Field(None, ge=-1, le=1)
+    depreciation_rate_building_manual: Optional[float] = Field(None, ge=0, le=100)
+    
     energy_certificate_type: Optional[str] = Field(None, max_length=50)
     energy_consumption: Optional[float] = Field(None, ge=0)
     energy_class: Optional[str] = Field(None, max_length=10)
     heating_type: Optional[str] = Field(None, max_length=100)
     
     status: Optional[str] = Field(None, pattern="^(available|reserved|sold)$")
+    
+    # Investagon Status Flags
+    active: Optional[int] = Field(None, ge=0)
+    pre_sale: Optional[int] = Field(None, ge=0, le=1)
+    draft: Optional[int] = Field(None, ge=0, le=1)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -135,31 +165,46 @@ class PropertyResponse(PropertyBase, BaseSchema):
     """Schema for Property response"""
     city_id: Optional[UUID] = None
     investagon_id: Optional[str] = None
-    investagon_data: Optional[Dict[str, Any]] = None
     last_sync: Optional[datetime] = None
+    
+    # Include related data
     images: List[PropertyImageSchema] = []
+    city_ref: Optional["CityResponse"] = None
     
     # Computed fields
     total_investment: Optional[Decimal] = None
     gross_rental_yield: Optional[float] = None
     net_rental_yield: Optional[float] = None
+    
+    model_config = ConfigDict(
+        from_attributes=True,
+        arbitrary_types_allowed=True
+    )
 
-    @model_validator(mode='after')
-    def calculate_yields(self):
-        try:
-            if self.purchase_price and self.monthly_rent:
-                annual_rent = self.monthly_rent * 12
-                self.total_investment = self.purchase_price
-                self.gross_rental_yield = float((annual_rent / self.purchase_price) * 100)
-                
-                if self.additional_costs and self.management_fee:
-                    annual_costs = (self.additional_costs + self.management_fee) * 12
-                    net_annual_rent = annual_rent - annual_costs
-                    self.net_rental_yield = float((net_annual_rent / self.purchase_price) * 100)
-        except Exception:
-            # Prevent recursion by catching any calculation errors
-            pass
-        return self
+    @model_validator(mode='before')
+    @classmethod
+    def calculate_yields(cls, values):
+        """Calculate yield metrics before validation"""
+        if isinstance(values, dict):
+            purchase_price = values.get('purchase_price')
+            monthly_rent = values.get('monthly_rent')
+            additional_costs = values.get('additional_costs')
+            management_fee = values.get('management_fee')
+            
+            if purchase_price and monthly_rent:
+                try:
+                    annual_rent = monthly_rent * 12
+                    values['total_investment'] = purchase_price
+                    values['gross_rental_yield'] = float((annual_rent / purchase_price) * 100)
+                    
+                    if additional_costs and management_fee:
+                        annual_costs = (additional_costs + management_fee) * 12
+                        net_annual_rent = annual_rent - annual_costs
+                        values['net_rental_yield'] = float((net_annual_rent / purchase_price) * 100)
+                except (TypeError, ZeroDivisionError, ValueError):
+                    # Skip calculation if there are type/calculation errors
+                    pass
+        return values
 
 # ================================
 # Property Image Schemas
@@ -379,8 +424,8 @@ class ExposeLinkResponse(ExposeLinkBase, BaseSchema):
     first_viewed_at: Optional[datetime] = None
     last_viewed_at: Optional[datetime] = None
     
-    # Include property basic info
-    property: Optional[PropertyResponse] = None
+    # Include property basic info - use forward reference to avoid circular imports
+    property: Optional["PropertyOverview"] = None
     template: Optional[ExposeTemplateResponse] = None
 
 class ExposeLinkPublicResponse(BaseModel):
@@ -435,6 +480,10 @@ class PropertyFilter(PaginationParams):
     min_rooms: Optional[float] = None
     max_rooms: Optional[float] = None
     energy_class: Optional[str] = None
+    # Investagon status filters
+    active: Optional[int] = None
+    pre_sale: Optional[int] = None
+    draft: Optional[int] = None
     sort_by: str = Field(default="created_at", description="Field to sort by")
     sort_order: str = Field(default="desc", pattern="^(asc|desc)$", description="Sort order")
 
@@ -453,6 +502,10 @@ class PropertyOverview(BaseModel):
     size_sqm: float
     rooms: float
     investagon_id: Optional[str] = None
+    # Investagon status fields
+    active: Optional[int] = None
+    pre_sale: Optional[int] = None
+    draft: Optional[int] = None
     
     model_config = ConfigDict(from_attributes=True)
 

@@ -164,6 +164,16 @@ class PropertyService:
             if filter_params.energy_class:
                 query = query.filter(Property.energy_class == filter_params.energy_class)
             
+            # Apply Investagon status filters
+            if filter_params.active is not None:
+                query = query.filter(Property.active == filter_params.active)
+            
+            if filter_params.pre_sale is not None:
+                query = query.filter(Property.pre_sale == filter_params.pre_sale)
+            
+            if filter_params.draft is not None:
+                query = query.filter(Property.draft == filter_params.draft)
+            
             # Get total count
             total = query.count()
             

@@ -55,6 +55,16 @@ class Property(Base, TenantMixin, AuditMixin):
     operation_cost_tenant = Column(Numeric(10, 2), nullable=True)
     operation_cost_reserve = Column(Numeric(10, 2), nullable=True)
     
+    # Additional Property Data
+    object_share_owner = Column(Float, nullable=True)  # Ownership share (e.g., 0.5 for 50%)
+    share_land = Column(Float, nullable=True)  # Land share in sqm
+    property_usage = Column(String(100), nullable=True)  # e.g., 'WG-Wohnung', 'Single-Apartment'
+    initial_maintenance_expenses = Column(Numeric(10, 2), nullable=True)  # Initial investment for maintenance
+    
+    # Depreciation Settings
+    degressive_depreciation_building_onoff = Column(Integer, nullable=True)  # -1 (off), 0, 1 (on)
+    depreciation_rate_building_manual = Column(Float, nullable=True)  # Manual depreciation rate percentage
+    
     # Energy Data
     energy_certificate_type = Column(String(50), nullable=True)  # 'consumption', 'demand'
     energy_consumption = Column(Float, nullable=True)
@@ -64,18 +74,23 @@ class Property(Base, TenantMixin, AuditMixin):
     # Status
     status = Column(String(50), default="available", nullable=False)  # 'available', 'reserved', 'sold'
     
+    # Investagon Status Flags
+    active = Column(Integer, nullable=True)  # Can be more than 1
+    pre_sale = Column(Integer, nullable=True)  # 0 or 1 from Investagon
+    draft = Column(Integer, nullable=True)  # 0 or 1 from Investagon
+    
     # Investagon Integration
     investagon_id = Column(String(255), nullable=True, unique=True)
     investagon_data = Column(JSON, nullable=True)  # Cache for additional API data
     last_sync = Column(DateTime, nullable=True)
     
     # Relationships
-    tenant = relationship("Tenant", back_populates="properties")
+    tenant = relationship("Tenant")
     creator = relationship("User", foreign_keys="Property.created_by", back_populates="created_properties")
     updater = relationship("User", foreign_keys="Property.updated_by", back_populates="updated_properties")
     images = relationship("PropertyImage", back_populates="property", cascade="all, delete-orphan", order_by="PropertyImage.display_order")
     expose_links = relationship("ExposeLink", back_populates="property", cascade="all, delete-orphan")
-    city_ref = relationship("City", foreign_keys="Property.city_id", back_populates="properties")
+    city_ref = relationship("City", foreign_keys="Property.city_id")
 
     def __repr__(self):
         address_parts = [self.street, self.house_number, self.apartment_number]
@@ -140,7 +155,7 @@ class City(Base, TenantMixin, AuditMixin):
     creator = relationship("User", foreign_keys="City.created_by")
     updater = relationship("User", foreign_keys="City.updated_by")
     images = relationship("CityImage", back_populates="city", cascade="all, delete-orphan", order_by="CityImage.display_order")
-    properties = relationship("Property", back_populates="city_ref")
+    # Removed properties relationship to prevent circular loading
 
     def __repr__(self):
         return f"<City(name='{self.name}', state='{self.state}')>"

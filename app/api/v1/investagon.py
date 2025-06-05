@@ -78,26 +78,34 @@ async def get_sync_history(
 async def sync_single_property(
     investagon_id: str = Path(..., description="Investagon property ID"),
     current_user: User = Depends(get_current_active_user),
+    tenant_id: Optional[UUID] = Depends(get_current_tenant_id),
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("investagon", "sync"))
 ):
     """Sync a single property from Investagon"""
     try:
         # Check tenant context
-        if not current_user.tenant_id:
+        if not tenant_id:
             raise HTTPException(
                 status_code=400,
                 detail="No tenant context. Super admins must impersonate a tenant to sync properties."
             )
         
+        # Create effective user with tenant context
+        effective_user = SimpleNamespace(
+            id=current_user.id,
+            tenant_id=tenant_id,
+            is_super_admin=current_user.is_super_admin
+        )
+        
         sync_service = InvestagonSyncService()
-        property = await sync_service.sync_single_property(db, investagon_id, current_user)
+        property = await sync_service.sync_single_property(db, investagon_id, effective_user)
         db.commit()
         
         return {
             "success": True,
             "property_id": str(property.id),
-            "address": property.address,
+            "investagon_id": property.investagon_id,
             "action": "created" if property.created_at == property.updated_at else "updated"
         }
     

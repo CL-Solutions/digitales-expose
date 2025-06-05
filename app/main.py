@@ -18,7 +18,8 @@ from app.core.middleware import (
     AuditMiddleware, 
     SecurityHeadersMiddleware,
     RateLimitMiddleware,
-    HealthCheckMiddleware
+    HealthCheckMiddleware,
+    TimeoutMiddleware
 )
 
 # API Routes - UPDATED TO INCLUDE RBAC
@@ -243,7 +244,10 @@ app = FastAPI(
 # MIDDLEWARE CONFIGURATION
 # ================================
 
-# Security Headers (first)
+# Request Timeout (first - to prevent infinite loops)
+app.add_middleware(TimeoutMiddleware, timeout_seconds=30)
+
+# Security Headers
 app.add_middleware(SecurityHeadersMiddleware)
 
 # Rate Limiting
@@ -394,6 +398,13 @@ async def readiness_check():
         return {"status": "ready"}
     except Exception:
         raise HTTPException(status_code=503, detail="Service not ready")
+
+@app.get("/test-timeout", tags=["Test"])
+async def test_timeout():
+    """Test endpoint that takes 60 seconds - should timeout at 30s"""
+    import asyncio
+    await asyncio.sleep(60)  # Sleep for 60 seconds
+    return {"message": "This should never be reached due to 30s timeout"}
 
 # ================================
 # API ROUTES - UPDATED TO INCLUDE RBAC

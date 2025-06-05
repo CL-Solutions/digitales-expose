@@ -159,7 +159,7 @@ class InvestagonSyncService:
         self.api_client = InvestagonAPIClient()
     
     @staticmethod  
-    def _map_investagon_to_property(investagon_data: Dict[str, Any], db: Session = None, tenant_id: UUID = None) -> Dict[str, Any]:
+    def _map_investagon_to_property(investagon_data: Dict[str, Any], db: Session = None, tenant_id: UUID = None, user_id: UUID = None) -> Dict[str, Any]:
         """Map Investagon API data to our Property model fields"""
         from app.models.business import City
         
@@ -168,27 +168,46 @@ class InvestagonSyncService:
         city_name = investagon_data.get("object_city") or "Unknown"
         state_name = investagon_data.get("province") or "Unknown"
         
-        if db and tenant_id and city_name != "Unknown":
-            # Look for existing city
+        if db and tenant_id and user_id and city_name != "Unknown":
+            # Clean city and state names for better matching
+            city_name = city_name.strip()
+            state_name = state_name.strip()
+            
+            # Look for existing city (case-insensitive match)
             existing_city = db.query(City).filter(
                 City.tenant_id == tenant_id,
-                City.name == city_name,
-                City.state == state_name
+                City.name.ilike(city_name),
+                City.state.ilike(state_name)
             ).first()
             
             if existing_city:
                 city_id = existing_city.id
             else:
-                # Create new city
-                new_city = City(
-                    tenant_id=tenant_id,
-                    name=city_name,
-                    state=state_name,
-                    country=investagon_data.get("object_country", "Deutschland")
-                )
-                db.add(new_city)
-                db.flush()  # Get the ID
-                city_id = new_city.id
+                # Create new city with proper error handling
+                try:
+                    new_city = City(
+                        tenant_id=tenant_id,
+                        name=city_name,
+                        state=state_name,
+                        country=investagon_data.get("object_country", "Deutschland"),
+                        created_by=user_id
+                    )
+                    db.add(new_city)
+                    db.flush()  # Get the ID
+                    city_id = new_city.id
+                except Exception as e:
+                    # If city creation fails, try to find it again (might have been created by another transaction)
+                    logger.warning(f"Failed to create city {city_name}, {state_name}: {str(e)}. Trying lookup again.")
+                    existing_city = db.query(City).filter(
+                        City.tenant_id == tenant_id,
+                        City.name.ilike(city_name),
+                        City.state.ilike(state_name)
+                    ).first()
+                    if existing_city:
+                        city_id = existing_city.id
+                    else:
+                        logger.error(f"Could not create or find city {city_name}, {state_name}")
+                        city_id = None
         
         # Extract numeric values safely
         def safe_decimal(value, default=0):
@@ -223,11 +242,19 @@ class InvestagonSyncService:
         # Determine property status from active field (0 = sold, 1 = available)
         status = "available" if investagon_data.get("active") == 1 else "sold"
         
+        # Extract apartment number from the full string (e.g., "Friedrich-Engels-Bogen / WHG 103" -> "WHG 103")
+        raw_apartment = investagon_data.get("object_apartment_number", "")
+        if "/" in raw_apartment:
+            # Take the part after the last "/" and strip whitespace
+            apartment_number = raw_apartment.split("/")[-1].strip()
+        else:
+            apartment_number = raw_apartment
+        
         return {
             # Basic Information
             "street": investagon_data.get("object_street", ""),
             "house_number": investagon_data.get("object_house_number", ""),
-            "apartment_number": investagon_data.get("object_apartment_number", ""),
+            "apartment_number": apartment_number,
             "city": city_name,
             "city_id": city_id,
             "state": state_name, 
@@ -266,6 +293,16 @@ class InvestagonSyncService:
             "operation_cost_tenant": safe_decimal(investagon_data.get("operation_cost_tenant_apartment", 0)),
             "operation_cost_reserve": safe_decimal(investagon_data.get("operation_cost_reserve_apartment", 0)),
             
+            # Additional Property Data
+            "object_share_owner": safe_float(investagon_data.get("object_share_owner", 0)),
+            "share_land": safe_float(investagon_data.get("share_land", 0)),
+            "property_usage": investagon_data.get("property_usage"),
+            "initial_maintenance_expenses": safe_decimal(investagon_data.get("initial_investment_extra_1y_manual", 0)),
+            
+            # Depreciation Settings
+            "degressive_depreciation_building_onoff": safe_int(investagon_data.get("degressive_depreciation_building_onoff", -1)),
+            "depreciation_rate_building_manual": safe_float(investagon_data.get("depreciation_rate_building_manual", 0)),
+            
             # Energy Data
             "energy_certificate_type": investagon_data.get("energy_certificate_type"),
             "energy_consumption": safe_float(investagon_data.get("power_consumption")) if investagon_data.get("power_consumption") else None,
@@ -274,6 +311,11 @@ class InvestagonSyncService:
             
             # Status
             "status": status,
+            
+            # Investagon Status Flags
+            "active": safe_int(investagon_data.get("active", 0)),
+            "pre_sale": safe_int(investagon_data.get("pre_sale", 0)),
+            "draft": safe_int(investagon_data.get("draft", 0)),
             
             # Investagon Integration
             "investagon_id": str(investagon_data.get("id", "")),
@@ -303,16 +345,19 @@ class InvestagonSyncService:
             # Get property data from Investagon
             investagon_data = await self.api_client.get_property(investagon_id)
             
-            # Check if property already exists
+            # Extract the actual investagon_id from the API response
+            actual_investagon_id = str(investagon_data.get("id", ""))
+            
+            # Check if property already exists using the actual investagon_id
             existing_property = db.query(Property).filter(
                 and_(
-                    Property.investagon_id == investagon_id,
+                    Property.investagon_id == actual_investagon_id,
                     Property.tenant_id == current_user.tenant_id
                 )
             ).first()
             
             # Map data
-            property_data = self._map_investagon_to_property(investagon_data, db, current_user.tenant_id)
+            property_data = self._map_investagon_to_property(investagon_data, db, current_user.tenant_id, current_user.id)
             
             if existing_property:
                 # Update existing property
@@ -462,6 +507,8 @@ class InvestagonSyncService:
                         
                         # Process each property URL
                         for property_url in property_urls:
+                            # Create a savepoint for each property to allow partial rollback
+                            savepoint = db.begin_nested()
                             try:
                                 # Extract property ID from URL (format: /api/api_properties/{id})
                                 if "/api_properties/" in property_url:
@@ -478,7 +525,7 @@ class InvestagonSyncService:
                                 investagon_data["project_name"] = project_details.get("name", "")
                                 
                                 # Map property data
-                                property_data = self._map_investagon_to_property(investagon_data, db, current_user.tenant_id)
+                                property_data = self._map_investagon_to_property(investagon_data, db, current_user.tenant_id, current_user.id)
                                 
                                 # Use the investagon_id from the API response, not the URL property_id
                                 investagon_id = str(investagon_data.get("id", ""))
@@ -502,16 +549,18 @@ class InvestagonSyncService:
                                     db.add(prop)
                                     total_created += 1
                                 
+                                # Commit the savepoint
+                                savepoint.commit()
                                 total_synced += 1
                                 
-                                # Commit every 50 properties to avoid memory issues
+                                # Flush every 50 properties to avoid memory issues
                                 if total_synced % 50 == 0:
                                     db.flush()
                                     logger.info(f"Synced {total_synced} properties so far...")
                                 
                             except Exception as e:
-                                # Rollback transaction on error to prevent session corruption
-                                db.rollback()
+                                # Rollback only this property's savepoint, not the entire transaction
+                                savepoint.rollback()
                                 total_errors += 1
                                 errors.append({
                                     "property_id": property_id,

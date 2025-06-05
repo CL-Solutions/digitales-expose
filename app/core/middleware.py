@@ -3,7 +3,7 @@
 # ================================
 
 from typing import Optional
-from fastapi import Request, Response
+from fastapi import Request, Response, HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal, set_tenant_context
@@ -12,6 +12,7 @@ from app.core.security import verify_token
 import time
 import uuid
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -199,3 +200,33 @@ class HealthCheckMiddleware(BaseHTTPMiddleware):
             return response
         
         return await call_next(request)
+
+class TimeoutMiddleware(BaseHTTPMiddleware):
+    """Middleware to prevent infinite loops by adding request timeouts"""
+    
+    def __init__(self, app, timeout_seconds: int = 30):
+        super().__init__(app)
+        self.timeout_seconds = timeout_seconds
+    
+    async def dispatch(self, request: Request, call_next):
+        try:
+            # Add timeout to prevent infinite loops
+            response = await asyncio.wait_for(
+                call_next(request), 
+                timeout=self.timeout_seconds
+            )
+            return response
+        except asyncio.TimeoutError:
+            logger.error(
+                f"Request timeout after {self.timeout_seconds} seconds: {request.method} {request.url.path}",
+                extra={
+                    "request_id": getattr(request.state, "request_id", None),
+                    "method": request.method,
+                    "path": request.url.path,
+                    "timeout": self.timeout_seconds
+                }
+            )
+            raise HTTPException(
+                status_code=504,
+                detail=f"Request timeout after {self.timeout_seconds} seconds"
+            )
