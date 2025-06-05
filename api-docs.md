@@ -53,6 +53,21 @@ Kubernetes readiness probe
 
 ---
 
+### Test
+
+#### Test Timeout
+
+**GET** `/test-timeout`
+
+Test endpoint that takes 60 seconds - should timeout at 30s
+
+**Responses:**
+
+**200** - Successful Response
+  - Content-Type: `application/json`
+
+---
+
 ### Authentication
 
 #### Create User By Admin
@@ -2841,7 +2856,7 @@ Perform maintenance cleanup for specific tenant
 
 **GET** `/api/v1/properties/`
 
-List all properties with filtering
+List all properties with filtering (overview only)
 
 **Parameters:**
 
@@ -2858,6 +2873,11 @@ List all properties with filtering
 - `min_rooms` (query) `string`: 
 - `max_rooms` (query) `string`: 
 - `energy_class` (query) `string`: 
+- `active` (query) `string`: 
+- `pre_sale` (query) `string`: 
+- `draft` (query) `string`: 
+- `sort_by` (query) `string`: 
+- `sort_order` (query) `string`: 
 
 **Responses:**
 
@@ -2897,32 +2917,57 @@ Create a new property
 
 **Type:** `object`
 **Properties:**
-  - `address` (string) (maxLength: 500) *(required)*: 
+  - `street` (unknown): 
+  - `house_number` (unknown): 
+  - `apartment_number` (unknown): 
   - `city` (string) (maxLength: 255) *(required)*: 
   - `state` (string) (maxLength: 255) *(required)*: 
+  - `country` (unknown): 
   - `zip_code` (string) (maxLength: 20) *(required)*: 
+  - `latitude` (unknown): 
+  - `longitude` (unknown): 
   - `property_type` (string) (maxLength: 100) *(required)*: 
-  - `size_sqm` (number) *(required)*: 
-  - `rooms` (number) *(required)*: 
+  - `size_sqm` (number) (min: 0.0) *(required)*: 
+  - `rooms` (number) (min: 0.0) *(required)*: 
   - `bathrooms` (unknown): 
   - `floor` (unknown): 
   - `total_floors` (unknown): 
   - `construction_year` (unknown): 
+  - `renovation_year` (unknown): 
   - `purchase_price` (unknown) *(required)*: 
+  - `purchase_price_parking` (unknown): 
+  - `purchase_price_furniture` (unknown): 
   - `monthly_rent` (unknown) *(required)*: 
+  - `rent_parking_month` (unknown): 
   - `additional_costs` (unknown): 
   - `management_fee` (unknown): 
+  - `transaction_broker_rate` (unknown): 
+  - `transaction_tax_rate` (unknown): 
+  - `transaction_notary_rate` (unknown): 
+  - `transaction_register_rate` (unknown): 
+  - `operation_cost_landlord` (unknown): 
+  - `operation_cost_tenant` (unknown): 
+  - `operation_cost_reserve` (unknown): 
+  - `object_share_owner` (unknown): 
+  - `share_land` (unknown): 
+  - `property_usage` (unknown): 
+  - `initial_maintenance_expenses` (unknown): 
+  - `degressive_depreciation_building_onoff` (unknown): 
+  - `depreciation_rate_building_manual` (unknown): 
   - `energy_certificate_type` (unknown): 
   - `energy_consumption` (unknown): 
   - `energy_class` (unknown): 
   - `heating_type` (unknown): 
   - `status` (string): 
+  - `active` (unknown): 
+  - `pre_sale` (unknown): 
+  - `draft` (unknown): 
+  - `city_id` (unknown): 
   - `investagon_id` (unknown): 
 
 **Generated Example:**
 ```json
 {
-  "address": "string",
   "city": "string",
   "state": "string",
   "zip_code": "string",
@@ -2940,12 +2985,12 @@ Create a new property
   - Content-Type: `application/json`
   - Schema: `PropertyResponse`
   - Key Properties:
-    - `address` (string) *(required)*: 
+    - `street` (unknown): 
+    - `house_number` (unknown): 
+    - `apartment_number` (unknown): 
     - `city` (string) *(required)*: 
     - `state` (string) *(required)*: 
-    - `zip_code` (string) *(required)*: 
-    - `property_type` (string) *(required)*: 
-    - ... and 22 more properties
+    - ... and 48 more properties
 
 **401** - Authentication required
 
@@ -2977,12 +3022,12 @@ Get property details
   - Content-Type: `application/json`
   - Schema: `PropertyResponse`
   - Key Properties:
-    - `address` (string) *(required)*: 
+    - `street` (unknown): 
+    - `house_number` (unknown): 
+    - `apartment_number` (unknown): 
     - `city` (string) *(required)*: 
     - `state` (string) *(required)*: 
-    - `zip_code` (string) *(required)*: 
-    - `property_type` (string) *(required)*: 
-    - ... and 22 more properties
+    - ... and 48 more properties
 
 **401** - Authentication required
 
@@ -3014,10 +3059,16 @@ Update property details
 
 **Type:** `object`
 **Properties:**
-  - `address` (unknown): 
+  - `street` (unknown): 
+  - `house_number` (unknown): 
+  - `apartment_number` (unknown): 
   - `city` (unknown): 
+  - `city_id` (unknown): 
   - `state` (unknown): 
+  - `country` (unknown): 
   - `zip_code` (unknown): 
+  - `latitude` (unknown): 
+  - `longitude` (unknown): 
   - `property_type` (unknown): 
   - `size_sqm` (unknown): 
   - `rooms` (unknown): 
@@ -3025,15 +3076,35 @@ Update property details
   - `floor` (unknown): 
   - `total_floors` (unknown): 
   - `construction_year` (unknown): 
+  - `renovation_year` (unknown): 
   - `purchase_price` (unknown): 
+  - `purchase_price_parking` (unknown): 
+  - `purchase_price_furniture` (unknown): 
   - `monthly_rent` (unknown): 
+  - `rent_parking_month` (unknown): 
   - `additional_costs` (unknown): 
   - `management_fee` (unknown): 
+  - `transaction_broker_rate` (unknown): 
+  - `transaction_tax_rate` (unknown): 
+  - `transaction_notary_rate` (unknown): 
+  - `transaction_register_rate` (unknown): 
+  - `operation_cost_landlord` (unknown): 
+  - `operation_cost_tenant` (unknown): 
+  - `operation_cost_reserve` (unknown): 
+  - `object_share_owner` (unknown): 
+  - `share_land` (unknown): 
+  - `property_usage` (unknown): 
+  - `initial_maintenance_expenses` (unknown): 
+  - `degressive_depreciation_building_onoff` (unknown): 
+  - `depreciation_rate_building_manual` (unknown): 
   - `energy_certificate_type` (unknown): 
   - `energy_consumption` (unknown): 
   - `energy_class` (unknown): 
   - `heating_type` (unknown): 
   - `status` (unknown): 
+  - `active` (unknown): 
+  - `pre_sale` (unknown): 
+  - `draft` (unknown): 
 
 **Generated Example:**
 ```json
@@ -3046,12 +3117,12 @@ Update property details
   - Content-Type: `application/json`
   - Schema: `PropertyResponse`
   - Key Properties:
-    - `address` (string) *(required)*: 
+    - `street` (unknown): 
+    - `house_number` (unknown): 
+    - `apartment_number` (unknown): 
     - `city` (string) *(required)*: 
     - `state` (string) *(required)*: 
-    - `zip_code` (string) *(required)*: 
-    - `property_type` (string) *(required)*: 
-    - ... and 22 more properties
+    - ... and 48 more properties
 
 **401** - Authentication required
 
@@ -4355,12 +4426,12 @@ Start a full or incremental sync of all properties from Investagon
   - Content-Type: `application/json`
   - Schema: `InvestagonSyncSchema`
   - Key Properties:
-    - `property_id` (unknown): 
     - `sync_type` (string) *(required)*: 
-    - `sync_status` (string) *(required)*: 
+    - `status` (string) *(required)*: 
     - `started_at` (string) *(required)*: 
     - `completed_at` (unknown): 
-    - ... and 7 more properties
+    - `properties_created` (integer): 
+    - ... and 4 more properties
 
 **401** - Authentication required
 
@@ -4392,12 +4463,12 @@ Synchronously sync all properties from Investagon (blocks until complete)
   - Content-Type: `application/json`
   - Schema: `InvestagonSyncSchema`
   - Key Properties:
-    - `property_id` (unknown): 
     - `sync_type` (string) *(required)*: 
-    - `sync_status` (string) *(required)*: 
+    - `status` (string) *(required)*: 
     - `started_at` (string) *(required)*: 
     - `completed_at` (unknown): 
-    - ... and 7 more properties
+    - `properties_created` (integer): 
+    - ... and 4 more properties
 
 **401** - Authentication required
 
