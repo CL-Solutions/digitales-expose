@@ -4,7 +4,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from sqlalchemy.orm import Session
-from app.dependencies import get_db, get_super_admin_user
+from app.dependencies import get_db, get_super_admin_user, get_current_user
 from app.schemas.tenant import (
     TenantCreate, TenantUpdate, TenantResponse, 
     TenantListResponse, TenantFilterParams, TenantStatsResponse,
@@ -121,16 +121,20 @@ async def list_tenants(
 @router.get("/{tenant_id}", response_model=TenantResponse)
 async def get_tenant_by_id(
     tenant_id: uuid.UUID = Path(..., description="Tenant ID"),
-    super_admin: User = Depends(get_super_admin_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get specific tenant"""
+    """Get specific tenant - super admins can access any tenant, regular users only their own"""
     try:
+        # Check permissions: super admins can access any tenant, regular users only their own
+        if not current_user.is_super_admin and current_user.tenant_id != tenant_id:
+            raise HTTPException(status_code=403, detail="Access denied: You can only access your own tenant")
+        
         tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
         if not tenant:
             raise HTTPException(status_code=404, detail="Tenant not found")
         
-        # Add user count
+        # Add user count (only for super admins or if it's the user's own tenant)
         user_count = db.query(User).filter(User.tenant_id == tenant.id).count()
         tenant_response = TenantResponse.model_validate(tenant)
         tenant_response.user_count = user_count

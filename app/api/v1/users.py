@@ -2,14 +2,14 @@
 # USER MANAGEMENT API ROUTES (api/v1/users.py) - UPDATED TO USE SERVICES
 # ================================
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Path
+from fastapi import APIRouter, Depends, HTTPException, Query, Path, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc
 from app.config import settings
 from app.dependencies import (
     get_db, get_current_user, require_permission, 
     get_pagination_params, get_sort_params,
-    require_same_tenant_or_super_admin
+    require_same_tenant_or_super_admin, get_current_tenant_id
 )
 from app.schemas.user import (
     UserResponse, UserListResponse, UserUpdate, 
@@ -83,20 +83,28 @@ async def update_current_user_profile(
 
 @router.get("/", response_model=UserListResponse)
 async def list_users(
+    request: Request,
     filter_params: UserFilterParams = Depends(),
     current_user: User = Depends(get_current_user),
+    tenant_id: Optional[uuid.UUID] = Depends(get_current_tenant_id),
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("users", "read"))
 ):
     """List all users in tenant (with filtering/pagination)"""
     try:
-        # Base query - only users in same tenant (except Super-Admin)
-        query = db.query(User)
+        # Use the tenant_id from dependency (which handles impersonation)
+        # If no tenant_id is available, use the user's tenant_id
+        effective_tenant_id = tenant_id or current_user.tenant_id
         
-        if not current_user.is_super_admin:
-            query = query.filter(User.tenant_id == current_user.tenant_id)
-        elif filter_params.tenant_id:
-            query = query.filter(User.tenant_id == filter_params.tenant_id)
+        if not effective_tenant_id:
+            # For super admins without tenant context, return empty list
+            if current_user.is_super_admin:
+                return UserListResponse(users=[], total=0, page=1, page_size=filter_params.page_size)
+            else:
+                raise HTTPException(status_code=400, detail="Tenant context required")
+        
+        # Base query - only users in the effective tenant
+        query = db.query(User).filter(User.tenant_id == effective_tenant_id)
         
         # Apply filters
         if filter_params.search:
@@ -140,12 +148,54 @@ async def list_users(
         
         query = query.order_by(sort_field)
         
-        # Apply pagination
+        # Apply pagination with eager loading of roles
+        from sqlalchemy.orm import joinedload
+        from app.models.rbac import UserRole, Role
         offset = (filter_params.page - 1) * filter_params.page_size
-        users = query.offset(offset).limit(filter_params.page_size).all()
+        users = query.options(
+            joinedload(User.user_roles).joinedload(UserRole.role)
+        ).offset(offset).limit(filter_params.page_size).all()
+        
+        # Build user responses with roles
+        user_responses = []
+        for user in users:
+            # Get roles from user_roles relationship, filtered by effective tenant
+            user_roles = []
+            for user_role in user.user_roles:
+                if user_role.tenant_id == effective_tenant_id and user_role.role:
+                    role_data = {
+                        "id": str(user_role.role.id),
+                        "name": user_role.role.name,
+                        "description": user_role.role.description,
+                        "is_system_role": user_role.role.is_system_role,
+                        "tenant_id": str(user_role.role.tenant_id) if user_role.role.tenant_id else None,
+                        "created_at": user_role.role.created_at,
+                        "updated_at": user_role.role.updated_at,
+                        "permissions": []  # We can populate this if needed
+                    }
+                    user_roles.append(role_data)
+            
+            # Create user response dict and add roles
+            user_dict = {
+                "id": str(user.id),
+                "email": user.email,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "is_active": user.is_active,
+                "tenant_id": str(user.tenant_id) if user.tenant_id else None,
+                "auth_method": user.auth_method,
+                "is_super_admin": user.is_super_admin,
+                "is_verified": user.is_verified,
+                "last_login_at": user.last_login_at,
+                "avatar_url": user.avatar_url,
+                "created_at": user.created_at,
+                "updated_at": user.updated_at,
+                "roles": user_roles
+            }
+            user_responses.append(UserResponse(**user_dict))
         
         return UserListResponse(
-            users=[UserResponse.model_validate(user) for user in users],
+            users=user_responses,
             total=total,
             page=filter_params.page,
             page_size=filter_params.page_size
@@ -186,19 +236,40 @@ async def get_user_by_id(
 
 @router.put("/{user_id}", response_model=UserResponse)
 async def update_user(
+    user_update: UserUpdate,
+    request: Request,
     user_id: uuid.UUID = Path(..., description="User ID"),
-    user_update: UserUpdate = ...,
     current_user: User = Depends(get_current_user),
+    tenant_id: Optional[uuid.UUID] = Depends(get_current_tenant_id),
     db: Session = Depends(get_db),
-    _: bool = Depends(require_permission("users", "update")),
-    __: bool = Depends(require_same_tenant_or_super_admin())
+    _: bool = Depends(require_permission("users", "update"))
 ):
     """Update user - Uses UserService"""
     try:
+        # Get the target user
+        target_user = db.query(User).filter(User.id == user_id).first()
+        if not target_user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Use the tenant_id from dependency (which handles impersonation)
+        effective_tenant_id = tenant_id or current_user.tenant_id
+        
+        # Check tenant access
+        if current_user.is_super_admin:
+            # Super admin can only update users in the current tenant context
+            if target_user.tenant_id != effective_tenant_id:
+                raise HTTPException(status_code=403, detail="Access denied: user not in current tenant context")
+        else:
+            # Regular users can only update users in their own tenant
+            if target_user.tenant_id != effective_tenant_id:
+                raise HTTPException(status_code=403, detail="Access denied: different tenant")
+        
         user = UserService.update_user_profile(db, user_id, user_update, current_user)
         db.commit()
         return UserResponse.model_validate(user)
     
+    except HTTPException:
+        raise
     except AppException as e:
         db.rollback()
         raise HTTPException(status_code=e.status_code, detail=e.detail)

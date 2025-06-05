@@ -58,6 +58,9 @@ class TenantService:
         create_default_permissions(db)
         roles = create_default_roles_for_tenant(db, tenant.id)
         
+        # Flush to ensure roles are committed before creating user
+        db.flush()
+        
         # Create tenant admin user
         from app.schemas.auth import CreateUserRequest
         admin_user_data = CreateUserRequest(
@@ -73,8 +76,45 @@ class TenantService:
             db, admin_user_data, tenant.id, super_admin
         )
         
+        # Flush user creation before role assignment
+        db.flush()
+        
         # Assign tenant_admin role
-        assign_user_to_role(db, admin_user.id, "tenant_admin", tenant.id, super_admin.id)
+        try:
+            user_role = assign_user_to_role(db, admin_user.id, "tenant_admin", tenant.id, super_admin.id)
+            db.flush()  # Ensure role assignment is committed
+            
+            # Log successful role assignment
+            audit_logger.log_auth_event(
+                db, "ROLE_ASSIGNED", super_admin.id, tenant.id,
+                {
+                    "user_id": str(admin_user.id),
+                    "user_email": admin_user.email,
+                    "role_name": "tenant_admin"
+                }
+            )
+        except Exception as e:
+            # Log the error but don't fail tenant creation
+            print(f"Failed to assign tenant_admin role to user {admin_user.email}: {str(e)}")
+            # Try to find and assign the role manually
+            from app.models.rbac import Role, UserRole
+            tenant_admin_role = db.query(Role).filter(
+                Role.tenant_id == tenant.id,
+                Role.name == "tenant_admin"
+            ).first()
+            
+            if tenant_admin_role:
+                user_role = UserRole(
+                    user_id=admin_user.id,
+                    role_id=tenant_admin_role.id,
+                    tenant_id=tenant.id,
+                    granted_by=super_admin.id
+                )
+                db.add(user_role)
+                db.flush()
+                print(f"Successfully assigned tenant_admin role manually to {admin_user.email}")
+            else:
+                print(f"tenant_admin role not found for tenant {tenant.id}")
         
         # Audit log
         audit_logger.log_auth_event(

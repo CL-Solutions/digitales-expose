@@ -2,16 +2,33 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Project Structure
+
+- This is the backend API (FastAPI) for the digitales-expose system
+- Frontend application is located in `../digitales-expose-frontend/` (Next.js)
+- Template folder `../backend-template/` should be ignored
+
 ## Project Overview
 
-**Digitales Expose** - A comprehensive property investment expose management system that allows real estate companies to:
-- Sync property data from Investagon API
-- Create customizable investment exposes  
-- Generate shareable links for potential investors
-- Track property performance and analytics
-- Manage property images and documentation
+**Digitales Expose** - A sophisticated property investment expose management system that enables real estate companies to:
 
-The system uses a multi-tenant architecture where each real estate company operates in isolation with role-based access control.
+### Core Business Functions
+- **Property Portfolio Management**: Comprehensive property data with 25+ investment-specific fields
+- **Investagon API Integration**: Automatic synchronization with external property data provider
+- **Investment Expose Generation**: Customizable templates for property investment presentations
+- **Shareable Investment Links**: Secure, trackable links for potential investors with preset parameters
+- **Multi-Media Asset Management**: Professional property and city image categorization
+- **Location Intelligence**: Comprehensive city data with demographic and economic indicators
+- **Financial Analytics**: Automatic yield calculations and investment metrics
+- **Access Tracking**: Detailed analytics on expose views and investor engagement
+
+### Technical Highlights
+- **Multi-Tenant Architecture**: Complete tenant isolation with row-level security
+- **Enterprise Authentication**: OAuth integration, RBAC, and audit trails
+- **External API Integration**: Robust Investagon synchronization with error handling
+- **File Storage**: S3-compatible storage with automatic image optimization
+- **Background Processing**: Automated tasks including hourly property sync
+- **Performance Optimized**: Proper pagination, caching, and query optimization
 
 ## Core Development Commands
 
@@ -140,15 +157,15 @@ Routes follow RESTful conventions with consistent patterns:
 - Services contain business logic
 
 **Available API Modules:**
-- `/api/v1/auth` - Authentication and OAuth
-- `/api/v1/users` - User management
-- `/api/v1/tenants` - Tenant administration (super admin)
-- `/api/v1/rbac` - Roles and permissions
-- `/api/v1/properties` - Property management and image upload (13 categories)
+- `/api/v1/auth` - Authentication and OAuth flows
+- `/api/v1/users` - User management and profiles
+- `/api/v1/tenants` - Tenant administration (super admin only)
+- `/api/v1/rbac` - Roles and permissions management
+- `/api/v1/properties` - Property CRUD, statistics, and image upload (13 categories)
 - `/api/v1/cities` - City data management and image upload (12 categories)
-- `/api/v1/exposes` - Expose template and link management
-- `/api/v1/investagon` - External API sync operations
-- `/api/v1/admin` - System administration
+- `/api/v1/exposes` - Expose template and link management with public access
+- `/api/v1/investagon` - External API synchronization and testing
+- `/api/v1/admin` - System administration and monitoring
 
 ## Common Development Tasks
 
@@ -185,11 +202,19 @@ Routes follow RESTful conventions with consistent patterns:
 
 ### Managing Property Data
 
-1. **Creating Properties**: Use `PropertyService.create_property()` with validation
-2. **Image Upload**: Properties support 13 image categories with file upload to S3:
+1. **Creating Properties**: Use `PropertyService.create_property()` with comprehensive validation
+2. **Property Fields**: 25+ investment-specific fields including:
+   - Basic info: address, city, property type, size, rooms, construction year
+   - Financial data: purchase price, monthly rent, additional costs, management fees
+   - Transaction costs: broker, tax, notary, and registration rates
+   - Operating costs: landlord, tenant, and reserve allocations
+   - Investment metrics: object share, land share, depreciation settings
+   - Geographic data: latitude, longitude, city relationship
+   - Investagon integration: external ID, sync status, API data cache
+3. **Image Upload**: Properties support 13 image categories with S3 upload:
    - `exterior` - Building exterior photos
    - `interior` - General interior shots
-   - `floor_plan` - Floor plan diagrams
+   - `floor_plan` - Floor plan diagrams (higher resolution retained)
    - `energy_certificate` - Energy efficiency documents
    - `bathroom` - Bathroom photos
    - `kitchen` - Kitchen photos
@@ -200,8 +225,17 @@ Routes follow RESTful conventions with consistent patterns:
    - `parking` - Parking space photos
    - `basement` - Basement/storage photos
    - `roof` - Rooftop/attic photos
-3. **Investagon Sync**: Properties can be synced from external Investagon API
-4. **Financial Calculations**: Automatic yield calculations (gross/net rental yield)
+4. **Investagon Integration**: Full API synchronization with:
+   - Individual property sync by Investagon ID
+   - Bulk synchronization (full or incremental)
+   - Automatic hourly sync (configurable)
+   - Status tracking: active, pre_sale, draft flags
+   - Comprehensive error handling and retry logic
+5. **Financial Analytics**: Automatic calculations including:
+   - Gross and net rental yields
+   - Transaction cost percentages
+   - Operating expense ratios
+   - Investment return projections
 
 ### Managing City Data
 
@@ -223,29 +257,54 @@ Routes follow RESTful conventions with consistent patterns:
 
 ### Working with Expose Links
 
-1. **Templates**: Create reusable expose templates with default values
-2. **Link Generation**: Generate unique shareable links with preset parameters
-3. **Analytics**: Track views and access patterns
-4. **Customization**: Override template values per link
+1. **Templates**: Create reusable expose templates with:
+   - Investment-focused content sections (benefits, location, financing, tax info)
+   - Default calculation parameters (equity percentage, interest rates, loan terms)
+   - Property type-specific customization
+   - Active/inactive status management
+2. **Link Generation**: Generate unique shareable links with:
+   - Short, secure link IDs (8-character UUIDs)
+   - Preset calculation parameters that override template defaults
+   - Custom messages for personalization
+   - Password protection and expiration dates
+   - Visible section controls (show/hide specific content)
+3. **Public Access**: Public expose viewing with:
+   - No authentication required for investors
+   - Password verification when protected
+   - Automatic view tracking with visitor analytics
+   - City information integration for location context
+4. **Analytics**: Comprehensive tracking including:
+   - View count and timestamps (first/last viewed)
+   - Visitor information (IP, user agent, referrer)
+   - Individual view records for detailed analysis
+   - Link performance metrics
 
 ### External API Integration
 
 **Investagon API Integration:**
-- Authentication via `organization_id` and `api_key`
-- Automatic hourly sync (configurable)
-- Manual sync options for single properties or bulk updates
-- Rate limiting and error handling
-- Incremental sync support (only changed properties)
+- Full property synchronization with external property data provider
+- Authentication via `organization_id` and `api_key` configuration
+- Multiple sync modes:
+  - **Manual Single Property**: Sync individual properties by Investagon ID
+  - **Bulk Sync**: Full or incremental synchronization of all properties
+  - **Automatic Sync**: Configurable hourly background synchronization
+- Status tracking with active, pre_sale, and draft flags from Investagon
+- Comprehensive error handling with retry logic and detailed logging
+- Sync history tracking with creation/update/failure counts
+- Connection testing endpoint for API validation
+- Rate limiting and tenant context validation
 
-**Hetzner S3 Integration:**
-- Image upload with automatic resizing based on category
+**Hetzner S3-Compatible Storage:**
+- Professional image upload and management system
+- Automatic resizing and optimization based on image category
+- Tenant-isolated file organization: `tenant_id/type/YYYY/MM/DD/filename`
 - Path-style addressing for Hetzner compatibility
-- Tenant-isolated file storage (`tenant_id/properties/` or `tenant_id/cities/`)
-- Image optimization and compression
-- Automatic S3 cleanup when images are deleted
-- Different resize rules for different image types:
-  - Property images: 1920px max for photos, 2400px for floor plans
-  - City images: 1920px for landscapes, 1600px for culture/nature
+- Different processing rules by image type:
+  - **Property Images**: 1920px max for photos, 2400px for floor plans (higher quality)
+  - **City Images**: 1920px for landscapes/overviews, 1600px for culture/nature
+- Image metadata tracking (dimensions, file size, MIME type)
+- Automatic S3 cleanup when images are deleted from database
+- Graceful degradation when storage service is unavailable
 
 ## Critical Implementation Details
 
@@ -285,9 +344,16 @@ The tenant context is automatically managed but requires understanding:
 The application includes a built-in scheduler (`app/core/scheduler.py`) for automated tasks:
 
 **Default Scheduled Tasks:**
-- **Investagon Sync**: Hourly property synchronization (if enabled)
-- **Session Cleanup**: Expired token cleanup every 6 hours
-- **Daily Reports**: Placeholder for reporting features
+- **Investagon Sync**: Hourly property synchronization (configurable via `ENABLE_AUTO_SYNC`)
+- **Session Cleanup**: Expired JWT token cleanup every 6 hours
+- **Daily Maintenance**: Database optimization and health checks
+
+**Scheduler Features:**
+- Async task execution with proper error handling
+- Task status tracking (run count, error count, last run time)
+- Individual task enable/disable controls
+- Graceful startup and shutdown handling
+- Comprehensive logging for debugging
 
 **Configuration:**
 ```bash
@@ -297,6 +363,7 @@ ENABLE_AUTO_SYNC=true
 # Investagon API credentials
 INVESTAGON_ORGANIZATION_ID=your-org-id
 INVESTAGON_API_KEY=your-api-key
+INVESTAGON_API_URL=https://api.investagon.com/api
 ```
 
 ### File Storage Integration
@@ -354,11 +421,61 @@ S3_REGION=fsn1
 - `property_manager` - Can edit property content, manage images and exposes
 - `tenant_admin` - Full access to all tenant resources
 
-## Testing Strategy
+## Current Implementation Status
 
-When implementing tests:
+### Recently Completed Features
+
+**Database Schema (June 2025 Updates):**
+- Complete multi-tenant property management schema
+- Geographic data integration (latitude/longitude, city relationships)
+- Enhanced Investagon API compatibility with status flags
+- Advanced property investment fields (object share, depreciation settings)
+- Comprehensive image management for properties and cities
+
+**API Implementation:**
+- Full CRUD operations for all core entities
+- Advanced filtering and pagination for property lists
+- Comprehensive image upload with category-based processing
+- Public expose access endpoints for investor viewing
+- Investagon synchronization with multiple sync modes
+- Background task processing with error handling
+
+**Integration Features:**
+- Hetzner S3-compatible storage with automatic optimization
+- OAuth authentication flows (Microsoft, Google)
+- JWT-based session management with refresh tokens
+- Role-based access control with granular permissions
+- Audit logging for all administrative actions
+
+### Testing Strategy
+
+**Current Test Implementation:**
+- Basic API endpoint testing (`tests/test_simple_api.py`)
+- Property API functionality validation
+- Investagon integration testing
+- Performance benchmarking for property listings
+- Error handling verification
+
+**Recommended Test Expansion:**
 - Use pytest fixtures for database setup/teardown
-- Test with multiple tenant contexts
-- Verify permission enforcement
-- Mock external services (AWS SES, OAuth)
+- Test with multiple tenant contexts for isolation verification
+- Verify permission enforcement across all endpoints
+- Mock external services (Investagon API, S3, email providers)
 - Test error cases and edge conditions
+- Integration tests for expose link generation and access
+- Load testing for sync operations and image uploads
+
+### Development Notes
+
+**Performance Considerations:**
+- Property list endpoint optimized for overview data (excludes heavy fields)
+- Image uploads automatically resize based on category requirements
+- Background sync operations handle large datasets efficiently
+- Database queries use proper indexing for common filter patterns
+
+**Security Implementation:**
+- All tenant data isolated through row-level security
+- JWT tokens include tenant context for automatic filtering
+- Image uploads validated for file type and size limits
+- Public expose links use secure, unpredictable identifiers
+- Comprehensive audit trails for administrative actions

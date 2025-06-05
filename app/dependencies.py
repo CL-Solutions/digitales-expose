@@ -314,18 +314,27 @@ def require_same_tenant_or_super_admin():
     def same_tenant_dependency(
         target_user_id: uuid.UUID,
         current_user: User = Depends(get_current_active_user),
+        tenant_id: Optional[uuid.UUID] = Depends(get_current_tenant_id),
         db: Session = Depends(get_db)
     ) -> bool:
-        # Super-Admin hat immer Zugriff
-        if current_user.is_super_admin:
-            return True
+        # Use the tenant_id from dependency (which handles impersonation)
+        # If no tenant_id is available, use the user's tenant_id
+        effective_tenant_id = tenant_id or current_user.tenant_id
         
         # Prüfe ob Target-User im gleichen Tenant ist
         target_user = db.query(User).filter(User.id == target_user_id).first()
         if not target_user:
             raise HTTPException(status_code=404, detail="User not found")
         
-        if target_user.tenant_id != current_user.tenant_id:
+        # Super-Admin has access within the effective tenant context
+        if current_user.is_super_admin:
+            # Super admin can access users in the current tenant context (impersonated or own)
+            if target_user.tenant_id != effective_tenant_id:
+                raise AuthorizationError("Access denied: user not in current tenant context")
+            return True
+        
+        # Regular users: check if target user is in same tenant
+        if target_user.tenant_id != effective_tenant_id:
             raise AuthorizationError("Access denied: different tenant")
         
         return True
