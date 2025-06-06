@@ -92,6 +92,18 @@ class Property(Base, TenantMixin, AuditMixin):
     expose_links = relationship("ExposeLink", back_populates="property", cascade="all, delete-orphan")
     city_ref = relationship("City", foreign_keys="Property.city_id")
 
+    @property
+    def thumbnail_url(self):
+        """Get the first image URL from S3 as thumbnail"""
+        if self.images:
+            # Sort by display_order first, then by created_at to get the primary image
+            sorted_images = sorted(
+                self.images, 
+                key=lambda x: (x.display_order, x.created_at if x.created_at else datetime.min.replace(tzinfo=timezone.utc))
+            )
+            return sorted_images[0].image_url if sorted_images else None
+        return None
+
     def __repr__(self):
         address_parts = [self.street, self.house_number, self.apartment_number]
         address = " ".join(filter(None, address_parts)) or "No address"

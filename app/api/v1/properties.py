@@ -8,7 +8,7 @@ from typing import List, Optional
 from uuid import UUID
 import json
 
-from app.dependencies import get_db, get_current_active_user, require_permission
+from app.dependencies import get_db, get_current_active_user, require_permission, get_current_tenant_id
 from app.models.user import User
 from app.schemas.business import (
     PropertyCreate,
@@ -33,12 +33,13 @@ router = APIRouter()
 async def list_properties(
     filter_params: PropertyFilter = Depends(),
     current_user: User = Depends(get_current_active_user),
+    tenant_id: Optional[UUID] = Depends(get_current_tenant_id),
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("properties", "read"))
 ):
     """List all properties with filtering (overview only)"""
     try:
-        result = PropertyService.list_properties(db, current_user, filter_params)
+        result = PropertyService.list_properties(db, current_user, filter_params, tenant_id)
         db.commit()
         
         return PropertyListResponse(

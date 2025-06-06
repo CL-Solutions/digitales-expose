@@ -2,7 +2,7 @@
 # PROPERTY SERVICE (services/property_service.py)
 # ================================
 
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, subqueryload
 from sqlalchemy import and_, or_, func
 from typing import List, Optional, Dict, Any
 from uuid import UUID
@@ -94,9 +94,9 @@ class PropertyService:
                 joinedload(Property.city_ref)
             )
             
-            # Apply tenant filter if not super admin
-            if not current_user.is_super_admin:
-                query = query.filter(Property.tenant_id == current_user.tenant_id)
+            # Apply tenant filter
+            # Always filter by tenant_id (which is set to impersonated tenant when impersonating)
+            query = query.filter(Property.tenant_id == current_user.tenant_id)
             
             property = query.filter(Property.id == property_id).first()
             
@@ -120,15 +120,21 @@ class PropertyService:
     def list_properties(
         db: Session,
         current_user: User,
-        filter_params: PropertyFilter
+        filter_params: PropertyFilter,
+        tenant_id: Optional[UUID] = None
     ) -> Dict[str, Any]:
         """List properties with filtering and pagination"""
         try:
-            query = db.query(Property)
+            # Query with images eagerly loaded for thumbnail
+            # Using subqueryload to avoid pagination issues with joins
+            query = db.query(Property).options(
+                subqueryload(Property.images)
+            )
             
-            # Apply tenant filter if not super admin
-            if not current_user.is_super_admin:
-                query = query.filter(Property.tenant_id == current_user.tenant_id)
+            # Apply tenant filter
+            # Use the tenant_id from request context (handles impersonation)
+            effective_tenant_id = tenant_id if tenant_id else current_user.tenant_id
+            query = query.filter(Property.tenant_id == effective_tenant_id)
             
             # Apply filters
             if filter_params.city:
@@ -177,12 +183,12 @@ class PropertyService:
             # Get total count
             total = query.count()
             
-            # Apply sorting
+            # Apply sorting with secondary sort by ID for stable pagination
             sort_field = getattr(Property, filter_params.sort_by, Property.created_at)
             if filter_params.sort_order == "desc":
-                query = query.order_by(sort_field.desc())
+                query = query.order_by(sort_field.desc(), Property.id.desc())
             else:
-                query = query.order_by(sort_field.asc())
+                query = query.order_by(sort_field.asc(), Property.id.asc())
             
             # Apply pagination
             offset = (filter_params.page - 1) * filter_params.page_size

@@ -8,7 +8,7 @@ from typing import List, Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime, timezone
 
-from app.dependencies import get_db, get_current_active_user, require_permission
+from app.dependencies import get_db, get_current_active_user, require_permission, get_current_tenant_id
 from app.models.user import User
 from app.schemas.business import (
     CityCreate,
@@ -47,12 +47,13 @@ async def list_cities(
 @router.get("/with-properties", response_model=List[Dict[str, Any]])
 async def get_cities_with_properties(
     current_user: User = Depends(get_current_active_user),
+    tenant_id: Optional[UUID] = Depends(get_current_tenant_id),
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("cities", "read"))
 ):
     """Get cities that have properties available"""
     try:
-        cities = CityService.get_cities_with_properties(db, current_user)
+        cities = CityService.get_cities_with_properties(db, current_user, tenant_id)
         return cities
     
     except AppException as e:

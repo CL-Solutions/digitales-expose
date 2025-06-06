@@ -507,6 +507,9 @@ class PropertyOverview(BaseModel):
     pre_sale: Optional[int] = None
     draft: Optional[int] = None
     
+    # Thumbnail URL from S3 for list view
+    thumbnail_url: Optional[str] = None
+    
     model_config = ConfigDict(from_attributes=True)
 
 class PropertyListResponse(BaseModel):

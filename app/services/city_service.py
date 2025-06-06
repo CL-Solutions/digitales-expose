@@ -100,9 +100,9 @@ class CityService:
                 joinedload(City.images)
             )
             
-            # Apply tenant filter if not super admin
-            if not current_user.is_super_admin:
-                query = query.filter(City.tenant_id == current_user.tenant_id)
+            # Apply tenant filter
+            # Always filter by tenant_id (which is set to impersonated tenant when impersonating)
+            query = query.filter(City.tenant_id == current_user.tenant_id)
             
             city = query.filter(City.id == city_id).first()
             
@@ -405,7 +405,8 @@ class CityService:
     @staticmethod
     def get_cities_with_properties(
         db: Session,
-        current_user: User
+        current_user: User,
+        tenant_id: Optional[UUID] = None
     ) -> List[Dict[str, Any]]:
         """Get cities that have properties"""
         try:
@@ -420,11 +421,12 @@ class CityService:
                 Property.status == 'available'
             )
             
-            # Apply tenant filter if not super admin
-            if not current_user.is_super_admin:
-                property_query = property_query.filter(
-                    Property.tenant_id == current_user.tenant_id
-                )
+            # Apply tenant filter
+            # Use the tenant_id from request context (handles impersonation)
+            effective_tenant_id = tenant_id if tenant_id else current_user.tenant_id
+            property_query = property_query.filter(
+                Property.tenant_id == effective_tenant_id
+            )
             
             # Group by city and state
             city_property_counts = property_query.group_by(
