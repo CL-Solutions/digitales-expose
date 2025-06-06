@@ -146,16 +146,29 @@ async def get_tenant_by_id(
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to get tenant")
 
-@router.put("/{tenant_id}", response_model=TenantResponse)
+@router.patch("/{tenant_id}", response_model=TenantResponse)
 async def update_tenant(
     tenant_id: uuid.UUID = Path(..., description="Tenant ID"),
     tenant_update: TenantUpdate = ...,
-    super_admin: User = Depends(get_super_admin_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Update tenant"""
+    """Update tenant - super admins can update any tenant, tenant admins can update their own"""
     try:
-        tenant = TenantService.update_tenant(db, tenant_id, tenant_update, super_admin)
+        from app.services.rbac_service import RBACService
+        
+        # Check permissions: super admins can update any tenant
+        # Regular users with tenant:manage permission can update their own tenant
+        if not current_user.is_super_admin:
+            if current_user.tenant_id != tenant_id:
+                raise HTTPException(status_code=403, detail="You can only update your own tenant settings")
+            
+            # Check if user has tenant:manage permission
+            permissions = RBACService.get_user_permissions(db, current_user.id, current_user.tenant_id)
+            if "tenant:manage" not in [p["name"] for p in permissions.get("permissions", [])]:
+                raise HTTPException(status_code=403, detail="You don't have permission to manage tenant settings")
+        
+        tenant = TenantService.update_tenant(db, tenant_id, tenant_update, current_user)
         db.commit()
         
         # Add user count
@@ -165,6 +178,8 @@ async def update_tenant(
         
         return tenant_response
     
+    except HTTPException:
+        raise
     except AppException as e:
         db.rollback()
         raise HTTPException(status_code=e.status_code, detail=e.detail)

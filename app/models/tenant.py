@@ -22,6 +22,11 @@ class Tenant(Base):
     subscription_plan = Column(String(50), default="basic", nullable=False)
     max_users = Column(Integer, default=10, nullable=False)
     
+    # Investagon Integration
+    investagon_organization_id = Column(String(255), nullable=True)
+    investagon_api_key = Column(String(255), nullable=True)  # Should be encrypted in production
+    investagon_sync_enabled = Column(Boolean, default=False, nullable=False)
+    
     # Status
     is_active = Column(Boolean, default=True, nullable=False)
     

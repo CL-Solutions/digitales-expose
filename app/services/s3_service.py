@@ -346,6 +346,100 @@ class S3Service:
             else:
                 logger.error(f"Failed to get image info: {str(e)}")
                 return None
+    
+    async def upload_image_from_bytes(
+        self,
+        file_data: bytes,
+        filename: str,
+        content_type: str,
+        folder: str,
+        tenant_id: str,
+        resize_options: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Upload image data directly from bytes (for importing from external sources)
+        
+        Args:
+            file_data: Raw image bytes
+            filename: Filename for the upload
+            content_type: MIME type of the image
+            folder: Folder path in S3
+            tenant_id: Tenant ID for organization
+            resize_options: Dict with resize settings
+        
+        Returns:
+            Dict with upload details including URL, size, dimensions
+        """
+        if not self.is_configured():
+            raise AppException(
+                status_code=503,
+                detail="Image storage service is not available"
+            )
+            
+        try:
+            # Process image if resize options provided
+            image_data = file_data
+            width, height = None, None
+            file_size = len(file_data)
+            
+            if resize_options:
+                image_data, (width, height) = await self._process_image(
+                    file_data, 
+                    content_type,
+                    resize_options
+                )
+                file_size = len(image_data)
+            else:
+                # Get image dimensions without resizing
+                try:
+                    img = Image.open(BytesIO(file_data))
+                    width, height = img.size
+                except Exception:
+                    pass
+            
+            # Generate unique filename
+            file_extension = mimetypes.guess_extension(content_type) or '.jpg'
+            unique_filename = f"{uuid.uuid4()}{file_extension}"
+            
+            # Create S3 key with tenant isolation
+            s3_key = f"{tenant_id}/{folder}/{datetime.now(timezone.utc).strftime('%Y/%m/%d')}/{unique_filename}"
+            
+            # Upload to S3
+            self.s3_client.put_object(
+                Bucket=self.bucket_name,
+                Key=s3_key,
+                Body=image_data,
+                ContentType=content_type,
+                ACL='public-read',
+                Metadata={
+                    'tenant_id': tenant_id,
+                    'original_filename': filename,
+                    'uploaded_at': datetime.now(timezone.utc).isoformat()
+                }
+            )
+            
+            # Generate public URL
+            endpoint_base = settings.S3_ENDPOINT_URL.replace('https://', '')
+            url = f"https://{self.bucket_name}.{endpoint_base}/{s3_key}"
+            
+            return {
+                'url': url,
+                's3_key': s3_key,
+                'file_size': file_size,
+                'mime_type': content_type,
+                'width': width,
+                'height': height,
+                'original_filename': filename
+            }
+            
+        except AppException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to upload image from bytes: {str(e)}")
+            raise AppException(
+                status_code=500,
+                detail="Failed to upload image"
+            )
 
 # Create singleton instance - will initialize when first imported
 s3_service = None

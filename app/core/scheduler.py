@@ -167,65 +167,97 @@ scheduler = BackgroundScheduler()
 
 async def sync_investagon_properties():
     """Scheduled task to sync properties from Investagon"""
-    if not settings.INVESTAGON_ORGANIZATION_ID or not settings.INVESTAGON_API_KEY:
-        logger.info("Investagon sync skipped - API not configured")
-        return
-    
     # Use a new database session for the background task
     db = SessionLocal()
     try:
         from app.services.investagon_service import InvestagonSyncService
         from app.models.user import User
+        from app.models.tenant import Tenant
         from app.models.business import InvestagonSync
+        from types import SimpleNamespace
         
         # Get all tenants that have Investagon sync enabled
-        # For now, we'll sync for all tenants with a super admin
-        super_admins = db.query(User).filter(
-            User.is_super_admin == True,
-            User.is_active == True
+        tenants_to_sync = db.query(Tenant).filter(
+            Tenant.is_active == True,
+            Tenant.investagon_sync_enabled == True,
+            Tenant.investagon_organization_id.isnot(None),
+            Tenant.investagon_api_key.isnot(None)
         ).all()
         
-        if not super_admins:
-            logger.warning("No super admin found for Investagon sync")
+        if not tenants_to_sync:
+            logger.info("No tenants have Investagon sync enabled")
             return
         
-        # Use the first super admin for the sync
-        sync_user = super_admins[0]
+        logger.info(f"Found {len(tenants_to_sync)} tenants with Investagon sync enabled")
         
-        # Check if we can sync (respects rate limits)
-        sync_service = InvestagonSyncService()
-        can_sync_status = InvestagonSyncService.can_sync(db, sync_user)
-        
-        if not can_sync_status["can_sync"]:
-            logger.info(f"Investagon sync skipped: {can_sync_status['reason']}")
-            return
-        
-        # Get last successful sync to do incremental sync
-        last_sync = db.query(InvestagonSync).filter(
-            InvestagonSync.tenant_id == sync_user.tenant_id,
-            InvestagonSync.status.in_(["completed", "partial"]),
-            InvestagonSync.sync_type.in_(["full", "incremental"])
-        ).order_by(InvestagonSync.completed_at.desc()).first()
-        
-        modified_since = last_sync.completed_at if last_sync else None
-        
-        # Perform the sync
-        logger.info(f"Starting scheduled Investagon sync (incremental: {modified_since is not None})")
-        
-        sync_record = await sync_service.sync_all_properties(
-            db, 
-            sync_user, 
-            modified_since
-        )
-        
-        db.commit()
-        
-        logger.info(
-            f"Investagon sync completed: "
-            f"{sync_record.properties_created} created, "
-            f"{sync_record.properties_updated} updated, "
-            f"{sync_record.properties_failed} failed"
-        )
+        # Process each tenant
+        for tenant in tenants_to_sync:
+            try:
+                # Get a user from this tenant for the sync (prefer admin)
+                sync_user = db.query(User).filter(
+                    User.tenant_id == tenant.id,
+                    User.is_active == True
+                ).first()
+                
+                if not sync_user:
+                    logger.warning(f"No active user found for tenant {tenant.id}")
+                    continue
+                
+                # Create a user-like object with tenant context
+                effective_user = SimpleNamespace(
+                    id=sync_user.id,
+                    tenant_id=tenant.id,
+                    is_super_admin=False,
+                    is_active=True
+                )
+                
+                # Check if we can sync (respects rate limits)
+                can_sync_status = InvestagonSyncService.can_sync(db, effective_user)
+                
+                if not can_sync_status["can_sync"]:
+                    logger.info(f"Investagon sync skipped for tenant {tenant.id}: {can_sync_status['reason']}")
+                    continue
+                
+                # Get tenant-specific API client
+                api_client = InvestagonSyncService.get_tenant_api_client(db, tenant.id)
+                if not api_client:
+                    logger.warning(f"Failed to create API client for tenant {tenant.id}")
+                    continue
+                
+                # Create sync service with tenant client
+                sync_service = InvestagonSyncService(api_client)
+                
+                # Get last successful sync to do incremental sync
+                last_sync = db.query(InvestagonSync).filter(
+                    InvestagonSync.tenant_id == tenant.id,
+                    InvestagonSync.status.in_(["completed", "partial"]),
+                    InvestagonSync.sync_type.in_(["full", "incremental"])
+                ).order_by(InvestagonSync.completed_at.desc()).first()
+                
+                modified_since = last_sync.completed_at if last_sync else None
+                
+                # Perform the sync
+                logger.info(f"Starting scheduled Investagon sync for tenant {tenant.name} (incremental: {modified_since is not None})")
+                
+                sync_record = await sync_service.sync_all_properties(
+                    db, 
+                    effective_user, 
+                    modified_since
+                )
+                
+                db.commit()
+                
+                logger.info(
+                    f"Investagon sync completed for tenant {tenant.name}: "
+                    f"{sync_record.properties_created} created, "
+                    f"{sync_record.properties_updated} updated, "
+                    f"{sync_record.properties_failed} failed"
+                )
+                
+            except Exception as e:
+                logger.error(f"Error syncing tenant {tenant.id}: {e}")
+                db.rollback()
+                # Continue with next tenant
         
     except Exception as e:
         logger.error(f"Error in scheduled Investagon sync: {e}")

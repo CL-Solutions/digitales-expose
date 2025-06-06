@@ -272,19 +272,26 @@ async def test_investagon_connection(
 ):
     """Test connection to Investagon API"""
     try:
-        from app.services.investagon_service import InvestagonAPIClient
+        from app.services.investagon_service import InvestagonSyncService
         
-        client = InvestagonAPIClient()
+        # Get tenant-specific API client
+        api_client = InvestagonSyncService.get_tenant_api_client(db, current_user.tenant_id)
+        if not api_client:
+            return {
+                "connected": False,
+                "message": "API credentials not configured for this tenant",
+                "error": "Missing Investagon credentials"
+            }
         
         # Try to fetch projects to test connection
-        projects = await client.get_projects()
+        projects = await api_client.get_projects()
         
         # Count total properties across all projects
         total_properties = 0
         if projects:
             # Get details for first project to verify property fetching works
             first_project = projects[0]
-            project_details = await client.get_project_by_id(first_project.get("id"))
+            project_details = await api_client.get_project_by_id(first_project.get("id"))
             property_urls = project_details.get("properties", [])
             total_properties = len(property_urls)
         

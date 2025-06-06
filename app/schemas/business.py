@@ -506,6 +506,7 @@ class PropertyOverview(BaseModel):
     active: Optional[int] = None
     pre_sale: Optional[int] = None
     draft: Optional[int] = None
+    visibility: Optional[int] = None
     
     # Thumbnail URL from S3 for list view
     thumbnail_url: Optional[str] = None

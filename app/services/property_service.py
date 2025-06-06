@@ -136,6 +136,9 @@ class PropertyService:
             effective_tenant_id = tenant_id if tenant_id else current_user.tenant_id
             query = query.filter(Property.tenant_id == effective_tenant_id)
             
+            # Default filter: only show properties with visibility > -1
+            query = query.filter(Property.visibility > -1)
+            
             # Apply filters
             if filter_params.city:
                 query = query.filter(Property.city.ilike(f"%{filter_params.city}%"))

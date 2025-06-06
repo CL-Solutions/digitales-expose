@@ -11,13 +11,16 @@ from sqlalchemy import and_, or_
 from uuid import UUID
 import logging
 from decimal import Decimal
+from io import BytesIO
+import mimetypes
 
 from app.config import settings
 from app.core.exceptions import AppException
-from app.models.business import Property, InvestagonSync
+from app.models.business import Property, InvestagonSync, PropertyImage
 from app.models.user import User
 from app.utils.audit import AuditLogger
 from app.services.rbac_service import RBACService
+from app.services.s3_service import get_s3_service
 
 logger = logging.getLogger(__name__)
 audit_logger = AuditLogger()
@@ -25,10 +28,10 @@ audit_logger = AuditLogger()
 class InvestagonAPIClient:
     """Client for interacting with Investagon API"""
     
-    def __init__(self):
+    def __init__(self, organization_id: str, api_key: str):
         self.base_url = settings.INVESTAGON_API_URL
-        self.organization_id = settings.INVESTAGON_ORGANIZATION_ID
-        self.api_key = settings.INVESTAGON_API_KEY
+        self.organization_id = organization_id
+        self.api_key = api_key
         self.timeout = 30.0
         
     def _get_auth_params(self) -> Dict[str, str]:
@@ -155,8 +158,25 @@ class InvestagonAPIClient:
 class InvestagonSyncService:
     """Service for syncing property data from Investagon API"""
     
-    def __init__(self):
-        self.api_client = InvestagonAPIClient()
+    def __init__(self, api_client: Optional[InvestagonAPIClient] = None):
+        self.api_client = api_client
+    
+    @staticmethod
+    def get_tenant_api_client(db: Session, tenant_id: UUID) -> Optional[InvestagonAPIClient]:
+        """Get InvestagonAPIClient configured with tenant credentials"""
+        from app.models.tenant import Tenant
+        
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if not tenant:
+            return None
+            
+        if not tenant.investagon_organization_id or not tenant.investagon_api_key:
+            return None
+            
+        return InvestagonAPIClient(
+            organization_id=tenant.investagon_organization_id,
+            api_key=tenant.investagon_api_key
+        )
     
     @staticmethod  
     def _map_investagon_to_property(investagon_data: Dict[str, Any], db: Session = None, tenant_id: UUID = None, user_id: UUID = None) -> Dict[str, Any]:
@@ -316,6 +336,7 @@ class InvestagonSyncService:
             "active": safe_int(investagon_data.get("active", 0)),
             "pre_sale": safe_int(investagon_data.get("pre_sale", 0)),
             "draft": safe_int(investagon_data.get("draft", 0)),
+            "visibility": safe_int(investagon_data.get("visibility", None)),
             
             # Investagon Integration
             "investagon_id": str(investagon_data.get("id", "")),
@@ -340,6 +361,15 @@ class InvestagonSyncService:
                     raise AppException(
                         status_code=403,
                         detail="You don't have permission to sync from Investagon"
+                    )
+            
+            # Get tenant-specific API client
+            if not self.api_client:
+                self.api_client = self.get_tenant_api_client(db, current_user.tenant_id)
+                if not self.api_client:
+                    raise AppException(
+                        status_code=503,
+                        detail="Investagon API credentials not configured for this tenant"
                     )
             
             # Get property data from Investagon
@@ -394,6 +424,15 @@ class InvestagonSyncService:
             
             db.flush()
             
+            # Import images if available
+            photos = investagon_data.get('photos', [])
+            if photos:
+                logger.info(f"Found {len(photos)} photos to import for property {property_obj.id}")
+                imported_images = await self.import_property_images(
+                    db, property_obj, photos, current_user
+                )
+                logger.info(f"Imported {len(imported_images)} images for property {property_obj.id}")
+            
             # Log activity
             audit_logger.log_business_event(
                 db=db,
@@ -405,7 +444,8 @@ class InvestagonSyncService:
                 new_values={
                     "investagon_id": investagon_id,
                     "street": property_obj.street,
-                    "apartment_number": property_obj.apartment_number
+                    "apartment_number": property_obj.apartment_number,
+                    "images_imported": len(photos) if photos else 0
                 }
             )
             
@@ -453,6 +493,15 @@ class InvestagonSyncService:
                     raise AppException(
                         status_code=403,
                         detail="You don't have permission to sync from Investagon"
+                    )
+            
+            # Get tenant-specific API client
+            if not self.api_client:
+                self.api_client = self.get_tenant_api_client(db, current_user.tenant_id)
+                if not self.api_client:
+                    raise AppException(
+                        status_code=503,
+                        detail="Investagon API credentials not configured for this tenant"
                     )
             
             # Create sync record
@@ -548,6 +597,20 @@ class InvestagonSyncService:
                                     )
                                     db.add(prop)
                                     total_created += 1
+                                
+                                # Flush the property to get its ID
+                                db.flush()
+                                
+                                # Import images if available and property is new or we're doing a full sync
+                                photos = investagon_data.get('photos', [])
+                                if photos and (investagon_id not in existing_properties or modified_since is None):
+                                    try:
+                                        imported_images = await self.import_property_images(
+                                            db, prop, photos, current_user
+                                        )
+                                        logger.info(f"Imported {len(imported_images)} images for property {prop.id}")
+                                    except Exception as img_error:
+                                        logger.error(f"Failed to import images for property {prop.id}: {str(img_error)}")
                                 
                                 # Commit the savepoint
                                 savepoint.commit()
@@ -685,11 +748,13 @@ class InvestagonSyncService:
     def can_sync(db: Session, current_user: User) -> Dict[str, Any]:
         """Check if sync is allowed and when it can be performed"""
         try:
-            # Check if API is configured
-            if not settings.INVESTAGON_ORGANIZATION_ID or not settings.INVESTAGON_API_KEY:
+            # Check if API is configured for tenant
+            from app.models.tenant import Tenant
+            tenant = db.query(Tenant).filter(Tenant.id == current_user.tenant_id).first()
+            if not tenant or not tenant.investagon_organization_id or not tenant.investagon_api_key:
                 return {
                     "can_sync": False,
-                    "reason": "Investagon API not configured"
+                    "reason": "Investagon API not configured for this tenant"
                 }
             
             # Check permissions
@@ -771,3 +836,92 @@ class InvestagonSyncService:
                 "can_sync": False,
                 "reason": "Error checking sync status"
             }
+    
+    async def import_property_images(
+        self,
+        db: Session,
+        property_obj: Property,
+        photos: List[Dict[str, Any]],
+        current_user: User
+    ) -> List[PropertyImage]:
+        """Import images from Investagon URLs to S3 and create PropertyImage records"""
+        imported_images = []
+        s3_service = get_s3_service()
+        
+        if not s3_service or not s3_service.is_configured():
+            logger.warning("S3 service not configured. Skipping image import.")
+            return imported_images
+        
+        # Sort photos by position to maintain order
+        sorted_photos = sorted(photos, key=lambda x: x.get('position', 0))
+        
+        for idx, photo in enumerate(sorted_photos):
+            try:
+                filename = photo.get('filename', '')
+                if not filename or not filename.startswith('http'):
+                    logger.warning(f"Invalid photo URL: {filename}")
+                    continue
+                
+                # Download image from Investagon
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(
+                        filename,
+                        timeout=30.0,
+                        follow_redirects=True
+                    )
+                    response.raise_for_status()
+                    image_content = response.content
+                
+                # Determine content type
+                content_type = response.headers.get('content-type', 'image/jpeg')
+                if not content_type.startswith('image/'):
+                    content_type = 'image/jpeg'
+                
+                # Generate filename with proper extension
+                file_extension = mimetypes.guess_extension(content_type) or '.jpg'
+                temp_filename = f"investagon_{photo.get('id', idx)}{file_extension}"
+                
+                # Create a file-like object for S3 upload
+                file_obj = BytesIO(image_content)
+                file_obj.name = temp_filename
+                
+                # Determine image type based on position or default to exterior
+                # First images are typically exterior shots
+                image_type = 'exterior' if idx < 4 else 'interior'
+                
+                # Upload to S3
+                upload_result = await s3_service.upload_image_from_bytes(
+                    file_data=image_content,
+                    filename=temp_filename,
+                    content_type=content_type,
+                    folder='properties',
+                    tenant_id=str(property_obj.tenant_id),
+                    resize_options={'width': 1920, 'quality': 85}
+                )
+                
+                # Create PropertyImage record
+                property_image = PropertyImage(
+                    property_id=property_obj.id,
+                    tenant_id=property_obj.tenant_id,
+                    image_url=upload_result['url'],
+                    image_type=image_type,
+                    title=f"Property Image {idx + 1}",
+                    description=f"Imported from Investagon (ID: {photo.get('id')})",
+                    display_order=photo.get('position', idx),
+                    file_size=upload_result.get('file_size'),
+                    mime_type=upload_result.get('mime_type'),
+                    width=upload_result.get('width'),
+                    height=upload_result.get('height'),
+                    created_by=current_user.id
+                )
+                
+                db.add(property_image)
+                imported_images.append(property_image)
+                
+                logger.info(f"Successfully imported image {photo.get('id')} for property {property_obj.id}")
+                
+            except Exception as e:
+                logger.error(f"Failed to import image {photo.get('id', 'unknown')}: {str(e)}")
+                continue
+        
+        return imported_images

@@ -15,6 +15,11 @@ class TenantBase(BaseSchema, DomainFieldMixin):
     subscription_plan: str = Field(default="basic", description="Subscription plan")
     max_users: int = Field(default=10, ge=1, le=10000, description="Maximum number of users")
     is_active: bool = Field(default=True, description="Tenant active status")
+    
+    # Investagon Integration
+    investagon_organization_id: Optional[str] = Field(None, max_length=255, description="Investagon organization ID")
+    investagon_api_key: Optional[str] = Field(None, max_length=255, description="Investagon API key")
+    investagon_sync_enabled: bool = Field(default=False, description="Enable automatic Investagon sync")
 
 class TenantCreate(TenantBase, SlugFieldMixin):
     """Schema für Tenant-Erstellung (nur Super-Admin)"""
@@ -34,6 +39,11 @@ class TenantUpdate(BaseSchema, DomainFieldMixin):
     subscription_plan: Optional[str] = None
     max_users: Optional[int] = Field(None, ge=1, le=10000)
     is_active: Optional[bool] = None
+    
+    # Investagon Integration
+    investagon_organization_id: Optional[str] = Field(None, max_length=255)
+    investagon_api_key: Optional[str] = Field(None, max_length=255)
+    investagon_sync_enabled: Optional[bool] = None
 
 class TenantResponse(TenantBase, TimestampMixin):
     """Schema für Tenant-Responses"""

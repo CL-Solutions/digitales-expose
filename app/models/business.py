@@ -78,6 +78,7 @@ class Property(Base, TenantMixin, AuditMixin):
     active = Column(Integer, nullable=True)  # Can be more than 1
     pre_sale = Column(Integer, nullable=True)  # 0 or 1 from Investagon
     draft = Column(Integer, nullable=True)  # 0 or 1 from Investagon
+    visibility = Column(Integer, nullable=True)  # Visibility value from Investagon (-1 to 1)
     
     # Investagon Integration
     investagon_id = Column(String(255), nullable=True, unique=True)

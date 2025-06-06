@@ -146,7 +146,9 @@ class TenantService:
             "domain": tenant.domain,
             "subscription_plan": tenant.subscription_plan,
             "max_users": tenant.max_users,
-            "is_active": tenant.is_active
+            "is_active": tenant.is_active,
+            "investagon_organization_id": tenant.investagon_organization_id,
+            "investagon_sync_enabled": tenant.investagon_sync_enabled
         }
         
         # Update fields
@@ -177,6 +179,17 @@ class TenantService:
         if tenant_update.is_active is not None:
             tenant.is_active = tenant_update.is_active
             update_data["is_active"] = tenant_update.is_active
+        
+        # Update Investagon fields
+        if tenant_update.investagon_organization_id is not None:
+            tenant.investagon_organization_id = tenant_update.investagon_organization_id
+            update_data["investagon_organization_id"] = tenant_update.investagon_organization_id
+        if tenant_update.investagon_api_key is not None:
+            tenant.investagon_api_key = tenant_update.investagon_api_key
+            update_data["investagon_api_key"] = "***" # Don't log the actual API key
+        if tenant_update.investagon_sync_enabled is not None:
+            tenant.investagon_sync_enabled = tenant_update.investagon_sync_enabled
+            update_data["investagon_sync_enabled"] = tenant_update.investagon_sync_enabled
         
         # Audit log
         audit_logger.log_auth_event(
