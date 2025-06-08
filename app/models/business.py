@@ -9,14 +9,14 @@ from app.models.base import Base, TenantMixin, AuditMixin
 import uuid
 from datetime import datetime, timezone
 
-class Property(Base, TenantMixin, AuditMixin):
-    """Property Model for real estate investments"""
-    __tablename__ = "properties"
+class Project(Base, TenantMixin, AuditMixin):
+    """Project Model for grouping related properties in the same building"""
+    __tablename__ = "projects"
     
     # Basic Information
-    street = Column(String(255), nullable=True)
-    house_number = Column(String(50), nullable=True)
-    apartment_number = Column(String(100), nullable=True)
+    name = Column(String(255), nullable=False)  # e.g., "Abcstreet 123"
+    street = Column(String(255), nullable=False)
+    house_number = Column(String(50), nullable=False)
     city = Column(String(255), nullable=False)
     city_id = Column(UUID(as_uuid=True), ForeignKey('cities.id'), nullable=True)
     state = Column(String(255), nullable=False)
@@ -24,16 +24,98 @@ class Property(Base, TenantMixin, AuditMixin):
     zip_code = Column(String(20), nullable=False)
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
-    property_type = Column(String(100), nullable=False)  # 'apartment', 'house', 'co-living', etc.
+    
+    # Building Details
+    construction_year = Column(Integer, nullable=True)
+    renovation_year = Column(Integer, nullable=True)
+    total_floors = Column(Integer, nullable=True)
+    building_type = Column(String(100), nullable=True)  # 'apartment_building', 'mixed_use', etc.
+    
+    # Building Features
+    has_elevator = Column(Boolean, nullable=True)
+    has_parking = Column(Boolean, nullable=True)
+    has_basement = Column(Boolean, nullable=True)
+    has_garden = Column(Boolean, nullable=True)
+    
+    # Energy Data (Building Level)
+    energy_certificate_type = Column(String(50), nullable=True)  # 'consumption', 'demand'
+    energy_consumption = Column(Float, nullable=True)
+    energy_class = Column(String(10), nullable=True)  # 'A+', 'A', 'B', etc.
+    heating_type = Column(String(100), nullable=True)
+    
+    # Additional Information
+    description = Column(Text, nullable=True)
+    amenities = Column(JSON, nullable=True)  # List of building amenities
+    
+    # Status
+    status = Column(String(50), default="active", nullable=False)  # 'active', 'planned', 'completed'
+    
+    # External Reference
+    investagon_id = Column(String(255), nullable=True, unique=True)  # Investagon project ID
+    investagon_data = Column(JSON, nullable=True)  # Store full API response
+    
+    # Relationships
+    tenant = relationship("Tenant")
+    creator = relationship("User", foreign_keys="Project.created_by")
+    updater = relationship("User", foreign_keys="Project.updated_by")
+    properties = relationship("Property", back_populates="project", cascade="all, delete-orphan")
+    images = relationship("ProjectImage", back_populates="project", cascade="all, delete-orphan", order_by="ProjectImage.display_order")
+    city_ref = relationship("City", foreign_keys="Project.city_id")
+
+    def __repr__(self):
+        return f"<Project(name='{self.name}', city='{self.city}', status='{self.status}')>"
+
+class ProjectImage(Base, TenantMixin, AuditMixin):
+    """Project Image Model"""
+    __tablename__ = "project_images"
+    
+    # Foreign Keys
+    project_id = Column(UUID(as_uuid=True), ForeignKey('projects.id', ondelete='CASCADE'), nullable=False)
+    
+    # Image Information
+    image_url = Column(Text, nullable=False)  # S3 URL
+    image_type = Column(String(50), nullable=False)  # 'exterior', 'interior', 'common_area', 'floor_plan', 'energy_certificate'
+    title = Column(String(255), nullable=True)
+    description = Column(Text, nullable=True)
+    display_order = Column(Integer, default=0, nullable=False)
+    
+    # Metadata
+    file_size = Column(Integer, nullable=True)
+    mime_type = Column(String(100), nullable=True)
+    width = Column(Integer, nullable=True)
+    height = Column(Integer, nullable=True)
+    
+    # Relationships
+    project = relationship("Project", back_populates="images")
+    tenant = relationship("Tenant", foreign_keys="ProjectImage.tenant_id")
+    creator = relationship("User", foreign_keys="ProjectImage.created_by")
+    updater = relationship("User", foreign_keys="ProjectImage.updated_by")
+
+    def __repr__(self):
+        return f"<ProjectImage(project='{self.project_id}', type='{self.image_type}')>"
+
+class Property(Base, TenantMixin, AuditMixin):
+    """Property Model for real estate investments"""
+    __tablename__ = "properties"
+    
+    # Foreign Keys
+    project_id = Column(UUID(as_uuid=True), ForeignKey('projects.id'), nullable=False)
+    
+    # Basic Information
+    unit_number = Column(String(100), nullable=False)  # e.g., "WE1", "WE2", "WHG 103", etc.
+    floor = Column(Integer, nullable=True)
+    
+    # Location references (denormalized for search/filter, but project is source of truth)
+    city = Column(String(255), nullable=False)
+    city_id = Column(UUID(as_uuid=True), ForeignKey('cities.id'), nullable=True)
+    state = Column(String(255), nullable=False)
+    zip_code = Column(String(20), nullable=False)
+    property_type = Column(String(100), nullable=False)  # 'apartment', 'studio', 'penthouse', etc.
     
     # Property Details
     size_sqm = Column(Float, nullable=False)
     rooms = Column(Float, nullable=False)
     bathrooms = Column(Integer, nullable=True)
-    floor = Column(Integer, nullable=True)
-    total_floors = Column(Integer, nullable=True)
-    construction_year = Column(Integer, nullable=True)
-    renovation_year = Column(Integer, nullable=True)
     
     # Financial Data
     purchase_price = Column(Numeric(12, 2), nullable=False)
@@ -86,6 +168,7 @@ class Property(Base, TenantMixin, AuditMixin):
     last_sync = Column(DateTime, nullable=True)
     
     # Relationships
+    project = relationship("Project", back_populates="properties")
     tenant = relationship("Tenant")
     creator = relationship("User", foreign_keys="Property.created_by", back_populates="created_properties")
     updater = relationship("User", foreign_keys="Property.updated_by", back_populates="updated_properties")
@@ -106,9 +189,7 @@ class Property(Base, TenantMixin, AuditMixin):
         return None
 
     def __repr__(self):
-        address_parts = [self.street, self.house_number, self.apartment_number]
-        address = " ".join(filter(None, address_parts)) or "No address"
-        return f"<Property(address='{address}', city='{self.city}', status='{self.status}')>"
+        return f"<Property(unit='{self.unit_number}', project='{self.project.name if self.project else 'N/A'}', status='{self.status}')>"
 
 class PropertyImage(Base, TenantMixin, AuditMixin):
     """Property Image Model"""

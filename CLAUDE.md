@@ -13,13 +13,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Digitales Expose** - A sophisticated property investment expose management system that enables real estate companies to:
 
 ### Core Business Functions
+- **Project & Property Management**: Two-layer architecture where projects (buildings) contain multiple properties (units)
 - **Property Portfolio Management**: Comprehensive property data with 25+ investment-specific fields
-- **Investagon API Integration**: Automatic synchronization with external property data provider
+- **Investagon API Integration**: Automatic synchronization of projects and properties from external data provider
 - **Investment Expose Generation**: Customizable templates for property investment presentations
 - **Shareable Investment Links**: Secure, trackable links for potential investors with preset parameters
-- **Multi-Media Asset Management**: Professional property and city image categorization
+- **Multi-Media Asset Management**: Professional project, property and city image categorization
 - **Location Intelligence**: Comprehensive city data with demographic and economic indicators
-- **Financial Analytics**: Automatic yield calculations and investment metrics
+- **Financial Analytics**: Automatic yield calculations and investment metrics at both project and property levels
 - **Access Tracking**: Detailed analytics on expose views and investor engagement
 
 ### Technical Highlights
@@ -161,6 +162,7 @@ Routes follow RESTful conventions with consistent patterns:
 - `/api/v1/users` - User management and profiles
 - `/api/v1/tenants` - Tenant administration (super admin only)
 - `/api/v1/rbac` - Roles and permissions management
+- `/api/v1/projects` - Project CRUD, statistics, and image upload (4 categories)
 - `/api/v1/properties` - Property CRUD, statistics, and image upload (13 categories)
 - `/api/v1/cities` - City data management and image upload (12 categories)
 - `/api/v1/exposes` - Expose template and link management with public access
@@ -169,13 +171,65 @@ Routes follow RESTful conventions with consistent patterns:
 
 ## Common Development Tasks
 
+### API Endpoint Pattern
+
+Every protected API endpoint should follow this pattern:
+
+```python
+from app.dependencies import get_db, get_current_active_user, get_current_tenant_id, require_permission
+
+@router.post("/resource", response_model=ResourceResponse)
+async def create_resource(
+    resource_data: ResourceCreate,  # Request body
+    db: Session = Depends(get_db),  # Database session
+    current_user: User = Depends(get_current_active_user),  # Authenticated user
+    tenant_id: UUID = Depends(get_current_tenant_id),  # Current tenant context
+    _: bool = Depends(require_permission("resource", "create"))  # Permission check
+):
+    """Create a new resource"""
+    try:
+        result = ResourceService.create_resource(
+            db=db,
+            data=resource_data,
+            created_by=current_user.id,
+            tenant_id=tenant_id
+        )
+        return ResourceResponse.model_validate(result)
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+```
+
 ### Adding a New API Endpoint
 
 1. Define Pydantic schemas in `app/schemas/`
 2. Add business logic to appropriate service in `app/services/`
 3. Create route handler in `app/api/v1/`
-4. Add permission requirements using decorators
+4. Add permission requirements using `Depends(require_permission("resource", "action"))`
 5. Update API documentation if needed
+
+**Important: Permission Usage**
+```python
+# CORRECT - Use as a dependency parameter
+@router.get("/items")
+async def list_items(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: UUID = Depends(get_current_tenant_id),
+    _: bool = Depends(require_permission("items", "read"))  # ✓ Correct
+):
+    pass
+
+# INCORRECT - Don't use as a decorator
+@router.get("/items")
+@require_permission("items", "read")  # ✗ Wrong - This will cause errors
+async def list_items(...):
+    pass
+```
+
+**Key Dependencies:**
+- Always use `get_current_active_user` (not `get_current_user`) for user authentication
+- `require_permission` takes two parameters: resource and action (e.g., "projects", "create")
+- Place permission check as the last dependency parameter, typically named `_`
 
 ### Creating a New Database Model
 
@@ -200,39 +254,65 @@ Routes follow RESTful conventions with consistent patterns:
 4. Add routes in `app/api/v1/auth.py`
 5. Update frontend OAuth callback handling
 
-### Managing Property Data
+### Managing Project and Property Data
 
-1. **Creating Properties**: Use `PropertyService.create_property()` with comprehensive validation
-2. **Property Fields**: 25+ investment-specific fields including:
-   - Basic info: address, city, property type, size, rooms, construction year
-   - Financial data: purchase price, monthly rent, additional costs, management fees
-   - Transaction costs: broker, tax, notary, and registration rates
-   - Operating costs: landlord, tenant, and reserve allocations
-   - Investment metrics: object share, land share, depreciation settings
-   - Geographic data: latitude, longitude, city relationship
-   - Investagon integration: external ID, sync status, API data cache
-3. **Image Upload**: Properties support 13 image categories with S3 upload:
-   - `exterior` - Building exterior photos
-   - `interior` - General interior shots
-   - `floor_plan` - Floor plan diagrams (higher resolution retained)
-   - `energy_certificate` - Energy efficiency documents
-   - `bathroom` - Bathroom photos
-   - `kitchen` - Kitchen photos
-   - `bedroom` - Bedroom photos
-   - `living_room` - Living room photos
-   - `balcony` - Balcony/terrace photos
-   - `garden` - Garden/outdoor space photos
-   - `parking` - Parking space photos
-   - `basement` - Basement/storage photos
-   - `roof` - Rooftop/attic photos
-4. **Investagon Integration**: Full API synchronization with:
-   - Individual property sync by Investagon ID
-   - Bulk synchronization (full or incremental)
+1. **Project-Property Architecture**: 
+   - **Projects** represent buildings containing multiple properties (units)
+   - Properties (units) MUST belong to a project - no orphan properties allowed
+   - Projects are identified by address (street + house number)
+   - Properties are identified by unit number (e.g., "WE1", "WE2" for Wohneinheit)
+
+2. **Creating Projects**: Use `ProjectService.create_project()` with:
+   - Building-level information: name, street, house number, city, state, country
+   - Geographic data: latitude, longitude  
+   - Investment metrics: total units, total building size
+   - Image support: exterior, common areas, amenities, floor plans
+
+3. **Creating Properties**: Use `PropertyService.create_property()` with comprehensive validation
+   - **Required**: project_id - property must belong to an existing project
+   - **Unit identification**: unit_number instead of full address
+   - **Property Fields**: 25+ investment-specific fields including:
+     - Basic info: unit_number, apartment_number, property type, size, rooms, construction year
+     - Financial data: purchase price, monthly rent, additional costs, management fees
+     - Transaction costs: broker, tax, notary, and registration rates
+     - Operating costs: landlord, tenant, and reserve allocations
+     - Investment metrics: object share, land share, depreciation settings
+     - Geographic data: denormalized from project (city, state, zip_code, city_id)
+     - Investagon integration: external ID, sync status, API data cache
+
+4. **Image Upload**: 
+   - **Projects** support 4 image categories:
+     - `exterior` - Building exterior photos
+     - `common_area` - Lobbies, hallways, shared spaces
+     - `amenity` - Gyms, pools, gardens, parking
+     - `floor_plan` - Building floor plan diagrams
+   - **Properties** support 13 image categories:
+     - `exterior` - Unit-specific exterior views
+     - `interior` - General interior shots
+     - `floor_plan` - Unit floor plan diagrams (higher resolution retained)
+     - `energy_certificate` - Energy efficiency documents
+     - `bathroom` - Bathroom photos
+     - `kitchen` - Kitchen photos
+     - `bedroom` - Bedroom photos
+     - `living_room` - Living room photos
+     - `balcony` - Balcony/terrace photos
+     - `garden` - Garden/outdoor space photos
+     - `parking` - Parking space photos
+     - `basement` - Basement/storage photos
+     - `roof` - Rooftop/attic photos
+
+5. **Investagon Integration**: Full API synchronization with project support:
+   - Projects are synced first, then properties with proper associations
+   - Individual property sync automatically creates/updates parent project
+   - Bulk synchronization handles project-property hierarchy
    - Automatic hourly sync (configurable)
    - Status tracking: active, pre_sale, draft flags
    - Comprehensive error handling and retry logic
-5. **Financial Analytics**: Automatic calculations including:
-   - Gross and net rental yields
+   - Image import for both projects and properties
+
+6. **Financial Analytics**: Automatic calculations including:
+   - Project-level statistics (total units, occupancy rates)
+   - Property-level yields and returns
    - Transaction cost percentages
    - Operating expense ratios
    - Investment return projections
@@ -278,6 +358,26 @@ Routes follow RESTful conventions with consistent patterns:
    - Visitor information (IP, user agent, referrer)
    - Individual view records for detailed analysis
    - Link performance metrics
+
+### Property Display Optimizations
+
+1. **Thumbnail Strategy**: Properties inherit thumbnails from projects when they don't have their own images
+   - Property service checks property images first
+   - Falls back to project images if no property-specific images exist
+   - Requires eager loading of project.images relationship
+   - Consistent with PropertyResponse behavior in detail views
+
+2. **Address Display**: Properties show full project address with unit number
+   - Format: "Street HouseNumber - WE UnitNumber" (e.g., "Gotenstraße 69 - WE 103")
+   - PropertyOverview schema includes project_name, project_street, project_house_number
+   - Extracted from project relationship during list operations
+   - Fallback to project name if address fields not available
+
+3. **Schema Validation**: Manual construction of overview objects for complex computed properties
+   - PropertyService constructs PropertyOverview objects explicitly
+   - Avoids Pydantic validation issues with SQLAlchemy ORM objects
+   - Consistent pattern with ProjectService implementation
+   - Enables inclusion of computed properties like thumbnail_url
 
 ### External API Integration
 
@@ -391,6 +491,12 @@ S3_REGION=fsn1
 
 ### Permission System for New Features
 
+**Project Management Permissions:**
+- `projects:create` - Create new projects
+- `projects:read` - View projects
+- `projects:update` - Edit project details
+- `projects:delete` - Remove projects
+
 **Property Management Permissions:**
 - `properties:create` - Create new properties
 - `properties:read` - View properties
@@ -398,7 +504,7 @@ S3_REGION=fsn1
 - `properties:delete` - Remove properties
 
 **Image Management Permissions:**
-- `images:upload` - Upload property/city images
+- `images:upload` - Upload property/city/project images
 - `images:delete` - Remove images
 
 **Expose Management Permissions:**
@@ -414,12 +520,12 @@ S3_REGION=fsn1
 - `cities:delete` - Remove cities
 
 **Investagon Integration Permissions:**
-- `investagon:sync` - Trigger property synchronization
+- `investagon:sync` - Trigger property and project synchronization
 
 **Role Assignments:**
-- `sales_person` - Can view properties, create expose links, sync data
-- `property_manager` - Can edit property content, manage images and exposes
-- `tenant_admin` - Full access to all tenant resources
+- `sales_person` - Can view projects and properties, create expose links
+- `property_manager` - Can manage projects, properties, images and exposes, sync from Investagon
+- `tenant_admin` - Full access to all tenant resources including projects
 
 ## Current Implementation Status
 
@@ -479,3 +585,27 @@ S3_REGION=fsn1
 - Image uploads validated for file type and size limits
 - Public expose links use secure, unpredictable identifiers
 - Comprehensive audit trails for administrative actions
+
+### Common Permission Errors and Solutions
+
+**Error: `AttributeError: 'function' object has no attribute 'is_super_admin'`**
+- **Cause**: Using `require_permission` as a decorator instead of a dependency
+- **Solution**: Use `_: bool = Depends(require_permission("resource", "action"))` as a function parameter
+
+**Error: `TypeError: require_permission() missing 1 required positional argument: 'action'`**
+- **Cause**: Using colon notation like `"projects:create"` instead of separate parameters
+- **Solution**: Use two parameters: `require_permission("projects", "create")`
+
+**Error: User authentication issues**
+- **Cause**: Using `get_current_user` instead of `get_current_active_user`
+- **Solution**: Always import and use `get_current_active_user` for authenticated endpoints
+
+**Correct Import Pattern:**
+```python
+from app.dependencies import (
+    get_db,
+    get_current_active_user,  # ✓ Use this for authenticated endpoints
+    get_current_tenant_id,
+    require_permission
+)
+```

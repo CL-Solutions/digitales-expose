@@ -99,6 +99,12 @@ def create_default_permissions(db: Session) -> List[Permission]:
         ("users", "delete", "Delete users"),
         ("users", "invite", "Invite new users"),
         
+        # Project Management
+        ("projects", "create", "Create new projects"),
+        ("projects", "read", "View projects"),
+        ("projects", "update", "Update projects"),
+        ("projects", "delete", "Delete projects"),
+        
         # Property Management
         ("properties", "create", "Create new properties"),
         ("properties", "read", "View properties"),
@@ -169,6 +175,7 @@ def create_default_roles_for_tenant(db: Session, tenant_id: uuid.UUID) -> List[R
             "description": "Full access to tenant administration",
             "permissions": [
                 "users:create", "users:read", "users:update", "users:delete", "users:invite",
+                "projects:create", "projects:read", "projects:update", "projects:delete",
                 "properties:create", "properties:read", "properties:update", "properties:delete",
                 "expose:create", "expose:view", "expose:edit_content", "expose:manage_templates",
                 "cities:create", "cities:read", "cities:update", "cities:delete",
@@ -179,9 +186,10 @@ def create_default_roles_for_tenant(db: Session, tenant_id: uuid.UUID) -> List[R
             ]
         },
         "property_manager": {
-            "description": "Manage properties and expose content",
+            "description": "Manage projects, properties and expose content",
             "permissions": [
                 "users:read",
+                "projects:create", "projects:read", "projects:update", "projects:delete",
                 "properties:create", "properties:read", "properties:update", "properties:delete",
                 "expose:view", "expose:edit_content", "expose:manage_templates",
                 "cities:create", "cities:read", "cities:update", "cities:delete",
@@ -191,9 +199,10 @@ def create_default_roles_for_tenant(db: Session, tenant_id: uuid.UUID) -> List[R
             ]
         },
         "sales_person": {
-            "description": "View properties and create shareable links",
+            "description": "View projects and properties, create shareable links",
             "permissions": [
                 "users:read",
+                "projects:read",
                 "properties:read",
                 "expose:create", "expose:view",
                 "cities:read",
@@ -201,9 +210,10 @@ def create_default_roles_for_tenant(db: Session, tenant_id: uuid.UUID) -> List[R
             ]
         },
         "viewer": {
-            "description": "Read-only access to properties",
+            "description": "Read-only access to projects and properties",
             "permissions": [
                 "users:read",
+                "projects:read",
                 "properties:read",
                 "expose:view",
                 "cities:read"

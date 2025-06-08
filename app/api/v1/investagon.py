@@ -116,6 +116,77 @@ async def sync_single_property(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/sync/project/{project_id}", response_model=Dict[str, Any])
+async def sync_project_properties(
+    project_id: UUID = Path(..., description="Project ID to sync properties for"),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: Optional[UUID] = Depends(get_current_tenant_id),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_permission("investagon", "sync"))
+):
+    """Sync all properties for a specific project from Investagon"""
+    try:
+        # Check tenant context
+        if not tenant_id:
+            raise HTTPException(
+                status_code=400,
+                detail="No tenant context. Super admins must impersonate a tenant to sync properties."
+            )
+        
+        # Get the project and verify it belongs to the tenant
+        from app.models.business import Project
+        project = db.query(Project).filter(
+            Project.id == project_id,
+            Project.tenant_id == tenant_id
+        ).first()
+        
+        if not project:
+            raise HTTPException(
+                status_code=404,
+                detail="Project not found"
+            )
+        
+        if not project.investagon_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Project does not have an Investagon ID and cannot be synced"
+            )
+        
+        # Create effective user with tenant context
+        effective_user = SimpleNamespace(
+            id=current_user.id,
+            tenant_id=tenant_id,
+            is_super_admin=current_user.is_super_admin
+        )
+        
+        sync_service = InvestagonSyncService()
+        result = await sync_service.sync_project_properties(
+            db, 
+            project.investagon_id, 
+            project.id,
+            effective_user
+        )
+        db.commit()
+        
+        return {
+            "success": True,
+            "project_id": str(project.id),
+            "investagon_project_id": project.investagon_id,
+            "properties_synced": result["total_synced"],
+            "properties_created": result["created"],
+            "properties_updated": result["updated"],
+            "errors": result["errors"]
+        }
+    
+    except HTTPException:
+        raise
+    except AppException as e:
+        db.rollback()
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/sync/all", response_model=InvestagonSyncSchema, status_code=status.HTTP_202_ACCEPTED)
 async def sync_all_properties(
     background_tasks: BackgroundTasks,
@@ -217,20 +288,28 @@ async def sync_all_properties_sync(
         description="If true, only sync properties modified since last sync"
     ),
     current_user: User = Depends(get_current_active_user),
+    tenant_id: Optional[UUID] = Depends(get_current_tenant_id),
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("investagon", "sync"))
 ):
     """Synchronously sync all properties from Investagon (blocks until complete)"""
     try:
         # Check tenant context
-        if not current_user.tenant_id:
+        if not tenant_id:
             raise HTTPException(
                 status_code=400,
                 detail="No tenant context. Super admins must impersonate a tenant to sync properties."
             )
         
+        # Create effective user with tenant context
+        effective_user = SimpleNamespace(
+            id=current_user.id,
+            tenant_id=tenant_id,
+            is_super_admin=current_user.is_super_admin
+        )
+        
         # Check if sync is allowed
-        can_sync_status = InvestagonSyncService.can_sync(db, current_user)
+        can_sync_status = InvestagonSyncService.can_sync(db, effective_user)
         if not can_sync_status["can_sync"]:
             raise HTTPException(
                 status_code=429,
@@ -250,7 +329,7 @@ async def sync_all_properties_sync(
         
         # Run sync synchronously
         sync_service = InvestagonSyncService()
-        sync_record = await sync_service.sync_all_properties(db, current_user, modified_since)
+        sync_record = await sync_service.sync_all_properties(db, effective_user, modified_since)
         db.commit()
         
         return InvestagonSyncSchema.model_validate(sync_record)

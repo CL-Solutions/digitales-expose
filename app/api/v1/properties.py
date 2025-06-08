@@ -43,7 +43,7 @@ async def list_properties(
         db.commit()
         
         return PropertyListResponse(
-            items=[PropertyOverview.model_validate(p) for p in result["items"]],
+            items=result["items"],  # Already PropertyOverview objects
             total=result["total"],
             page=result["page"],
             size=result["size"],

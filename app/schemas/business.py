@@ -11,29 +11,182 @@ from decimal import Decimal
 from app.schemas.base import BaseSchema, PaginationParams
 
 # ================================
+# Project Schemas
+# ================================
+
+class ProjectBase(BaseModel):
+    """Base schema for Project"""
+    name: str = Field(..., max_length=255)
+    street: str = Field(..., max_length=255)
+    house_number: str = Field(..., max_length=50)
+    city: str = Field(..., max_length=255)
+    state: str = Field(..., max_length=255)
+    country: Optional[str] = Field(default="Deutschland", max_length=100)
+    zip_code: str = Field(..., max_length=20)
+    latitude: Optional[float] = Field(None, ge=-90, le=90)
+    longitude: Optional[float] = Field(None, ge=-180, le=180)
+    
+    # Building Details
+    construction_year: Optional[int] = Field(None, ge=1800, le=2100)
+    renovation_year: Optional[int] = Field(None, ge=1800, le=2100)
+    total_floors: Optional[int] = Field(None, gt=0)
+    building_type: Optional[str] = Field(None, max_length=100)
+    
+    # Building Features
+    has_elevator: Optional[bool] = None
+    has_parking: Optional[bool] = None
+    has_basement: Optional[bool] = None
+    has_garden: Optional[bool] = None
+    
+    # Energy Data
+    energy_certificate_type: Optional[str] = Field(None, max_length=50)
+    energy_consumption: Optional[float] = Field(None, ge=0)
+    energy_class: Optional[str] = Field(None, max_length=10)
+    heating_type: Optional[str] = Field(None, max_length=100)
+    
+    # Additional Information
+    description: Optional[str] = None
+    amenities: Optional[List[str]] = None
+    
+    status: str = Field(default="active", pattern="^(active|planned|completed)$")
+
+    model_config = ConfigDict(from_attributes=True)
+
+class ProjectCreate(ProjectBase):
+    """Schema for creating a Project"""
+    city_id: Optional[UUID] = None
+
+class ProjectUpdate(BaseModel):
+    """Schema for updating a Project"""
+    name: Optional[str] = Field(None, max_length=255)
+    street: Optional[str] = Field(None, max_length=255)
+    house_number: Optional[str] = Field(None, max_length=50)
+    city: Optional[str] = Field(None, max_length=255)
+    city_id: Optional[UUID] = None
+    state: Optional[str] = Field(None, max_length=255)
+    country: Optional[str] = Field(None, max_length=100)
+    zip_code: Optional[str] = Field(None, max_length=20)
+    latitude: Optional[float] = Field(None, ge=-90, le=90)
+    longitude: Optional[float] = Field(None, ge=-180, le=180)
+    
+    construction_year: Optional[int] = Field(None, ge=1800, le=2100)
+    renovation_year: Optional[int] = Field(None, ge=1800, le=2100)
+    total_floors: Optional[int] = Field(None, gt=0)
+    building_type: Optional[str] = Field(None, max_length=100)
+    
+    has_elevator: Optional[bool] = None
+    has_parking: Optional[bool] = None
+    has_basement: Optional[bool] = None
+    has_garden: Optional[bool] = None
+    
+    energy_certificate_type: Optional[str] = Field(None, max_length=50)
+    energy_consumption: Optional[float] = Field(None, ge=0)
+    energy_class: Optional[str] = Field(None, max_length=10)
+    heating_type: Optional[str] = Field(None, max_length=100)
+    
+    description: Optional[str] = None
+    amenities: Optional[List[str]] = None
+    
+    status: Optional[str] = Field(None, pattern="^(active|planned|completed)$")
+
+    model_config = ConfigDict(from_attributes=True)
+
+class ProjectImageSchema(BaseSchema):
+    """Schema for ProjectImage"""
+    project_id: UUID
+    image_url: str
+    image_type: str
+    title: Optional[str] = None
+    description: Optional[str] = None
+    display_order: int = 0
+    file_size: Optional[int] = None
+    mime_type: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+
+class ProjectResponse(ProjectBase, BaseSchema):
+    """Schema for Project response"""
+    id: UUID
+    city_id: Optional[UUID] = None
+    investagon_id: Optional[str] = None
+    
+    # Include related data
+    images: List[ProjectImageSchema] = []
+    city_ref: Optional["CityResponse"] = None
+    properties: List["PropertyOverview"] = []
+    
+    # Computed fields
+    property_count: int = 0
+    thumbnail_url: Optional[str] = None
+    
+    model_config = ConfigDict(
+        from_attributes=True,
+        arbitrary_types_allowed=True
+    )
+    
+    @model_validator(mode='before')
+    @classmethod
+    def calculate_counts(cls, values):
+        """Calculate property count and thumbnail before validation"""
+        if isinstance(values, dict):
+            # Calculate property count
+            if 'properties' in values:
+                values['property_count'] = len(values['properties'])
+            
+            # Set thumbnail_url from first image
+            if 'images' in values and values['images']:
+                # Sort images by display_order and get the first one
+                sorted_images = sorted(values['images'], key=lambda x: x.display_order if hasattr(x, 'display_order') else 0)
+                if sorted_images:
+                    first_image = sorted_images[0]
+                    values['thumbnail_url'] = first_image.image_url if hasattr(first_image, 'image_url') else None
+        
+        return values
+
+# ================================
+# Project Image Schemas
+# ================================
+
+class ProjectImageCreate(BaseModel):
+    """Schema for creating a ProjectImage"""
+    image_url: str
+    image_type: str = Field(..., pattern="^(exterior|common_area|amenity|floor_plan)$")
+    title: Optional[str] = Field(None, max_length=255)
+    description: Optional[str] = None
+    display_order: int = Field(default=0)
+    file_size: Optional[int] = Field(None, gt=0)
+    mime_type: Optional[str] = Field(None, max_length=100)
+    width: Optional[int] = Field(None, gt=0)
+    height: Optional[int] = Field(None, gt=0)
+
+class ProjectImageUpdate(BaseModel):
+    """Schema for updating a ProjectImage"""
+    image_url: Optional[str] = None
+    title: Optional[str] = Field(None, max_length=255)
+    description: Optional[str] = None
+    display_order: Optional[int] = None
+
+# ================================
 # Property Schemas
 # ================================
 
 class PropertyBase(BaseModel):
     """Base schema for Property"""
-    street: Optional[str] = Field(None, max_length=255)
-    house_number: Optional[str] = Field(None, max_length=50)
-    apartment_number: Optional[str] = Field(None, max_length=100)
+    project_id: UUID  # Required - property must belong to a project
+    unit_number: str = Field(..., max_length=100)  # e.g., "WE1", "WE2", "WHG 103"
+    
+    # Location data (denormalized from project for search/filter)
     city: str = Field(..., max_length=255)
     state: str = Field(..., max_length=255)
-    country: Optional[str] = Field(None, max_length=100)
     zip_code: str = Field(..., max_length=20)
-    latitude: Optional[float] = Field(None, ge=-90, le=90)
-    longitude: Optional[float] = Field(None, ge=-180, le=180)
-    property_type: str = Field(..., max_length=100)
     
+    property_type: str = Field(..., max_length=100)  # 'apartment', 'studio', 'penthouse'
+    
+    # Property Details
     size_sqm: float = Field(..., ge=0)
     rooms: float = Field(..., ge=0)
     bathrooms: Optional[int] = Field(None, ge=0)
     floor: Optional[int] = Field(None)
-    total_floors: Optional[int] = Field(None, gt=0)
-    construction_year: Optional[int] = Field(None, ge=1800, le=2100)
-    renovation_year: Optional[int] = Field(None, ge=1800, le=2100)
     
     purchase_price: Decimal = Field(..., decimal_places=2, ge=0)
     purchase_price_parking: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
@@ -85,25 +238,22 @@ class PropertyCreate(PropertyBase):
 
 class PropertyUpdate(BaseModel):
     """Schema for updating a Property"""
-    street: Optional[str] = Field(None, max_length=255)
-    house_number: Optional[str] = Field(None, max_length=50)
-    apartment_number: Optional[str] = Field(None, max_length=100)
+    project_id: Optional[UUID] = None  # Allow changing project
+    unit_number: Optional[str] = Field(None, max_length=100)
+    
+    # Location updates (denormalized)
     city: Optional[str] = Field(None, max_length=255)
     city_id: Optional[UUID] = None
     state: Optional[str] = Field(None, max_length=255)
-    country: Optional[str] = Field(None, max_length=100)
     zip_code: Optional[str] = Field(None, max_length=20)
-    latitude: Optional[float] = Field(None, ge=-90, le=90)
-    longitude: Optional[float] = Field(None, ge=-180, le=180)
+    
     property_type: Optional[str] = Field(None, max_length=100)
     
+    # Property Details
     size_sqm: Optional[float] = Field(None, ge=0)
     rooms: Optional[float] = Field(None, ge=0)
     bathrooms: Optional[int] = Field(None, ge=0)
     floor: Optional[int] = None
-    total_floors: Optional[int] = Field(None, gt=0)
-    construction_year: Optional[int] = Field(None, ge=1800, le=2100)
-    renovation_year: Optional[int] = Field(None, ge=1800, le=2100)
     
     purchase_price: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
     purchase_price_parking: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
@@ -168,18 +318,43 @@ class PropertyResponse(PropertyBase, BaseSchema):
     last_sync: Optional[datetime] = None
     
     # Include related data
-    images: List[PropertyImageSchema] = []
+    project: Optional["ProjectResponse"] = None
+    images: List[PropertyImageSchema] = []  # Property-specific images only
     city_ref: Optional["CityResponse"] = None
     
     # Computed fields
     total_investment: Optional[Decimal] = None
     gross_rental_yield: Optional[float] = None
     net_rental_yield: Optional[float] = None
+    all_images: List[PropertyImageSchema] = []  # Combined project + property images
     
     model_config = ConfigDict(
         from_attributes=True,
         arbitrary_types_allowed=True
     )
+    
+    @model_validator(mode='before')
+    @classmethod
+    def combine_project_and_property_images(cls, values):
+        """Always combine project images with property images"""
+        if isinstance(values, dict):
+            property_images = values.get('images', [])
+            project = values.get('project')
+            
+            # Start with project images if available
+            all_images = []
+            if project and hasattr(project, 'images') and project.images:
+                # Add project images first (they're usually exterior/building shots)
+                all_images.extend(project.images)
+            
+            # Then add property-specific images
+            if property_images:
+                all_images.extend(property_images)
+            
+            # Set the combined images
+            values['all_images'] = all_images
+                
+        return values
 
     @model_validator(mode='before')
     @classmethod
@@ -467,8 +642,50 @@ class InvestagonSyncSchema(BaseSchema):
 # Search and Filter Schemas
 # ================================
 
+class ProjectFilter(PaginationParams):
+    """Schema for project filtering"""
+    city: Optional[str] = None
+    state: Optional[str] = None
+    status: Optional[str] = None
+    building_type: Optional[str] = None
+    has_elevator: Optional[bool] = None
+    has_parking: Optional[bool] = None
+    sort_by: str = Field(default="created_at", description="Field to sort by")
+    sort_order: str = Field(default="desc", pattern="^(asc|desc)$", description="Sort order")
+
+class ProjectOverview(BaseModel):
+    """Schema for Project overview (list view)"""
+    id: UUID
+    name: str
+    street: str
+    house_number: str
+    city: str
+    state: str
+    zip_code: str
+    status: str
+    building_type: Optional[str] = None
+    total_floors: Optional[int] = None
+    property_count: int = 0
+    has_elevator: Optional[bool] = None
+    has_parking: Optional[bool] = None
+    thumbnail_url: Optional[str] = None
+    investagon_id: Optional[str] = None
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class ProjectListResponse(BaseModel):
+    """Schema for paginated project list"""
+    items: List[ProjectOverview]
+    total: int
+    page: int
+    size: int
+    pages: int
+    
+    model_config = ConfigDict(from_attributes=True)
+
 class PropertyFilter(PaginationParams):
     """Schema for property filtering"""
+    project_id: Optional[UUID] = None  # Filter by project
     city: Optional[str] = None
     state: Optional[str] = None
     property_type: Optional[str] = None
@@ -490,9 +707,11 @@ class PropertyFilter(PaginationParams):
 class PropertyOverview(BaseModel):
     """Schema for Property overview (list view)"""
     id: UUID
-    street: Optional[str] = None
-    house_number: Optional[str] = None
-    apartment_number: Optional[str] = None
+    project_id: UUID
+    project_name: Optional[str] = None  # Denormalized for performance
+    project_street: Optional[str] = None
+    project_house_number: Optional[str] = None
+    unit_number: str
     city: str
     state: str
     property_type: str
@@ -501,6 +720,7 @@ class PropertyOverview(BaseModel):
     monthly_rent: Decimal
     size_sqm: float
     rooms: float
+    floor: Optional[int] = None
     investagon_id: Optional[str] = None
     # Investagon status fields
     active: Optional[int] = None

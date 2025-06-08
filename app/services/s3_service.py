@@ -5,7 +5,7 @@
 import boto3
 from botocore.exceptions import NoCredentialsError, ClientError
 from fastapi import UploadFile
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Any, Tuple, BinaryIO
 import uuid
 import mimetypes
 from datetime import datetime, timedelta, timezone
@@ -439,6 +439,49 @@ class S3Service:
             raise AppException(
                 status_code=500,
                 detail="Failed to upload image"
+            )
+    
+    async def upload_project_image(
+        self,
+        file: BinaryIO,
+        filename: str,
+        tenant_id: str,
+        project_id: str,
+        image_type: str
+    ) -> str:
+        """Upload project image to S3"""
+        try:
+            # Read file data
+            file_data = file.read()
+            
+            # Create folder path
+            folder = f"projects/{project_id}/{image_type}"
+            
+            # Determine max dimensions based on image type
+            if image_type == 'floor_plan':
+                max_width, max_height = 2400, 2400  # Higher resolution for floor plans
+            elif image_type in ['exterior', 'common_area']:
+                max_width, max_height = 1920, 1920  # Full resolution for main images
+            else:
+                max_width, max_height = 1600, 1600  # Standard resolution
+            
+            # Upload using existing method
+            result = await self.upload_image_from_bytes(
+                file_data=file_data,
+                filename=filename,
+                tenant_id=tenant_id,
+                folder=folder,
+                max_width=max_width,
+                max_height=max_height
+            )
+            
+            return result['url']
+            
+        except Exception as e:
+            logger.error(f"Failed to upload project image: {str(e)}")
+            raise AppException(
+                status_code=500,
+                detail="Failed to upload project image"
             )
 
 # Create singleton instance - will initialize when first imported

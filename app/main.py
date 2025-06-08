@@ -23,7 +23,7 @@ from app.core.middleware import (
 )
 
 # API Routes - UPDATED TO INCLUDE RBAC
-from app.api.v1 import auth, users, tenants, properties, cities, exposes, admin, rbac, investagon
+from app.api.v1 import auth, users, tenants, projects, properties, cities, exposes, admin, rbac, investagon
 
 import logging
 import uvicorn
@@ -454,6 +454,18 @@ app.include_router(
         401: {"description": "Authentication required"},
         403: {"description": "Super admin access required"},
         404: {"description": "Tenant not found"}
+    }
+)
+
+# Project management routes
+app.include_router(
+    projects.router, 
+    prefix="/api/v1/projects", 
+    tags=["Projects"],
+    responses={
+        401: {"description": "Authentication required"},
+        403: {"description": "Insufficient permissions"},
+        404: {"description": "Resource not found"}
     }
 )
 

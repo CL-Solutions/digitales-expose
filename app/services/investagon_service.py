@@ -16,7 +16,7 @@ import mimetypes
 
 from app.config import settings
 from app.core.exceptions import AppException
-from app.models.business import Property, InvestagonSync, PropertyImage
+from app.models.business import Property, InvestagonSync, PropertyImage, Project, ProjectImage
 from app.models.user import User
 from app.utils.audit import AuditLogger
 from app.services.rbac_service import RBACService
@@ -117,6 +117,44 @@ class InvestagonAPIClient:
                     detail="Failed to connect to Investagon API"
                 )
     
+    async def get_project_with_photos(self, project_id: str) -> Dict[str, Any]:
+        """Get project details including photos from Investagon API"""
+        async with httpx.AsyncClient() as client:
+            try:
+                params = self._get_auth_params()
+                response = await client.get(
+                    f"{self.base_url}/projects/{project_id}",
+                    params=params,
+                    headers={"Accept": "application/json"},
+                    timeout=self.timeout
+                )
+                response.raise_for_status()
+                return response.json()
+                
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 404:
+                    raise AppException(
+                        status_code=404,
+                        detail=f"Project not found in Investagon: {project_id}"
+                    )
+                elif e.response.status_code == 401:
+                    raise AppException(
+                        status_code=401,
+                        detail="Invalid Investagon API credentials"
+                    )
+                else:
+                    logger.error(f"Investagon API error: {e.response.status_code} - {e.response.text}")
+                    raise AppException(
+                        status_code=502,
+                        detail=f"Investagon API error: {e.response.status_code}"
+                    )
+            except httpx.RequestError as e:
+                logger.error(f"Request error to Investagon API: {str(e)}")
+                raise AppException(
+                    status_code=502,
+                    detail="Failed to connect to Investagon API"
+                )
+    
     async def get_property(self, investagon_id: str) -> Dict[str, Any]:
         """Get a single property from Investagon API"""
         async with httpx.AsyncClient() as client:
@@ -178,8 +216,115 @@ class InvestagonSyncService:
             api_key=tenant.investagon_api_key
         )
     
+    @staticmethod
+    def _map_investagon_to_project(investagon_data: Dict[str, Any], db: Session = None, tenant_id: UUID = None, user_id: UUID = None, property_address: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Map Investagon API project data to our Project model fields
+        
+        Args:
+            investagon_data: Project data from Investagon API
+            db: Database session
+            tenant_id: Tenant ID
+            user_id: User ID
+            property_address: Optional dict with address info from a property (street, house_number, city, state, zip_code)
+        """
+        from app.models.business import City
+        
+        # Get project name
+        project_name = investagon_data.get("name", "")
+        
+        # Initialize address fields
+        street = ""
+        house_number = ""
+        zip_code = ""
+        city_name = "Unknown"
+        state_name = "Bayern"  # Default for Munich/Bavaria projects
+        
+        # If property address is provided, use it (most reliable source)
+        if property_address:
+            street = property_address.get("street", "")
+            house_number = property_address.get("house_number", "")
+            city_name = property_address.get("city", "Unknown")
+            state_name = property_address.get("state", state_name)
+            zip_code = property_address.get("zip_code", "")
+        else:
+            # Fallback: Try to extract from project name (less reliable)
+            parts = project_name.split(",")
+            
+            if len(parts) >= 2:
+                # First part might be street and house number
+                street_parts = parts[0].strip().split()
+                if street_parts:
+                    # Check if last part is a number
+                    if street_parts[-1] and street_parts[-1][0].isdigit():
+                        house_number = street_parts[-1]
+                        street = " ".join(street_parts[:-1])
+                    else:
+                        street = " ".join(street_parts)
+                
+                # Second part might be zip and city
+                city_parts = parts[1].strip().split()
+                if city_parts:
+                    # Check if first part is a zip code (5 digits)
+                    if city_parts[0].isdigit() and len(city_parts[0]) == 5:
+                        zip_code = city_parts[0]
+                        city_name = " ".join(city_parts[1:])
+                    else:
+                        city_name = " ".join(city_parts)
+        
+        # Handle city creation/lookup
+        city_id = None
+        
+        if db and tenant_id and user_id and city_name != "Unknown":
+            # Look for existing city
+            existing_city = db.query(City).filter(
+                City.tenant_id == tenant_id,
+                City.name.ilike(city_name)
+            ).first()
+            
+            if existing_city:
+                city_id = existing_city.id
+                # Update state if we have better info from property
+                if property_address and property_address.get("state"):
+                    state_name = property_address.get("state")
+            else:
+                # Create new city
+                try:
+                    new_city = City(
+                        tenant_id=tenant_id,
+                        name=city_name,
+                        state=state_name,
+                        country="Deutschland",
+                        created_by=user_id
+                    )
+                    db.add(new_city)
+                    db.flush()
+                    city_id = new_city.id
+                except Exception as e:
+                    logger.warning(f"Failed to create city {city_name}: {str(e)}")
+                    city_id = None
+        
+        # If we have address info, update the project name to be more descriptive
+        if street and house_number:
+            display_name = f"{street} {house_number}, {city_name}"
+        else:
+            display_name = project_name
+        
+        return {
+            "name": display_name,
+            "street": street,
+            "house_number": house_number,
+            "city": city_name,
+            "city_id": city_id,
+            "state": state_name,
+            "country": "Deutschland",
+            "zip_code": zip_code,
+            "status": "active",
+            "investagon_id": str(investagon_data.get("id", "")),
+            "investagon_data": investagon_data
+        }
+    
     @staticmethod  
-    def _map_investagon_to_property(investagon_data: Dict[str, Any], db: Session = None, tenant_id: UUID = None, user_id: UUID = None) -> Dict[str, Any]:
+    def _map_investagon_to_property(investagon_data: Dict[str, Any], db: Session = None, tenant_id: UUID = None, user_id: UUID = None, project_id: UUID = None) -> Dict[str, Any]:
         """Map Investagon API data to our Property model fields"""
         from app.models.business import City
         
@@ -262,26 +407,29 @@ class InvestagonSyncService:
         # Determine property status from active field (0 = sold, 1 = available)
         status = "available" if investagon_data.get("active") == 1 else "sold"
         
-        # Extract apartment number from the full string (e.g., "Friedrich-Engels-Bogen / WHG 103" -> "WHG 103")
+        # Extract unit number from the full string (e.g., "Friedrich-Engels-Bogen / WHG 103" -> "WHG 103")
         raw_apartment = investagon_data.get("object_apartment_number", "")
         if "/" in raw_apartment:
             # Take the part after the last "/" and strip whitespace
-            apartment_number = raw_apartment.split("/")[-1].strip()
+            unit_number = raw_apartment.split("/")[-1].strip()
         else:
-            apartment_number = raw_apartment
+            unit_number = raw_apartment
+        
+        # If still no unit number, try to extract just the number
+        if not unit_number and raw_apartment:
+            import re
+            numbers = re.findall(r'\d+', raw_apartment)
+            if numbers:
+                unit_number = f"WE{numbers[-1]}"
         
         return {
             # Basic Information
-            "street": investagon_data.get("object_street", ""),
-            "house_number": investagon_data.get("object_house_number", ""),
-            "apartment_number": apartment_number,
+            "project_id": project_id,  # This must be set by the caller
+            "unit_number": unit_number or "Unknown",
             "city": city_name,
             "city_id": city_id,
             "state": state_name, 
-            "country": investagon_data.get("object_country", "Deutschland"),
             "zip_code": investagon_data.get("object_postal_code") or "00000",
-            "latitude": safe_float(investagon_data.get("lat")) if investagon_data.get("lat") else None,
-            "longitude": safe_float(investagon_data.get("lng")) if investagon_data.get("lng") else None,
             "property_type": mapped_property_type,
             
             # Property Details
@@ -289,9 +437,6 @@ class InvestagonSyncService:
             "rooms": safe_float(investagon_data.get("object_rooms", 0)),
             "bathrooms": safe_int(investagon_data.get("object_bathrooms")),
             "floor": safe_int(investagon_data.get("object_floor")),
-            "total_floors": safe_int(investagon_data.get("object_total_floors")),
-            "construction_year": safe_int(investagon_data.get("object_building_year")),
-            "renovation_year": safe_int(investagon_data.get("object_renovation_year")),
             
             # Financial Data
             "purchase_price": safe_decimal(investagon_data.get("purchase_price_apartment", 0)),
@@ -341,7 +486,7 @@ class InvestagonSyncService:
             # Investagon Integration
             "investagon_id": str(investagon_data.get("id", "")),
             "investagon_data": investagon_data,  # Store full data for reference
-            "last_sync": datetime.now(timezone.utc),
+            "last_sync": datetime.now(timezone.utc)
         }
     
     async def sync_single_property(
@@ -378,6 +523,87 @@ class InvestagonSyncService:
             # Extract the actual investagon_id from the API response
             actual_investagon_id = str(investagon_data.get("id", ""))
             
+            # First, we need to find out which project this property belongs to
+            # Get all projects to find the one containing this property
+            projects = await self.api_client.get_projects()
+            project_obj = None
+            
+            for project in projects:
+                project_id = str(project.get("id", ""))
+                if not project_id:
+                    continue
+                
+                # Get project details to check if it contains our property
+                project_details = await self.api_client.get_project_by_id(project_id)
+                property_urls = project_details.get("properties", [])
+                
+                # Check if this property is in this project
+                for prop_url in property_urls:
+                    if f"/api_properties/{investagon_id}" in prop_url or f"/api_properties/{actual_investagon_id}" in prop_url:
+                        # Found the project - extract address from property data
+                        property_address = {
+                            "street": investagon_data.get("object_street"),
+                            "house_number": investagon_data.get("object_house_number"),
+                            "city": investagon_data.get("object_city"),
+                            "state": investagon_data.get("province"),
+                            "zip_code": investagon_data.get("object_postal_code")
+                        }
+                        
+                        # Sync or create project with property address
+                        project_data = self._map_investagon_to_project(
+                            project_details, 
+                            db, 
+                            current_user.tenant_id, 
+                            current_user.id, 
+                            property_address=property_address
+                        )
+                        
+                        # Check if project exists
+                        existing_project = db.query(Project).filter(
+                            and_(
+                                Project.investagon_id == project_id,
+                                Project.tenant_id == current_user.tenant_id
+                            )
+                        ).first()
+                        
+                        if existing_project:
+                            # Update existing project
+                            project_obj = existing_project
+                            for key, value in project_data.items():
+                                if key not in ["investagon_data", "created_at", "created_by"]:
+                                    setattr(project_obj, key, value)
+                            project_obj.updated_by = current_user.id
+                            project_obj.updated_at = datetime.now(timezone.utc)
+                        else:
+                            # Create new project
+                            project_obj = Project(
+                                **project_data,
+                                tenant_id=current_user.tenant_id,
+                                created_by=current_user.id
+                            )
+                            db.add(project_obj)
+                        
+                        db.flush()
+                        
+                        # Import project images if available
+                        project_photos = project_details.get('photos', [])
+                        if project_photos and project_obj:
+                            try:
+                                await self.import_project_images(db, project_obj, project_photos, current_user)
+                            except Exception as img_error:
+                                logger.error(f"Failed to import project images: {str(img_error)}")
+                        
+                        break
+                
+                if project_obj:
+                    break
+            
+            if not project_obj:
+                raise AppException(
+                    status_code=500,
+                    detail="Could not find or create project for this property"
+                )
+            
             # Check if property already exists using the actual investagon_id
             existing_property = db.query(Property).filter(
                 and_(
@@ -386,8 +612,14 @@ class InvestagonSyncService:
                 )
             ).first()
             
-            # Map data
-            property_data = self._map_investagon_to_property(investagon_data, db, current_user.tenant_id, current_user.id)
+            # Map data with project reference
+            property_data = self._map_investagon_to_property(
+                investagon_data, 
+                db, 
+                current_user.tenant_id, 
+                current_user.id,
+                project_id=project_obj.id
+            )
             
             if existing_property:
                 # Update existing property
@@ -443,8 +675,8 @@ class InvestagonSyncService:
                 resource_id=property_obj.id,
                 new_values={
                     "investagon_id": investagon_id,
-                    "street": property_obj.street,
-                    "apartment_number": property_obj.apartment_number,
+                    "unit_number": property_obj.unit_number,
+                    "project_id": str(project_obj.id),
                     "images_imported": len(photos) if photos else 0
                 }
             )
@@ -474,6 +706,207 @@ class InvestagonSyncService:
                 detail=f"Failed to sync property: {str(e)}"
             )
     
+    async def sync_project_properties(
+        self, 
+        db: Session, 
+        investagon_project_id: str, 
+        local_project_id: UUID,
+        current_user
+    ) -> Dict[str, Any]:
+        """Sync all properties for a specific project"""
+        try:
+            # Initialize API client if not already done
+            if not self.api_client:
+                self.api_client = self.get_tenant_api_client(db, current_user.tenant_id)
+                if not self.api_client:
+                    raise AppException(
+                        status_code=503,
+                        detail="Investagon API credentials not configured for this tenant"
+                    )
+            
+            # Track sync stats
+            total_synced = 0
+            total_created = 0
+            total_updated = 0
+            errors = []
+            
+            # Get existing property mapping for this project
+            existing_properties = {}
+            properties_query = db.query(Property).filter(
+                Property.tenant_id == current_user.tenant_id,
+                Property.project_id == local_project_id
+            )
+            
+            for prop in properties_query.all():
+                if prop.investagon_id:
+                    existing_properties[prop.investagon_id] = prop
+            
+            # Get project details including property list
+            try:
+                project_details = await self.api_client.get_project_by_id(investagon_project_id)
+                property_urls = project_details.get("properties", [])
+                logger.info(f"Project {investagon_project_id} has {len(property_urls)} properties to sync")
+                
+                # Get the first property to extract address information for the project
+                property_address = None
+                if property_urls:
+                    try:
+                        # Extract first property ID and fetch its details
+                        first_property_url = property_urls[0]
+                        if "/api_properties/" in first_property_url:
+                            first_property_id = first_property_url.split("/api_properties/")[-1]
+                            first_property_data = await self.api_client.get_property(first_property_id)
+                            property_address = {
+                                "street": first_property_data.get("object_street"),
+                                "house_number": first_property_data.get("object_house_number"),
+                                "city": first_property_data.get("object_city"),
+                                "state": first_property_data.get("province"),
+                                "zip_code": first_property_data.get("object_postal_code")
+                            }
+                            logger.info(f"Extracted address from first property: {property_address}")
+                    except Exception as e:
+                        logger.warning(f"Failed to extract address from first property: {str(e)}")
+                
+                # Update the local project with better address information if available
+                if property_address:
+                    from app.models.business import Project
+                    local_project = db.query(Project).filter(Project.id == local_project_id).first()
+                    if local_project:
+                        # Only update if the current address is incomplete
+                        if not local_project.street or not local_project.house_number:
+                            updated_project_data = self._map_investagon_to_project(
+                                project_details,
+                                db,
+                                current_user.tenant_id,
+                                current_user.id,
+                                property_address=property_address
+                            )
+                            # Update address fields
+                            local_project.name = updated_project_data["name"]
+                            local_project.street = updated_project_data["street"]
+                            local_project.house_number = updated_project_data["house_number"]
+                            local_project.city = updated_project_data["city"]
+                            local_project.city_id = updated_project_data["city_id"]
+                            local_project.state = updated_project_data["state"]
+                            local_project.zip_code = updated_project_data["zip_code"]
+                            local_project.updated_by = current_user.id
+                            local_project.updated_at = datetime.now(timezone.utc)
+                            db.flush()
+                            logger.info(f"Updated project {local_project_id} with address from properties")
+                
+                # Import project images - fetch from /projects endpoint which includes photos
+                project_photos = []
+                try:
+                    logger.info(f"Fetching project photos from /projects endpoint for {investagon_project_id}")
+                    project_with_photos = await self.api_client.get_project_with_photos(investagon_project_id)
+                    project_photos = project_with_photos.get('photos', [])
+                except Exception as e:
+                    logger.warning(f"Failed to fetch project photos: {str(e)}")
+                
+                if project_photos:
+                    logger.info(f"Found {len(project_photos)} project photos to import")
+                    # Get the local project
+                    from app.models.business import Project
+                    local_project = db.query(Project).filter(Project.id == local_project_id).first()
+                    if local_project:
+                        try:
+                            imported_images = await self.import_project_images(
+                                db, local_project, project_photos, current_user
+                            )
+                            logger.info(f"Imported {len(imported_images)} project images")
+                        except Exception as img_error:
+                            logger.error(f"Failed to import project images: {str(img_error)}")
+                            errors.append(f"Failed to import project images: {str(img_error)}")
+                
+                # Process each property URL
+                for property_url in property_urls:
+                    try:
+                        # Extract property ID from URL
+                        if "/api_properties/" in property_url:
+                            property_id = property_url.split("/api_properties/")[-1]
+                        else:
+                            logger.warning(f"Unexpected property URL format: {property_url}")
+                            continue
+                        
+                        # Get property details
+                        investagon_data = await self.api_client.get_property(property_id)
+                        
+                        # Map property data with project reference
+                        property_data = self._map_investagon_to_property(
+                            investagon_data, 
+                            db, 
+                            current_user.tenant_id, 
+                            current_user.id,
+                            project_id=local_project_id
+                        )
+                        
+                        # Use the investagon_id from the API response
+                        investagon_id = str(investagon_data.get("id", ""))
+                        
+                        if investagon_id in existing_properties:
+                            # Update existing
+                            prop = existing_properties[investagon_id]
+                            for key, value in property_data.items():
+                                if key != "investagon_data":
+                                    setattr(prop, key, value)
+                            prop.updated_by = current_user.id
+                            prop.updated_at = datetime.now(timezone.utc)
+                            total_updated += 1
+                        else:
+                            # Create new
+                            prop = Property(
+                                **property_data,
+                                tenant_id=current_user.tenant_id,
+                                created_by=current_user.id
+                            )
+                            db.add(prop)
+                            total_created += 1
+                        
+                        # Store full API response
+                        prop.investagon_data = investagon_data
+                        db.flush()
+                        
+                        # Import property images
+                        property_photos = investagon_data.get('photos', [])
+                        if property_photos:
+                            try:
+                                imported_images = await self.import_property_images(
+                                    db, prop, property_photos, current_user
+                                )
+                                logger.info(f"Imported {len(imported_images)} images for property {prop.id}")
+                            except Exception as img_error:
+                                logger.error(f"Failed to import images for property {prop.id}: {str(img_error)}")
+                        
+                        total_synced += 1
+                        
+                    except Exception as e:
+                        error_msg = f"Failed to sync property {property_url}: {str(e)}"
+                        logger.error(error_msg)
+                        errors.append(error_msg)
+                        continue
+                
+                logger.info(f"Project sync completed: {total_synced} synced, {total_created} created, {total_updated} updated")
+                
+            except Exception as e:
+                error_msg = f"Failed to get project details: {str(e)}"
+                logger.error(error_msg)
+                errors.append(error_msg)
+                raise AppException(
+                    status_code=503,
+                    detail=f"Failed to fetch project from Investagon: {str(e)}"
+                )
+            
+            return {
+                "total_synced": total_synced,
+                "created": total_created,
+                "updated": total_updated,
+                "errors": errors
+            }
+            
+        except Exception as e:
+            logger.error(f"Sync project properties failed: {str(e)}")
+            raise
+
     async def sync_all_properties(
         self,
         db: Session,
@@ -520,7 +953,18 @@ class InvestagonSyncService:
             total_created = 0
             total_updated = 0
             total_errors = 0
+            projects_created = 0
+            projects_updated = 0
             errors = []
+            
+            # Get existing project mapping
+            existing_projects = {}
+            projects_query = db.query(Project).filter(
+                Project.tenant_id == current_user.tenant_id
+            )
+            for proj in projects_query.all():
+                if proj.investagon_id:
+                    existing_projects[proj.investagon_id] = proj
             
             # Get existing property mapping
             existing_properties = {}
@@ -543,15 +987,86 @@ class InvestagonSyncService:
                 
                 # Process each project
                 for project in projects:
-                    project_id = project.get("id")
+                    project_id = str(project.get("id", ""))
                     if not project_id:
                         continue
                     
                     try:
                         # Get project details including property list
                         project_details = await self.api_client.get_project_by_id(project_id)
-                        property_urls = project_details.get("properties", [])
                         
+                        # Try to get address from first property for better project naming
+                        property_address = None
+                        property_urls = project_details.get("properties", [])
+                        if property_urls:
+                            try:
+                                # Extract first property ID and fetch its details
+                                first_property_url = property_urls[0]
+                                if "/api_properties/" in first_property_url:
+                                    first_property_id = first_property_url.split("/api_properties/")[-1]
+                                    first_property_data = await self.api_client.get_property(first_property_id)
+                                    property_address = {
+                                        "street": first_property_data.get("object_street"),
+                                        "house_number": first_property_data.get("object_house_number"),
+                                        "city": first_property_data.get("object_city"),
+                                        "state": first_property_data.get("province"),
+                                        "zip_code": first_property_data.get("object_postal_code")
+                                    }
+                            except Exception as e:
+                                logger.debug(f"Could not extract address from first property: {str(e)}")
+                        
+                        # Map project data with property address if available
+                        project_data = self._map_investagon_to_project(
+                            project_details, 
+                            db, 
+                            current_user.tenant_id, 
+                            current_user.id,
+                            property_address=property_address
+                        )
+                        
+                        # Check if project exists
+                        project_obj = None
+                        if project_id in existing_projects:
+                            # Update existing project
+                            project_obj = existing_projects[project_id]
+                            for key, value in project_data.items():
+                                if key not in ["investagon_data", "created_at", "created_by"]:
+                                    setattr(project_obj, key, value)
+                            project_obj.updated_by = current_user.id
+                            project_obj.updated_at = datetime.now(timezone.utc)
+                            projects_updated += 1
+                        else:
+                            # Create new project
+                            project_obj = Project(
+                                **project_data,
+                                tenant_id=current_user.tenant_id,
+                                created_by=current_user.id
+                            )
+                            db.add(project_obj)
+                            projects_created += 1
+                        
+                        db.flush()
+                        
+                        # Import project images - fetch from /projects endpoint which includes photos
+                        project_photos = []
+                        try:
+                            logger.info(f"Fetching project photos from /projects endpoint for {project_id}")
+                            project_with_photos = await self.api_client.get_project_with_photos(project_id)
+                            project_photos = project_with_photos.get('photos', [])
+                        except Exception as e:
+                            logger.warning(f"Failed to fetch project photos: {str(e)}")
+                        
+                        if project_photos and project_obj:
+                            try:
+                                imported_images = await self.import_project_images(
+                                    db, project_obj, project_photos, current_user
+                                )
+                                logger.info(f"Imported {len(imported_images)} images for project {project_obj.id}")
+                            except Exception as img_error:
+                                logger.error(f"Failed to import images for project {project_obj.id}: {str(img_error)}")
+                        
+                        # Now process properties for this project
+                        property_urls = project_details.get("properties", [])
                         logger.info(f"Project {project_id} has {len(property_urls)} properties")
                         
                         # Process each property URL
@@ -569,12 +1084,14 @@ class InvestagonSyncService:
                                 # Get property details
                                 investagon_data = await self.api_client.get_property(property_id)
                                 
-                                # Add project information to property data
-                                investagon_data["project_id"] = project_id
-                                investagon_data["project_name"] = project_details.get("name", "")
-                                
-                                # Map property data
-                                property_data = self._map_investagon_to_property(investagon_data, db, current_user.tenant_id, current_user.id)
+                                # Map property data with project reference
+                                property_data = self._map_investagon_to_property(
+                                    investagon_data, 
+                                    db, 
+                                    current_user.tenant_id, 
+                                    current_user.id,
+                                    project_id=project_obj.id
+                                )
                                 
                                 # Use the investagon_id from the API response, not the URL property_id
                                 investagon_id = str(investagon_data.get("id", ""))
@@ -658,7 +1175,12 @@ class InvestagonSyncService:
             sync_record.completed_at = datetime.now(timezone.utc)
             
             if errors:
-                sync_record.error_details = {"message": f"Synced with {total_errors} errors", "errors": errors}
+                sync_record.error_details = {
+                    "message": f"Synced with {total_errors} errors", 
+                    "errors": errors,
+                    "projects_created": projects_created,
+                    "projects_updated": projects_updated
+                }
             
             db.flush()
             
@@ -675,7 +1197,9 @@ class InvestagonSyncService:
                     "synced": total_synced,
                     "created": total_created,
                     "updated": total_updated,
-                    "errors": total_errors
+                    "errors": total_errors,
+                    "projects_created": projects_created,
+                    "projects_updated": projects_updated
                 }
             )
             
@@ -852,11 +1376,38 @@ class InvestagonSyncService:
             logger.warning("S3 service not configured. Skipping image import.")
             return imported_images
         
+        # Get existing property images to check for duplicates
+        existing_images = db.query(PropertyImage).filter(
+            PropertyImage.property_id == property_obj.id
+        ).all()
+        
+        # Create a set of Investagon IDs we already have
+        existing_investagon_ids = set()
+        for img in existing_images:
+            if img.description and "Investagon (ID:" in img.description:
+                # Extract ID from description like "Imported from Investagon (ID: 12345)"
+                try:
+                    investagon_id = img.description.split("ID: ")[1].split(")")[0]
+                    existing_investagon_ids.add(investagon_id)
+                except:
+                    pass
+        
+        logger.info(f"Property {property_obj.id} has {len(existing_images)} existing images, "
+                   f"{len(existing_investagon_ids)} from Investagon")
+        
         # Sort photos by position to maintain order
         sorted_photos = sorted(photos, key=lambda x: x.get('position', 0))
+        skipped_count = 0
         
         for idx, photo in enumerate(sorted_photos):
             try:
+                # Check if we already have this image
+                photo_id = str(photo.get('id', ''))
+                if photo_id and photo_id in existing_investagon_ids:
+                    logger.debug(f"Skipping already imported image {photo_id}")
+                    skipped_count += 1
+                    continue
+                
                 filename = photo.get('filename', '')
                 if not filename or not filename.startswith('http'):
                     logger.warning(f"Invalid photo URL: {filename}")
@@ -923,5 +1474,132 @@ class InvestagonSyncService:
             except Exception as e:
                 logger.error(f"Failed to import image {photo.get('id', 'unknown')}: {str(e)}")
                 continue
+        
+        if skipped_count > 0:
+            logger.info(f"Skipped {skipped_count} already imported images for property {property_obj.id}")
+        if imported_images:
+            logger.info(f"Successfully imported {len(imported_images)} new images for property {property_obj.id}")
+        
+        return imported_images
+
+    async def import_project_images(
+        self,
+        db: Session,
+        project_obj: Project,
+        photos: List[Dict[str, Any]],
+        current_user: User
+    ) -> List[ProjectImage]:
+        """Import images from Investagon URLs to S3 and create ProjectImage records"""
+        imported_images = []
+        s3_service = get_s3_service()
+        
+        if not s3_service or not s3_service.is_configured():
+            logger.warning("S3 service not configured. Skipping image import.")
+            return imported_images
+        
+        # Get existing project images to check for duplicates
+        existing_images = db.query(ProjectImage).filter(
+            ProjectImage.project_id == project_obj.id
+        ).all()
+        
+        # Create a set of Investagon IDs we already have
+        existing_investagon_ids = set()
+        for img in existing_images:
+            if img.description and "Investagon (ID:" in img.description:
+                # Extract ID from description like "Imported from Investagon (ID: 12345)"
+                try:
+                    investagon_id = img.description.split("ID: ")[1].split(")")[0]
+                    existing_investagon_ids.add(investagon_id)
+                except:
+                    pass
+        
+        logger.info(f"Project {project_obj.id} has {len(existing_images)} existing images, "
+                   f"{len(existing_investagon_ids)} from Investagon")
+        
+        # Sort photos by position to maintain order
+        sorted_photos = sorted(photos, key=lambda x: x.get('position', 0))
+        skipped_count = 0
+        
+        for idx, photo in enumerate(sorted_photos):
+            try:
+                # Check if we already have this image
+                photo_id = str(photo.get('id', ''))
+                if photo_id and photo_id in existing_investagon_ids:
+                    logger.debug(f"Skipping already imported image {photo_id}")
+                    skipped_count += 1
+                    continue
+                
+                filename = photo.get('filename', '')
+                if not filename or not filename.startswith('http'):
+                    logger.warning(f"Invalid photo URL: {filename}")
+                    continue
+                
+                # Download image from Investagon
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(
+                        filename,
+                        timeout=30.0,
+                        follow_redirects=True
+                    )
+                    response.raise_for_status()
+                    image_content = response.content
+                
+                # Determine content type
+                content_type = response.headers.get('content-type', 'image/jpeg')
+                if not content_type.startswith('image/'):
+                    content_type = 'image/jpeg'
+                
+                # Generate filename with proper extension
+                file_extension = mimetypes.guess_extension(content_type) or '.jpg'
+                temp_filename = f"investagon_project_{photo.get('id', idx)}{file_extension}"
+                
+                # Determine image type based on position
+                # First images are typically exterior shots
+                if idx < 2:
+                    image_type = 'exterior'
+                elif idx < 4:
+                    image_type = 'common_area'
+                else:
+                    image_type = 'amenity'
+                
+                # Upload to S3
+                upload_result = await s3_service.upload_image_from_bytes(
+                    file_data=image_content,
+                    filename=temp_filename,
+                    content_type=content_type,
+                    folder='projects',
+                    tenant_id=str(project_obj.tenant_id),
+                    resize_options={'width': 1920, 'quality': 85}
+                )
+                
+                # Create ProjectImage record
+                project_image = ProjectImage(
+                    project_id=project_obj.id,
+                    tenant_id=project_obj.tenant_id,
+                    image_url=upload_result['url'],
+                    image_type=image_type,
+                    title=f"Project Image {idx + 1}",
+                    description=f"Imported from Investagon (ID: {photo.get('id')})",
+                    display_order=photo.get('position', idx),
+                    file_size=upload_result.get('file_size'),
+                    mime_type=upload_result.get('mime_type'),
+                    width=upload_result.get('width'),
+                    height=upload_result.get('height'),
+                    created_by=current_user.id
+                )
+                
+                db.add(project_image)
+                imported_images.append(project_image)
+                
+                logger.info(f"Successfully imported image {photo.get('id')} for project {project_obj.id}")
+                
+            except Exception as e:
+                logger.error(f"Failed to import image {photo.get('id', 'unknown')}: {str(e)}")
+                continue
+        
+        if skipped_count > 0:
+            logger.info(f"Skipped {skipped_count} already imported images for project {project_obj.id}")
+        if imported_images:
+            logger.info(f"Successfully imported {len(imported_images)} new images for project {project_obj.id}")
         
         return imported_images

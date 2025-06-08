@@ -8,7 +8,7 @@ from typing import List, Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime, timezone
 
-from app.models.business import Property, PropertyImage, City
+from app.models.business import Property, PropertyImage, City, Project
 from app.models.user import User
 from app.schemas.business import (
     PropertyCreate, PropertyUpdate, PropertyFilter,
@@ -44,10 +44,30 @@ class PropertyService:
                     )
             
             
-            # Create property
+            # Verify project exists
+            from app.models.business import Project
+            project = db.query(Project).filter(
+                and_(
+                    Project.id == property_data.project_id,
+                    Project.tenant_id == current_user.tenant_id
+                )
+            ).first()
+            
+            if not project:
+                raise AppException(
+                    status_code=404,
+                    detail="Project not found"
+                )
+            
+            # Create property with denormalized location data from project
             property_dict = property_data.model_dump()
             property = Property(
                 **property_dict,
+                # Denormalize location data from project
+                city=project.city,
+                state=project.state,
+                zip_code=project.zip_code,
+                city_id=project.city_id,
                 tenant_id=current_user.tenant_id,
                 created_by=current_user.id
             )
@@ -64,9 +84,8 @@ class PropertyService:
                 resource_type="property",
                 resource_id=property.id,
                 details={
-                    "street": property.street,
-                    "house_number": property.house_number,
-                    "apartment_number": property.apartment_number,
+                    "project_id": str(property.project_id),
+                    "unit_number": property.unit_number,
                     "city": property.city
                 }
             )
@@ -91,7 +110,8 @@ class PropertyService:
         try:
             query = db.query(Property).options(
                 joinedload(Property.images),
-                joinedload(Property.city_ref)
+                joinedload(Property.city_ref),
+                joinedload(Property.project).joinedload(Project.images)
             )
             
             # Apply tenant filter
@@ -125,10 +145,11 @@ class PropertyService:
     ) -> Dict[str, Any]:
         """List properties with filtering and pagination"""
         try:
-            # Query with images eagerly loaded for thumbnail
+            # Query with images and project eagerly loaded for thumbnail and name
             # Using subqueryload to avoid pagination issues with joins
             query = db.query(Property).options(
-                subqueryload(Property.images)
+                subqueryload(Property.images),
+                subqueryload(Property.project).subqueryload(Project.images)
             )
             
             # Apply tenant filter
@@ -140,6 +161,9 @@ class PropertyService:
             query = query.filter(Property.visibility > -1)
             
             # Apply filters
+            if filter_params.project_id:
+                query = query.filter(Property.project_id == filter_params.project_id)
+            
             if filter_params.city:
                 query = query.filter(Property.city.ilike(f"%{filter_params.city}%"))
             
@@ -197,8 +221,53 @@ class PropertyService:
             offset = (filter_params.page - 1) * filter_params.page_size
             properties = query.offset(offset).limit(filter_params.page_size).all()
             
+            # Convert to PropertyOverview format with computed fields
+            from app.schemas.business import PropertyOverview
+            items = []
+            for prop in properties:
+                # Get thumbnail - first try property images, then fall back to project images
+                thumbnail_url = prop.thumbnail_url  # This checks property images
+                
+                if not thumbnail_url and prop.project and prop.project.images:
+                    # If no property images, use first project image
+                    sorted_project_images = sorted(
+                        prop.project.images, 
+                        key=lambda x: (x.display_order, x.created_at if x.created_at else datetime.min.replace(tzinfo=timezone.utc))
+                    )
+                    if sorted_project_images:
+                        thumbnail_url = sorted_project_images[0].image_url
+                
+                overview_data = {
+                    "id": prop.id,
+                    "project_id": prop.project_id,
+                    "unit_number": prop.unit_number,
+                    "city": prop.city,
+                    "state": prop.state,
+                    "property_type": prop.property_type,
+                    "status": prop.status,
+                    "purchase_price": prop.purchase_price,
+                    "monthly_rent": prop.monthly_rent,
+                    "size_sqm": prop.size_sqm,
+                    "rooms": prop.rooms,
+                    "floor": prop.floor,
+                    "investagon_id": prop.investagon_id,
+                    "active": prop.active,
+                    "pre_sale": prop.pre_sale,
+                    "draft": prop.draft,
+                    "visibility": prop.visibility,
+                    "thumbnail_url": thumbnail_url
+                }
+                
+                # Add project information if loaded
+                if prop.project:
+                    overview_data["project_name"] = prop.project.name
+                    overview_data["project_street"] = prop.project.street
+                    overview_data["project_house_number"] = prop.project.house_number
+                
+                items.append(PropertyOverview(**overview_data))
+            
             return {
-                "items": properties,
+                "items": items,
                 "total": total,
                 "page": filter_params.page,
                 "size": filter_params.page_size,
