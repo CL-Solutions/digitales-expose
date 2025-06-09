@@ -56,14 +56,14 @@ class ProjectService:
             db.refresh(project)
             
             # Log activity
-            audit_logger.log_event(
+            audit_logger.log_business_event(
                 db=db,
                 user_id=created_by,
                 tenant_id=tenant_id,
                 action="CREATE",
                 resource_type="project",
                 resource_id=project.id,
-                details={"project_name": project.name}
+                new_values={"project_name": project.name}
             )
             
             return project
@@ -261,14 +261,15 @@ class ProjectService:
             db.refresh(project)
             
             # Log activity
-            audit_logger.log_event(
+            audit_logger.log_business_event(
                 db=db,
                 user_id=updated_by,
                 tenant_id=tenant_id,
                 action="UPDATE",
                 resource_type="project",
                 resource_id=project.id,
-                details={"updated_fields": list(update_data.keys())}
+                new_values=update_data,
+                additional_context={"updated_fields": list(update_data.keys())}
             )
             
             return project
@@ -309,14 +310,14 @@ class ProjectService:
         db.commit()
         
         # Log activity
-        audit_logger.log_event(
+        audit_logger.log_business_event(
             db=db,
             user_id=deleted_by,
             tenant_id=tenant_id,
             action="DELETE",
             resource_type="project",
             resource_id=project_id,
-            details={"project_name": project.name}
+            old_values={"project_name": project.name}
         )
     
     @staticmethod
@@ -417,14 +418,14 @@ class ProjectService:
         db.commit()
         
         # Log activity
-        audit_logger.log_event(
+        audit_logger.log_business_event(
             db=db,
             user_id=deleted_by,
             tenant_id=tenant_id,
             action="DELETE_IMAGE",
             resource_type="project",
-            resource_id=str(project_id),
-            details={"image_id": str(image_id), "image_type": image.image_type}
+            resource_id=project_id,
+            old_values={"image_id": str(image_id), "image_type": image.image_type}
         )
     
     @staticmethod
@@ -524,16 +525,14 @@ class ProjectService:
             db.commit()
             
             # Log the status change
-            audit_logger.log_event(
+            audit_logger.log_business_event(
                 db=db,
                 user_id=project.updated_by or project.created_by,
                 tenant_id=tenant_id,
                 action="AUTO_STATUS_UPDATE",
                 resource_type="project",
                 resource_id=project.id,
-                details={
-                    "old_status": old_status,
-                    "new_status": new_status,
-                    "property_counts": status_counts
-                }
+                old_values={"status": old_status},
+                new_values={"status": new_status},
+                additional_context={"property_counts": status_counts}
             )

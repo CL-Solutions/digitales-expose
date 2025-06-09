@@ -408,12 +408,12 @@ class InvestagonSyncService:
         status = "available" if investagon_data.get("active") == 1 else "sold"
         
         # Extract unit number from the full string (e.g., "Friedrich-Engels-Bogen / WHG 103" -> "WHG 103")
-        raw_apartment = investagon_data.get("object_apartment_number", "")
-        if "/" in raw_apartment:
+        raw_apartment = investagon_data.get("object_apartment_number") or ""
+        if raw_apartment and "/" in raw_apartment:
             # Take the part after the last "/" and strip whitespace
             unit_number = raw_apartment.split("/")[-1].strip()
         else:
-            unit_number = raw_apartment
+            unit_number = raw_apartment or ""
         
         # If still no unit number, try to extract just the number
         if not unit_number and raw_apartment:
@@ -535,10 +535,12 @@ class InvestagonSyncService:
                 
                 # Get project details to check if it contains our property
                 project_details = await self.api_client.get_project_by_id(project_id)
-                property_urls = project_details.get("properties", [])
+                property_urls = project_details.get("properties") or []
                 
                 # Check if this property is in this project
                 for prop_url in property_urls:
+                    if not prop_url:
+                        continue
                     if f"/api_properties/{investagon_id}" in prop_url or f"/api_properties/{actual_investagon_id}" in prop_url:
                         # Found the project - extract address from property data
                         property_address = {
@@ -752,7 +754,7 @@ class InvestagonSyncService:
             # Get project details including property list
             try:
                 project_details = await self.api_client.get_project_by_id(investagon_project_id)
-                property_urls = project_details.get("properties", [])
+                property_urls = project_details.get("properties") or []
                 logger.info(f"Project {investagon_project_id} has {len(property_urls)} properties to sync")
                 
                 # Get the first property to extract address information for the project
@@ -761,6 +763,9 @@ class InvestagonSyncService:
                     try:
                         # Extract first property ID and fetch its details
                         first_property_url = property_urls[0]
+                        if not first_property_url:
+                            logger.warning("First property URL is None")
+                            raise ValueError("First property URL is None")
                         if "/api_properties/" in first_property_url:
                             first_property_id = first_property_url.split("/api_properties/")[-1]
                             first_property_data = await self.api_client.get_property(first_property_id)
@@ -830,6 +835,9 @@ class InvestagonSyncService:
                 for property_url in property_urls:
                     try:
                         # Extract property ID from URL
+                        if not property_url:
+                            logger.warning("Received None property URL")
+                            continue
                         if "/api_properties/" in property_url:
                             property_id = property_url.split("/api_properties/")[-1]
                         else:
@@ -1017,11 +1025,14 @@ class InvestagonSyncService:
                         
                         # Try to get address from first property for better project naming
                         property_address = None
-                        property_urls = project_details.get("properties", [])
+                        property_urls = project_details.get("properties") or []
                         if property_urls:
                             try:
                                 # Extract first property ID and fetch its details
                                 first_property_url = property_urls[0]
+                                if not first_property_url:
+                                    logger.debug("First property URL is None")
+                                    raise ValueError("First property URL is None")
                                 if "/api_properties/" in first_property_url:
                                     first_property_id = first_property_url.split("/api_properties/")[-1]
                                     first_property_data = await self.api_client.get_property(first_property_id)
@@ -1099,6 +1110,9 @@ class InvestagonSyncService:
                             savepoint = db.begin_nested()
                             try:
                                 # Extract property ID from URL (format: /api/api_properties/{id})
+                                if not property_url:
+                                    logger.warning("Received None property URL")
+                                    continue
                                 if "/api_properties/" in property_url:
                                     property_id = property_url.split("/api_properties/")[-1]
                                 else:
