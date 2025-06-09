@@ -55,7 +55,8 @@ async def list_projects(
     return ProjectService.list_projects(
         db=db,
         tenant_id=tenant_id,
-        filters=filters
+        filters=filters,
+        current_user=current_user
     )
 
 @router.get("/{project_id}", response_model=ProjectResponse)

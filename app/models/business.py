@@ -48,7 +48,7 @@ class Project(Base, TenantMixin, AuditMixin):
     amenities = Column(JSON, nullable=True)  # List of building amenities
     
     # Status
-    status = Column(String(50), default="active", nullable=False)  # 'active', 'planned', 'completed'
+    status = Column(String(50), default="available", nullable=False)  # 'available', 'reserved', 'sold'
     
     # External Reference
     investagon_id = Column(String(255), nullable=True, unique=True)  # Investagon project ID

@@ -9,6 +9,7 @@ from sqlalchemy import and_, or_, func, select, desc
 from sqlalchemy.exc import IntegrityError
 
 from app.models.business import Project, ProjectImage, Property
+from app.models.user import User
 from app.schemas.business import (
     ProjectCreate, ProjectUpdate, ProjectResponse, ProjectOverview,
     ProjectFilter, ProjectListResponse,
@@ -100,7 +101,8 @@ class ProjectService:
     def list_projects(
         db: Session,
         tenant_id: UUID,
-        filters: ProjectFilter
+        filters: ProjectFilter,
+        current_user: User
     ) -> ProjectListResponse:
         """List projects with filtering and pagination"""
         query = db.query(Project).filter(Project.tenant_id == tenant_id)
@@ -118,8 +120,37 @@ class ProjectService:
             query = query.filter(Project.has_elevator == filters.has_elevator)
         if filters.has_parking is not None:
             query = query.filter(Project.has_parking == filters.has_parking)
+        if filters.min_construction_year is not None:
+            query = query.filter(Project.construction_year >= filters.min_construction_year)
+        if filters.max_construction_year is not None:
+            query = query.filter(Project.construction_year <= filters.max_construction_year)
         
-        # Get total count
+        # Check user permissions for visibility filtering
+        is_admin_or_manager = current_user.is_super_admin
+        if not is_admin_or_manager:
+            from app.services.rbac_service import RBACService
+            permissions = RBACService.get_user_permissions(
+                db, current_user.id, current_user.tenant_id
+            )
+            permission_names = [p["name"] for p in permissions.get("permissions", [])]
+            is_admin_or_manager = "properties:update" in permission_names
+        
+        # For non-admin users, filter projects to only those with visible properties
+        if not is_admin_or_manager:
+            # Join with properties and filter by visibility
+            from app.models.business import Property
+            # Use a subquery to get project IDs that have visible properties
+            visible_project_ids = db.query(Project.id).join(Project.properties).filter(
+                and_(
+                    Project.tenant_id == tenant_id,
+                    Property.visibility == 1
+                )
+            ).distinct().subquery()
+            
+            # Filter main query by these IDs
+            query = query.filter(Project.id.in_(select(visible_project_ids.c.id)))
+        
+        # Get total count after visibility filtering
         total = query.count()
         
         # Apply sorting with secondary sort by ID for stable pagination
@@ -149,6 +180,35 @@ class ProjectService:
                 if sorted_images:
                     thumbnail_url = sorted_images[0].image_url
             
+            # Calculate visibility status based on properties
+            visibility_status = None
+            if project.properties:
+                visibility_counts = {}
+                for prop in project.properties:
+                    if hasattr(prop, 'visibility') and prop.visibility is not None:
+                        visibility_counts[prop.visibility] = visibility_counts.get(prop.visibility, 0) + 1
+                
+                # Determine visibility status
+                if len(visibility_counts) == 0:
+                    visibility_status = 'active'  # Default if no visibility set
+                elif len(visibility_counts) == 1:
+                    # All properties have same visibility
+                    visibility = list(visibility_counts.keys())[0]
+                    if visibility == 1:
+                        visibility_status = 'active'
+                    elif visibility == 0:
+                        visibility_status = 'in_progress'
+                    elif visibility == -1:
+                        visibility_status = 'deactivated'
+                else:
+                    # Mixed visibility
+                    if 1 in visibility_counts:
+                        visibility_status = 'active'  # If any property is active, project is active
+                    elif 0 in visibility_counts:
+                        visibility_status = 'in_progress'  # If any in progress (but none active)
+                    else:
+                        visibility_status = 'deactivated'  # All are deactivated
+            
             overview = ProjectOverview(
                 id=project.id,
                 name=project.name,
@@ -160,11 +220,13 @@ class ProjectService:
                 status=project.status,
                 building_type=project.building_type,
                 total_floors=project.total_floors,
+                construction_year=project.construction_year,
                 property_count=len(project.properties),
                 has_elevator=project.has_elevator,
                 has_parking=project.has_parking,
                 thumbnail_url=thumbnail_url,
-                investagon_id=project.investagon_id
+                investagon_id=project.investagon_id,
+                visibility_status=visibility_status
             )
             items.append(overview)
         
@@ -400,3 +462,78 @@ class ProjectService:
             },
             "occupancy_rate": (reserved_units + sold_units) / total_properties * 100 if total_properties > 0 else 0
         }
+    
+    @staticmethod
+    def update_project_status_from_properties(
+        db: Session,
+        project_id: UUID,
+        tenant_id: UUID
+    ) -> None:
+        """Update project status based on its properties' statuses"""
+        # Get the project with its properties
+        project = db.query(Project).filter(
+            and_(
+                Project.id == project_id,
+                Project.tenant_id == tenant_id
+            )
+        ).first()
+        
+        if not project:
+            return
+        
+        # Count properties by status
+        from app.models.business import Property
+        property_statuses = db.query(
+            Property.status,
+            func.count(Property.id)
+        ).filter(
+            Property.project_id == project_id
+        ).group_by(Property.status).all()
+        
+        status_counts = {status: count for status, count in property_statuses}
+        total_properties = sum(status_counts.values())
+        
+        if total_properties == 0:
+            # No properties, keep current project status
+            return
+        
+        # Determine new project status based on property statuses
+        available_count = status_counts.get('available', 0)
+        sold_count = status_counts.get('sold', 0)
+        reserved_count = status_counts.get('reserved', 0)
+        
+        new_status = None
+        
+        if available_count > 0:
+            # If any property is available, project is available
+            new_status = 'available'
+        elif sold_count == total_properties:
+            # If all properties are sold, project is sold
+            new_status = 'sold'
+        elif reserved_count == total_properties:
+            # If all properties are reserved, project is reserved
+            new_status = 'reserved'
+        else:
+            # Mixed status (reserved and sold), default to reserved
+            new_status = 'reserved'
+        
+        # Update project status if changed
+        if project.status != new_status:
+            old_status = project.status
+            project.status = new_status
+            db.commit()
+            
+            # Log the status change
+            audit_logger.log_event(
+                db=db,
+                user_id=project.updated_by or project.created_by,
+                tenant_id=tenant_id,
+                action="AUTO_STATUS_UPDATE",
+                resource_type="project",
+                resource_id=project.id,
+                details={
+                    "old_status": old_status,
+                    "new_status": new_status,
+                    "property_counts": status_counts
+                }
+            )

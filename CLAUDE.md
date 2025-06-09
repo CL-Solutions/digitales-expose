@@ -136,10 +136,11 @@ Business logic is isolated in service classes (app/services/) that handle:
 - Error handling uses custom exceptions (app/core/exceptions.py)
 
 **Key Services:**
-- `PropertyService` - Property CRUD operations and analytics
+- `PropertyService` - Property CRUD operations and analytics with visibility filtering
+- `ProjectService` - Project management with visibility status calculation
 - `ExposeService` - Expose link generation and management
 - `CityService` - City data management
-- `InvestagonSyncService` - External API integration
+- `InvestagonService` - External API integration with project status updates
 - `S3Service` - File upload and storage (Hetzner-compatible)
 
 ### API Structure
@@ -261,18 +262,24 @@ async def list_items(...):
    - Properties (units) MUST belong to a project - no orphan properties allowed
    - Projects are identified by address (street + house number)
    - Properties are identified by unit number (e.g., "WE1", "WE2" for Wohneinheit)
+   - **Visibility Filtering**: Role-based access control for property visibility:
+     - Sales people only see properties with visibility = 1 (active/published)
+     - Tenant admins and property managers see all properties (visibility -1, 0, 1)
+     - Projects inherit visibility from their properties (calculated dynamically)
+     - Sales people cannot see projects without active properties
 
 2. **Creating Projects**: Use `ProjectService.create_project()` with:
    - Building-level information: name, street, house number, city, state, country
    - Geographic data: latitude, longitude  
    - Investment metrics: total units, total building size
    - Image support: exterior, common areas, amenities, floor plans
+   - Note: During Investagon sync, project addresses are extracted from property data, not project names
 
 3. **Creating Properties**: Use `PropertyService.create_property()` with comprehensive validation
    - **Required**: project_id - property must belong to an existing project
-   - **Unit identification**: unit_number instead of full address
+   - **Unit identification**: unit_number only (apartment_number removed)
    - **Property Fields**: 25+ investment-specific fields including:
-     - Basic info: unit_number, apartment_number, property type, size, rooms, construction year
+     - Basic info: unit_number, property type, size, rooms, construction year
      - Financial data: purchase price, monthly rent, additional costs, management fees
      - Transaction costs: broker, tax, notary, and registration rates
      - Operating costs: landlord, tenant, and reserve allocations
@@ -309,6 +316,9 @@ async def list_items(...):
    - Status tracking: active, pre_sale, draft flags
    - Comprehensive error handling and retry logic
    - Image import for both projects and properties
+   - Project images come from /projects endpoint, not /api_projects
+   - Duplicate image detection prevents re-importing existing images
+   - **Project Status Update**: Automatically updates project status after syncing properties
 
 6. **Financial Analytics**: Automatic calculations including:
    - Project-level statistics (total units, occupancy rates)
@@ -364,20 +374,36 @@ async def list_items(...):
 1. **Thumbnail Strategy**: Properties inherit thumbnails from projects when they don't have their own images
    - Property service checks property images first
    - Falls back to project images if no property-specific images exist
-   - Requires eager loading of project.images relationship
+   - Requires eager loading of project.images relationship using subqueryload
    - Consistent with PropertyResponse behavior in detail views
+   - Implemented in both backend PropertyService and frontend objects page
 
-2. **Address Display**: Properties show full project address with unit number
+2. **Visibility Filtering**: Role-based access control for properties and projects
+   - PropertyService checks user permissions via `properties:update` permission
+   - Sales people (without update permission) only see properties with visibility = 1
+   - Tenant admins and property managers see all properties (-1, 0, 1)
+   - ProjectService filters projects based on property visibility using subqueries
+   - Avoids DISTINCT on JSON columns by using Project.id subquery
+   - Project visibility_status calculated dynamically from property visibility values
+
+3. **Address Display**: Properties show full project address with unit number
    - Format: "Street HouseNumber - WE UnitNumber" (e.g., "Gotenstraße 69 - WE 103")
    - PropertyOverview schema includes project_name, project_street, project_house_number
    - Extracted from project relationship during list operations
    - Fallback to project name if address fields not available
 
-3. **Schema Validation**: Manual construction of overview objects for complex computed properties
+4. **Schema Validation**: Manual construction of overview objects for complex computed properties
    - PropertyService constructs PropertyOverview objects explicitly
+   - ProjectService includes visibility_status in ProjectOverview schema
    - Avoids Pydantic validation issues with SQLAlchemy ORM objects
-   - Consistent pattern with ProjectService implementation
-   - Enables inclusion of computed properties like thumbnail_url
+   - Consistent pattern across services
+   - Enables inclusion of computed properties like thumbnail_url and visibility_status
+
+5. **Frontend Filter Improvements**: 
+   - Range sliders for construction year (projects), price and size (properties)
+   - Real-time value display on sliders
+   - Configurable ranges: price (€0-1M), size (0-200m²), year (1900-2024)
+   - No API calls until slider release for performance
 
 ### External API Integration
 
@@ -537,6 +563,8 @@ S3_REGION=fsn1
 - Enhanced Investagon API compatibility with status flags
 - Advanced property investment fields (object share, depreciation settings)
 - Comprehensive image management for properties and cities
+- Removed redundant apartment_number field (consolidated into unit_number)
+- Property visibility field for role-based access control
 
 **API Implementation:**
 - Full CRUD operations for all core entities
@@ -545,6 +573,12 @@ S3_REGION=fsn1
 - Public expose access endpoints for investor viewing
 - Investagon synchronization with multiple sync modes
 - Background task processing with error handling
+- Project address extraction from property data during Investagon sync
+- Construction year filtering for projects
+- **Role-based visibility filtering**: Properties filtered based on user permissions in service layer
+- **Project visibility calculation**: Dynamic visibility_status based on contained properties
+- **Investagon sync improvements**: Automatic project status update after property sync
+- **User parameter support**: Services accept current_user for permission-based filtering
 
 **Integration Features:**
 - Hetzner S3-compatible storage with automatic optimization

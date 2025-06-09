@@ -48,7 +48,7 @@ class ProjectBase(BaseModel):
     description: Optional[str] = None
     amenities: Optional[List[str]] = None
     
-    status: str = Field(default="active", pattern="^(active|planned|completed)$")
+    status: str = Field(default="available", pattern="^(available|reserved|sold)$")
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -87,7 +87,7 @@ class ProjectUpdate(BaseModel):
     description: Optional[str] = None
     amenities: Optional[List[str]] = None
     
-    status: Optional[str] = Field(None, pattern="^(active|planned|completed)$")
+    status: Optional[str] = Field(None, pattern="^(available|reserved|sold)$")
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -229,7 +229,12 @@ class PropertyBase(BaseModel):
     pre_sale: Optional[int] = Field(None, ge=0, le=1)
     draft: Optional[int] = Field(None, ge=0, le=1)
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_encoders={
+            Decimal: float
+        }
+    )
 
 class PropertyCreate(PropertyBase):
     """Schema for creating a Property"""
@@ -296,7 +301,12 @@ class PropertyUpdate(BaseModel):
     pre_sale: Optional[int] = Field(None, ge=0, le=1)
     draft: Optional[int] = Field(None, ge=0, le=1)
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_encoders={
+            Decimal: float
+        }
+    )
 
 class PropertyImageSchema(BaseSchema):
     """Schema for PropertyImage"""
@@ -330,7 +340,10 @@ class PropertyResponse(PropertyBase, BaseSchema):
     
     model_config = ConfigDict(
         from_attributes=True,
-        arbitrary_types_allowed=True
+        arbitrary_types_allowed=True,
+        json_encoders={
+            Decimal: float
+        }
     )
     
     @model_validator(mode='before')
@@ -650,6 +663,8 @@ class ProjectFilter(PaginationParams):
     building_type: Optional[str] = None
     has_elevator: Optional[bool] = None
     has_parking: Optional[bool] = None
+    min_construction_year: Optional[int] = Field(None, ge=1800, le=2100)
+    max_construction_year: Optional[int] = Field(None, ge=1800, le=2100)
     sort_by: str = Field(default="created_at", description="Field to sort by")
     sort_order: str = Field(default="desc", pattern="^(asc|desc)$", description="Sort order")
 
@@ -665,11 +680,13 @@ class ProjectOverview(BaseModel):
     status: str
     building_type: Optional[str] = None
     total_floors: Optional[int] = None
+    construction_year: Optional[int] = None
     property_count: int = 0
     has_elevator: Optional[bool] = None
     has_parking: Optional[bool] = None
     thumbnail_url: Optional[str] = None
     investagon_id: Optional[str] = None
+    visibility_status: Optional[str] = None  # 'active', 'in_progress', 'deactivated', 'mixed'
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -731,7 +748,12 @@ class PropertyOverview(BaseModel):
     # Thumbnail URL from S3 for list view
     thumbnail_url: Optional[str] = None
     
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_encoders={
+            Decimal: float
+        }
+    )
 
 class PropertyListResponse(BaseModel):
     """Schema for paginated property list"""

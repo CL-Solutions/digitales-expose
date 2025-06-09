@@ -90,6 +90,14 @@ class PropertyService:
                 }
             )
             
+            # Update project status based on properties
+            from app.services.project_service import ProjectService
+            ProjectService.update_project_status_from_properties(
+                db=db,
+                project_id=property.project_id,
+                tenant_id=current_user.tenant_id
+            )
+            
             return property
             
         except AppException:
@@ -157,8 +165,26 @@ class PropertyService:
             effective_tenant_id = tenant_id if tenant_id else current_user.tenant_id
             query = query.filter(Property.tenant_id == effective_tenant_id)
             
-            # Default filter: only show properties with visibility > -1
-            query = query.filter(Property.visibility > -1)
+            # Apply visibility filter based on user role
+            # Visibility levels:
+            # -1: Hidden/Deactivated (visible to admins and property managers)
+            #  0: In progress/Draft (visible to admins and property managers)
+            #  1: Active/Published (visible to all users including sales people)
+            if not current_user.is_super_admin:
+                # Get user permissions to check role
+                permissions = RBACService.get_user_permissions(
+                    db, current_user.id, current_user.tenant_id
+                )
+                permission_names = [p["name"] for p in permissions.get("permissions", [])]
+                
+                # Check if user is tenant_admin or property_manager
+                # These roles typically have properties:update permission
+                is_admin_or_manager = "properties:update" in permission_names
+                
+                if not is_admin_or_manager:
+                    # Sales people and other roles only see fully visible properties (visibility = 1)
+                    query = query.filter(Property.visibility == 1)
+                # Tenant admins and property managers see all properties (no visibility filter)
             
             # Apply filters
             if filter_params.project_id:
@@ -323,6 +349,15 @@ class PropertyService:
                 details={"updated_fields": list(update_data.keys())}
             )
             
+            # If status was updated, update project status
+            if 'status' in update_data:
+                from app.services.project_service import ProjectService
+                ProjectService.update_project_status_from_properties(
+                    db=db,
+                    project_id=property.project_id,
+                    tenant_id=current_user.tenant_id
+                )
+            
             return property
             
         except AppException:
@@ -363,15 +398,26 @@ class PropertyService:
                 resource_type="property",
                 resource_id=property.id,
                 details={
-                    "street": property.street,
-                    "house_number": property.house_number,
-                    "apartment_number": property.apartment_number,
-                    "city": property.city
+                    "project_id": str(property.project_id),
+                    "unit_number": property.unit_number,
+                    "city": property.city,
+                    "status": property.status
                 }
             )
             
+            # Store project_id before deletion
+            project_id = property.project_id
+            
             db.delete(property)
             db.flush()
+            
+            # Update project status after property deletion
+            from app.services.project_service import ProjectService
+            ProjectService.update_project_status_from_properties(
+                db=db,
+                project_id=project_id,
+                tenant_id=current_user.tenant_id
+            )
             
         except AppException:
             raise

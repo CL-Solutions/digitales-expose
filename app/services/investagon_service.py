@@ -665,6 +665,14 @@ class InvestagonSyncService:
                 )
                 logger.info(f"Imported {len(imported_images)} images for property {property_obj.id}")
             
+            # Update project status based on properties
+            from app.services.project_service import ProjectService
+            ProjectService.update_project_status_from_properties(
+                db=db,
+                project_id=property_obj.project_id,
+                tenant_id=current_user.tenant_id
+            )
+            
             # Log activity
             audit_logger.log_business_event(
                 db=db,
@@ -896,6 +904,18 @@ class InvestagonSyncService:
                     detail=f"Failed to fetch project from Investagon: {str(e)}"
                 )
             
+            # Update project status based on its properties
+            from app.services.project_service import ProjectService
+            try:
+                ProjectService.update_project_status_from_properties(
+                    db=db,
+                    project_id=local_project_id,
+                    tenant_id=current_user.tenant_id
+                )
+                logger.info(f"Updated project status for project {local_project_id}")
+            except Exception as e:
+                logger.warning(f"Failed to update project status for {local_project_id}: {str(e)}")
+            
             return {
                 "total_synced": total_synced,
                 "created": total_created,
@@ -1047,6 +1067,10 @@ class InvestagonSyncService:
                         
                         db.flush()
                         
+                        # Add to existing_projects for tracking
+                        if project_obj and project_id not in existing_projects:
+                            existing_projects[project_id] = project_obj
+                        
                         # Import project images - fetch from /projects endpoint which includes photos
                         project_photos = []
                         try:
@@ -1183,6 +1207,25 @@ class InvestagonSyncService:
                 }
             
             db.flush()
+            
+            # Update project statuses based on their properties
+            from app.services.project_service import ProjectService
+            affected_project_ids = set()
+            
+            # Collect all affected project IDs from existing_projects (which contains all synced projects)
+            for investagon_id, project in existing_projects.items():
+                affected_project_ids.add(project.id)
+            
+            # Update status for each affected project
+            for project_id in affected_project_ids:
+                try:
+                    ProjectService.update_project_status_from_properties(
+                        db=db,
+                        project_id=project_id,
+                        tenant_id=current_user.tenant_id
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to update project status for {project_id}: {str(e)}")
             
             # Log activity
             audit_logger.log_business_event(
