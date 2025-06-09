@@ -69,8 +69,61 @@ async def get_project(
 ):
     """Get project by ID"""
     try:
+        import re
+        from app.schemas.business import PropertyOverview
+        
         project = ProjectService.get_project(db, project_id, tenant_id)
-        return ProjectResponse.model_validate(project)
+        
+        # Convert properties to PropertyOverview with calculated rental yield
+        property_overviews = []
+        if project.properties:
+            for prop in project.properties:
+                # Calculate gross rental yield
+                gross_rental_yield = None
+                if prop.purchase_price and prop.monthly_rent and prop.purchase_price > 0:
+                    annual_rent = float(prop.monthly_rent) * 12
+                    gross_rental_yield = (annual_rent / float(prop.purchase_price)) * 100
+                
+                overview = PropertyOverview(
+                    id=prop.id,
+                    project_id=prop.project_id,
+                    project_name=project.name,
+                    project_street=project.street,
+                    project_house_number=project.house_number,
+                    unit_number=prop.unit_number,
+                    city=prop.city,
+                    state=prop.state,
+                    property_type=prop.property_type,
+                    status=prop.status,
+                    purchase_price=prop.purchase_price,
+                    monthly_rent=prop.monthly_rent,
+                    size_sqm=prop.size_sqm,
+                    rooms=prop.rooms,
+                    floor=prop.floor,
+                    investagon_id=prop.investagon_id,
+                    active=prop.active,
+                    pre_sale=prop.pre_sale,
+                    draft=prop.draft,
+                    visibility=prop.visibility,
+                    thumbnail_url=prop.thumbnail_url,
+                    gross_rental_yield=gross_rental_yield
+                )
+                property_overviews.append(overview)
+            
+            # Sort properties by unit number
+            def get_unit_number_sort_key(prop):
+                # Extract all numbers from the unit_number
+                numbers = re.findall(r'\d+', prop.unit_number)
+                # Return the first number as an integer, or 0 if no numbers found
+                return int(numbers[0]) if numbers else 0
+            
+            property_overviews.sort(key=get_unit_number_sort_key)
+        
+        # Create response with property overviews
+        response_data = project.__dict__.copy()
+        response_data['properties'] = property_overviews
+        
+        return ProjectResponse.model_validate(response_data)
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
 

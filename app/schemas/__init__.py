@@ -156,6 +156,14 @@ from app.schemas.business import (
     InvestagonSyncSchema
 )
 
+# User Preferences Schemas
+from app.schemas.user_preferences import (
+    UserFilterPreferenceBase,
+    UserFilterPreferenceCreate,
+    UserFilterPreferenceUpdate,
+    UserFilterPreferenceResponse
+)
+
 # ================================
 # SCHEMA COLLECTIONS
 # ================================
@@ -191,6 +199,10 @@ REQUEST_SCHEMAS = {
     "expose_template_update": ExposeTemplateUpdate,
     "expose_link_create": ExposeLinkCreate,
     "expose_link_update": ExposeLinkUpdate,
+    
+    # User Preferences
+    "user_filter_preference_create": UserFilterPreferenceCreate,
+    "user_filter_preference_update": UserFilterPreferenceUpdate,
 }
 
 # Response Schemas (für API Output)
@@ -221,6 +233,9 @@ RESPONSE_SCHEMAS = {
     "expose_link": ExposeLinkResponse,
     "expose_link_public": ExposeLinkPublicResponse,
     "investagon_sync": InvestagonSyncSchema,
+    
+    # User Preferences
+    "user_filter_preference": UserFilterPreferenceResponse,
     
     # System
     "health": SystemHealthResponse,

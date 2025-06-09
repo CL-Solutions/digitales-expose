@@ -19,6 +19,7 @@ from app.core.exceptions import AppException
 from app.models.business import Property, InvestagonSync, PropertyImage, Project, ProjectImage
 from app.models.user import User
 from app.utils.audit import AuditLogger
+from app.utils.location_utils import normalize_state_name
 from app.services.rbac_service import RBACService
 from app.services.s3_service import get_s3_service
 
@@ -244,7 +245,7 @@ class InvestagonSyncService:
             street = property_address.get("street", "")
             house_number = property_address.get("house_number", "")
             city_name = property_address.get("city", "Unknown")
-            state_name = property_address.get("state", state_name)
+            state_name = normalize_state_name(property_address.get("state", state_name)) or property_address.get("state", state_name)
             zip_code = property_address.get("zip_code", "")
         else:
             # Fallback: Try to extract from project name (less reliable)
@@ -285,14 +286,14 @@ class InvestagonSyncService:
                 city_id = existing_city.id
                 # Update state if we have better info from property
                 if property_address and property_address.get("state"):
-                    state_name = property_address.get("state")
+                    state_name = normalize_state_name(property_address.get("state")) or property_address.get("state")
             else:
                 # Create new city
                 try:
                     new_city = City(
                         tenant_id=tenant_id,
                         name=city_name,
-                        state=state_name,
+                        state=normalize_state_name(state_name) or state_name,
                         country="Deutschland",
                         created_by=user_id
                     )
@@ -315,7 +316,7 @@ class InvestagonSyncService:
             "house_number": house_number,
             "city": city_name,
             "city_id": city_id,
-            "state": state_name,
+            "state": normalize_state_name(state_name) or state_name,
             "country": "Deutschland",
             "zip_code": zip_code,
             "status": "active",
@@ -331,7 +332,7 @@ class InvestagonSyncService:
         # Handle city creation/lookup
         city_id = None
         city_name = investagon_data.get("object_city") or "Unknown"
-        state_name = investagon_data.get("province") or "Unknown"
+        state_name = normalize_state_name(investagon_data.get("province")) or investagon_data.get("province") or "Unknown"
         
         if db and tenant_id and user_id and city_name != "Unknown":
             # Clean city and state names for better matching
@@ -415,12 +416,19 @@ class InvestagonSyncService:
         else:
             unit_number = raw_apartment or ""
         
-        # If still no unit number, try to extract just the number
-        if not unit_number and raw_apartment:
-            import re
-            numbers = re.findall(r'\d+', raw_apartment)
-            if numbers:
-                unit_number = f"WE{numbers[-1]}"
+        # Clean up unit number - extract just the number part
+        import re
+        if unit_number:
+            # Common patterns: "WE13", "WE 13", "WHG 103", "Whg.15", etc.
+            # Extract just the numeric part
+            match = re.search(r'(\d+)', unit_number)
+            if match:
+                unit_number = match.group(1)
+            else:
+                # If no number found, keep the original (might be text like "Penthouse")
+                # But still try to remove common prefixes
+                unit_number = re.sub(r'^(WE|WHG|Whg\.?|Apt\.?|Apartment|Wohnung)\s*', '', 
+                                   unit_number, flags=re.IGNORECASE).strip() or unit_number
         
         return {
             # Basic Information
@@ -428,7 +436,7 @@ class InvestagonSyncService:
             "unit_number": unit_number or "Unknown",
             "city": city_name,
             "city_id": city_id,
-            "state": state_name, 
+            "state": normalize_state_name(state_name) or state_name, 
             "zip_code": investagon_data.get("object_postal_code") or "00000",
             "property_type": mapped_property_type,
             

@@ -687,6 +687,8 @@ class ProjectOverview(BaseModel):
     thumbnail_url: Optional[str] = None
     investagon_id: Optional[str] = None
     visibility_status: Optional[str] = None  # 'active', 'in_progress', 'deactivated', 'mixed'
+    min_rental_yield: Optional[float] = None  # Minimum Bruttomietrendite of properties
+    max_rental_yield: Optional[float] = None  # Maximum Bruttomietrendite of properties
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -713,6 +715,8 @@ class PropertyFilter(PaginationParams):
     max_size: Optional[float] = None
     min_rooms: Optional[float] = None
     max_rooms: Optional[float] = None
+    min_rental_yield: Optional[float] = None  # Filter by minimum Bruttomietrendite
+    max_rental_yield: Optional[float] = None  # Filter by maximum Bruttomietrendite
     energy_class: Optional[str] = None
     # Investagon status filters
     active: Optional[int] = None
@@ -744,6 +748,9 @@ class PropertyOverview(BaseModel):
     pre_sale: Optional[int] = None
     draft: Optional[int] = None
     visibility: Optional[int] = None
+    
+    # Calculated fields
+    gross_rental_yield: Optional[float] = None  # Bruttomietrendite in percent
     
     # Thumbnail URL from S3 for list view
     thumbnail_url: Optional[str] = None

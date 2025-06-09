@@ -400,10 +400,19 @@ async def list_items(...):
    - Enables inclusion of computed properties like thumbnail_url and visibility_status
 
 5. **Frontend Filter Improvements**: 
-   - Range sliders for construction year (projects), price and size (properties)
+   - Range sliders for construction year (projects), price, size, and rental yield (properties)
    - Real-time value display on sliders
-   - Configurable ranges: price (€0-1M), size (0-200m²), year (1900-2024)
+   - Configurable ranges: price (€0-1M), size (0-200m²), year (1900-2024), rental yield (0-10%)
    - No API calls until slider release for performance
+
+6. **Rental Yield (Bruttomietrendite) Calculation**:
+   - Automatically calculated for all properties: (annual rent / purchase price) × 100
+   - Displayed on property cards in list views and project detail views
+   - Projects show rental yield range (min-max) of their properties
+   - Filterable via range slider (0-10%)
+   - Calculated in PropertyService for list views
+   - Calculated in project detail endpoint for nested properties
+   - Backend filtering supports min/max rental yield parameters
 
 ### External API Integration
 
@@ -579,6 +588,10 @@ S3_REGION=fsn1
 - **Project visibility calculation**: Dynamic visibility_status based on contained properties
 - **Investagon sync improvements**: Automatic project status update after property sync
 - **User parameter support**: Services accept current_user for permission-based filtering
+- **Rental yield calculation**: Automatic Bruttomietrendite calculation for all properties
+- **Advanced property filtering**: Support for rental yield range filtering
+- **Return to previous page**: Save and restore location after login/logout
+- **Natural sorting**: Properties sorted by unit number in project views
 
 **Integration Features:**
 - Hetzner S3-compatible storage with automatic optimization
@@ -612,6 +625,8 @@ S3_REGION=fsn1
 - Image uploads automatically resize based on category requirements
 - Background sync operations handle large datasets efficiently
 - Database queries use proper indexing for common filter patterns
+- Rental yield filtering done post-query for computed fields (consider database column for optimization)
+- Natural number sorting for unit numbers in project detail views
 
 **Security Implementation:**
 - All tenant data isolated through row-level security

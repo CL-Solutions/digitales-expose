@@ -233,6 +233,11 @@ class PropertyService:
             if filter_params.draft is not None:
                 query = query.filter(Property.draft == filter_params.draft)
             
+            # Apply rental yield filters if specified
+            # Note: We'll need to filter after fetching since yield is calculated
+            # This is not optimal for large datasets but necessary for computed fields
+            needs_yield_filter = filter_params.min_rental_yield is not None or filter_params.max_rental_yield is not None
+            
             # Get total count
             total = query.count()
             
@@ -263,6 +268,12 @@ class PropertyService:
                     if sorted_project_images:
                         thumbnail_url = sorted_project_images[0].image_url
                 
+                # Calculate gross rental yield (Bruttomietrendite)
+                gross_rental_yield = None
+                if prop.purchase_price and prop.monthly_rent and prop.purchase_price > 0:
+                    annual_rent = float(prop.monthly_rent) * 12
+                    gross_rental_yield = (annual_rent / float(prop.purchase_price)) * 100
+                
                 overview_data = {
                     "id": prop.id,
                     "project_id": prop.project_id,
@@ -281,7 +292,8 @@ class PropertyService:
                     "pre_sale": prop.pre_sale,
                     "draft": prop.draft,
                     "visibility": prop.visibility,
-                    "thumbnail_url": thumbnail_url
+                    "thumbnail_url": thumbnail_url,
+                    "gross_rental_yield": gross_rental_yield
                 }
                 
                 # Add project information if loaded
@@ -290,7 +302,22 @@ class PropertyService:
                     overview_data["project_street"] = prop.project.street
                     overview_data["project_house_number"] = prop.project.house_number
                 
+                # Apply rental yield filter if needed
+                if needs_yield_filter:
+                    if filter_params.min_rental_yield is not None and gross_rental_yield is not None:
+                        if gross_rental_yield < filter_params.min_rental_yield:
+                            continue
+                    if filter_params.max_rental_yield is not None and gross_rental_yield is not None:
+                        if gross_rental_yield > filter_params.max_rental_yield:
+                            continue
+                
                 items.append(PropertyOverview(**overview_data))
+            
+            # If we filtered by yield, we need to adjust total count
+            if needs_yield_filter:
+                # This is not ideal but necessary for computed fields
+                # In production, consider adding a database column for rental yield
+                total = len(items)
             
             return {
                 "items": items,

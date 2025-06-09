@@ -209,6 +209,21 @@ class ProjectService:
                     else:
                         visibility_status = 'deactivated'  # All are deactivated
             
+            # Calculate rental yield range for the project
+            min_rental_yield = None
+            max_rental_yield = None
+            rental_yields = []
+            
+            for prop in project.properties:
+                if prop.purchase_price and prop.monthly_rent and prop.purchase_price > 0:
+                    annual_rent = float(prop.monthly_rent) * 12
+                    yield_value = (annual_rent / float(prop.purchase_price)) * 100
+                    rental_yields.append(yield_value)
+            
+            if rental_yields:
+                min_rental_yield = min(rental_yields)
+                max_rental_yield = max(rental_yields)
+            
             overview = ProjectOverview(
                 id=project.id,
                 name=project.name,
@@ -226,7 +241,9 @@ class ProjectService:
                 has_parking=project.has_parking,
                 thumbnail_url=thumbnail_url,
                 investagon_id=project.investagon_id,
-                visibility_status=visibility_status
+                visibility_status=visibility_status,
+                min_rental_yield=min_rental_yield,
+                max_rental_yield=max_rental_yield
             )
             items.append(overview)
         

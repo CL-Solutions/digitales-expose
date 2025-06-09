@@ -13,12 +13,13 @@ from app.models.base import Base
 # Import all models for Alembic auto-generation
 from app.models.tenant import Tenant, TenantIdentityProvider
 from app.models.user import User, UserSession, OAuthToken, PasswordResetToken
+from app.models.user_preferences import UserFilterPreference
 from app.models.rbac import Permission, Role, RolePermission, UserRole
 from app.models.business import (
     Property, PropertyImage, 
     City, CityImage,
     ExposeTemplate, ExposeLink, ExposeLinkView,
-    InvestagonSync
+    InvestagonSync, Project, ProjectImage
 )
 from app.models.audit import AuditLog, SuperAdminSession
 
@@ -31,6 +32,7 @@ __all__ = [
     "UserSession", 
     "OAuthToken", 
     "PasswordResetToken",
+    "UserFilterPreference",
     "Permission", 
     "Role", 
     "RolePermission", 
@@ -43,6 +45,8 @@ __all__ = [
     "ExposeLink",
     "ExposeLinkView",
     "InvestagonSync",
+    "Project",
+    "ProjectImage",
     "AuditLog", 
     "SuperAdminSession"
 ]

@@ -48,6 +48,7 @@ class User(Base):
     # Relationships
     tenant = relationship("Tenant", back_populates="users")
     user_roles = relationship("UserRole", foreign_keys="UserRole.user_id", back_populates="user", cascade="all, delete-orphan")
+    filter_preferences = relationship("UserFilterPreference", foreign_keys="UserFilterPreference.user_id", back_populates="user", cascade="all, delete-orphan")
     oauth_tokens = relationship("OAuthToken", back_populates="user", cascade="all, delete-orphan")
     user_sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
     password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
