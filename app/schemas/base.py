@@ -19,6 +19,10 @@ class BaseSchema(BaseModel):
         }
     )
 
+class BaseResponseSchema(BaseSchema):
+    """Base Schema for API responses with ID field"""
+    id: UUID
+
 class TimestampMixin(BaseModel):
     """Mixin für Timestamp-Felder"""
     created_at: datetime = Field(..., description="Creation timestamp")
@@ -38,7 +42,7 @@ from typing import Literal
 class PaginationParams(BaseSchema):
     """Schema für Pagination Parameter"""
     page: int = Field(default=1, ge=1, description="Page number")
-    page_size: int = Field(default=20, ge=1, le=100, description="Items per page")
+    page_size: int = Field(default=20, ge=1, le=500, description="Items per page")
 
 class SortParams(BaseSchema):
     """Schema für Sorting Parameter"""

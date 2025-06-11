@@ -137,8 +137,10 @@ async def list_expose_links(
 ):
     """List all expose links"""
     try:
-        links = ExposeService.list_expose_links(db, current_user, property_id, is_active)
-        return [ExposeLinkResponse.model_validate(l) for l in links]
+        response_data = ExposeService.list_expose_links_with_details(
+            db, current_user, property_id, is_active
+        )
+        return [ExposeLinkResponse(**data) for data in response_data]
     
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)

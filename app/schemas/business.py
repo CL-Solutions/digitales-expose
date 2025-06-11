@@ -2,19 +2,19 @@
 # DIGITALES EXPOSE SCHEMAS (schemas/business.py)
 # ================================
 
-from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
+from pydantic import Field, ConfigDict, field_validator, model_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import UUID
 from decimal import Decimal
 
-from app.schemas.base import BaseSchema, PaginationParams
+from app.schemas.base import BaseSchema, BaseResponseSchema, PaginationParams
 
 # ================================
 # Project Schemas
 # ================================
 
-class ProjectBase(BaseModel):
+class ProjectBase(BaseSchema):
     """Base schema for Project"""
     name: str = Field(..., max_length=255)
     street: str = Field(..., max_length=255)
@@ -43,6 +43,8 @@ class ProjectBase(BaseModel):
     energy_consumption: Optional[float] = Field(None, ge=0)
     energy_class: Optional[str] = Field(None, max_length=10)
     heating_type: Optional[str] = Field(None, max_length=100)
+    primary_energy_consumption: Optional[float] = Field(None, ge=0)
+    heating_building_year: Optional[int] = Field(None, ge=1800, le=2100)
     
     # Additional Information
     description: Optional[str] = None
@@ -56,7 +58,7 @@ class ProjectCreate(ProjectBase):
     """Schema for creating a Project"""
     city_id: Optional[UUID] = None
 
-class ProjectUpdate(BaseModel):
+class ProjectUpdate(BaseSchema):
     """Schema for updating a Project"""
     name: Optional[str] = Field(None, max_length=255)
     street: Optional[str] = Field(None, max_length=255)
@@ -83,6 +85,8 @@ class ProjectUpdate(BaseModel):
     energy_consumption: Optional[float] = Field(None, ge=0)
     energy_class: Optional[str] = Field(None, max_length=10)
     heating_type: Optional[str] = Field(None, max_length=100)
+    primary_energy_consumption: Optional[float] = Field(None, ge=0)
+    heating_building_year: Optional[int] = Field(None, ge=1800, le=2100)
     
     description: Optional[str] = None
     amenities: Optional[List[str]] = None
@@ -91,7 +95,7 @@ class ProjectUpdate(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-class ProjectImageSchema(BaseSchema):
+class ProjectImageSchema(BaseResponseSchema):
     """Schema for ProjectImage"""
     project_id: UUID
     image_url: str
@@ -104,9 +108,8 @@ class ProjectImageSchema(BaseSchema):
     width: Optional[int] = None
     height: Optional[int] = None
 
-class ProjectResponse(ProjectBase, BaseSchema):
+class ProjectResponse(ProjectBase, BaseResponseSchema):
     """Schema for Project response"""
-    id: UUID
     city_id: Optional[UUID] = None
     investagon_id: Optional[str] = None
     
@@ -147,7 +150,7 @@ class ProjectResponse(ProjectBase, BaseSchema):
 # Project Image Schemas
 # ================================
 
-class ProjectImageCreate(BaseModel):
+class ProjectImageCreate(BaseSchema):
     """Schema for creating a ProjectImage"""
     image_url: str
     image_type: str = Field(..., pattern="^(exterior|common_area|amenity|floor_plan)$")
@@ -159,9 +162,10 @@ class ProjectImageCreate(BaseModel):
     width: Optional[int] = Field(None, gt=0)
     height: Optional[int] = Field(None, gt=0)
 
-class ProjectImageUpdate(BaseModel):
+class ProjectImageUpdate(BaseSchema):
     """Schema for updating a ProjectImage"""
     image_url: Optional[str] = None
+    image_type: Optional[str] = Field(None, max_length=50)
     title: Optional[str] = Field(None, max_length=255)
     description: Optional[str] = None
     display_order: Optional[int] = None
@@ -170,7 +174,7 @@ class ProjectImageUpdate(BaseModel):
 # Property Schemas
 # ================================
 
-class PropertyBase(BaseModel):
+class PropertyBase(BaseSchema):
     """Base schema for Property"""
     project_id: UUID  # Required - property must belong to a project
     unit_number: str = Field(..., max_length=100)  # e.g., "WE1", "WE2", "WHG 103"
@@ -186,7 +190,8 @@ class PropertyBase(BaseModel):
     size_sqm: float = Field(..., ge=0)
     rooms: float = Field(..., ge=0)
     bathrooms: Optional[int] = Field(None, ge=0)
-    floor: Optional[int] = Field(None)
+    floor: Optional[str] = Field(None, max_length=50)  # e.g., "1. OG", "2. OG Mitte", "EG"
+    balcony: Optional[bool] = None
     
     purchase_price: Decimal = Field(..., decimal_places=2, ge=0)
     purchase_price_parking: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
@@ -218,7 +223,8 @@ class PropertyBase(BaseModel):
     depreciation_rate_building_manual: Optional[float] = Field(None, ge=0, le=100)
     
     energy_certificate_type: Optional[str] = Field(None, max_length=50)
-    energy_consumption: Optional[float] = Field(None, ge=0)
+    energy_consumption: Optional[float] = Field(None, ge=0)  # Endenergieverbrauch
+    primary_energy_consumption: Optional[float] = Field(None, ge=0)  # Primärenergieverbrauch
     energy_class: Optional[str] = Field(None, max_length=10)
     heating_type: Optional[str] = Field(None, max_length=100)
     
@@ -241,7 +247,7 @@ class PropertyCreate(PropertyBase):
     city_id: Optional[UUID] = None
     investagon_id: Optional[str] = None
 
-class PropertyUpdate(BaseModel):
+class PropertyUpdate(BaseSchema):
     """Schema for updating a Property"""
     project_id: Optional[UUID] = None  # Allow changing project
     unit_number: Optional[str] = Field(None, max_length=100)
@@ -258,7 +264,8 @@ class PropertyUpdate(BaseModel):
     size_sqm: Optional[float] = Field(None, ge=0)
     rooms: Optional[float] = Field(None, ge=0)
     bathrooms: Optional[int] = Field(None, ge=0)
-    floor: Optional[int] = None
+    floor: Optional[str] = Field(None, max_length=50)
+    balcony: Optional[bool] = None
     
     purchase_price: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
     purchase_price_parking: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
@@ -291,6 +298,7 @@ class PropertyUpdate(BaseModel):
     
     energy_certificate_type: Optional[str] = Field(None, max_length=50)
     energy_consumption: Optional[float] = Field(None, ge=0)
+    primary_energy_consumption: Optional[float] = Field(None, ge=0)
     energy_class: Optional[str] = Field(None, max_length=10)
     heating_type: Optional[str] = Field(None, max_length=100)
     
@@ -308,7 +316,7 @@ class PropertyUpdate(BaseModel):
         }
     )
 
-class PropertyImageSchema(BaseSchema):
+class PropertyImageSchema(BaseResponseSchema):
     """Schema for PropertyImage"""
     property_id: UUID
     image_url: str
@@ -321,7 +329,7 @@ class PropertyImageSchema(BaseSchema):
     width: Optional[int] = None
     height: Optional[int] = None
 
-class PropertyResponse(PropertyBase, BaseSchema):
+class PropertyResponse(PropertyBase, BaseResponseSchema):
     """Schema for Property response"""
     city_id: Optional[UUID] = None
     investagon_id: Optional[str] = None
@@ -398,7 +406,7 @@ class PropertyResponse(PropertyBase, BaseSchema):
 # Property Image Schemas
 # ================================
 
-class PropertyImageCreate(BaseModel):
+class PropertyImageCreate(BaseSchema):
     """Schema for creating a PropertyImage"""
     image_url: str
     image_type: str = Field(..., pattern="^(exterior|interior|floor_plan|energy_certificate|bathroom|kitchen|bedroom|living_room|balcony|garden|parking|basement|roof)$")
@@ -410,7 +418,7 @@ class PropertyImageCreate(BaseModel):
     width: Optional[int] = Field(None, gt=0)
     height: Optional[int] = Field(None, gt=0)
 
-class PropertyImageUpdate(BaseModel):
+class PropertyImageUpdate(BaseSchema):
     """Schema for updating a PropertyImage"""
     image_url: Optional[str] = None
     title: Optional[str] = Field(None, max_length=255)
@@ -421,7 +429,7 @@ class PropertyImageUpdate(BaseModel):
 # City Schemas
 # ================================
 
-class CityBase(BaseModel):
+class CityBase(BaseSchema):
     """Base schema for City"""
     name: str = Field(..., max_length=255)
     state: str = Field(..., max_length=255)
@@ -433,19 +441,38 @@ class CityBase(BaseModel):
     average_income: Optional[int] = Field(None, gt=0)
     
     universities: Optional[List[str]] = None
-    major_employers: Optional[List[str]] = None
+    major_employers: Optional[List[Dict[str, str]]] = None
     public_transport: Optional[Dict[str, Any]] = None
     
     description: Optional[str] = None
-    highlights: Optional[List[str]] = None
+    highlights: Optional[List[Dict[str, str]]] = None
 
     model_config = ConfigDict(from_attributes=True)
+    
+    @field_validator('major_employers', 'highlights', mode='before')
+    @classmethod
+    def clean_list_items(cls, v):
+        """Clean up list items - remove None values and ensure proper format"""
+        if v is None:
+            return None
+        if isinstance(v, list):
+            # Filter out None values and ensure all items are dicts
+            cleaned = []
+            for item in v:
+                if item is not None:
+                    if isinstance(item, dict):
+                        cleaned.append(item)
+                    elif isinstance(item, str):
+                        # Convert old string format to new dict format
+                        cleaned.append({"title": item, "description": ""})
+            return cleaned if cleaned else None
+        return v
 
 class CityCreate(CityBase):
     """Schema for creating a City"""
     pass
 
-class CityUpdate(BaseModel):
+class CityUpdate(BaseSchema):
     """Schema for updating a City"""
     population: Optional[int] = Field(None, gt=0)
     population_growth: Optional[float] = None
@@ -453,17 +480,36 @@ class CityUpdate(BaseModel):
     average_income: Optional[int] = Field(None, gt=0)
     
     universities: Optional[List[str]] = None
-    major_employers: Optional[List[str]] = None
+    major_employers: Optional[List[Dict[str, str]]] = None
     public_transport: Optional[Dict[str, Any]] = None
     
     description: Optional[str] = None
-    highlights: Optional[List[str]] = None
+    highlights: Optional[List[Dict[str, str]]] = None
+    
+    @field_validator('major_employers', 'highlights', mode='before')
+    @classmethod
+    def clean_list_items_update(cls, v):
+        """Clean up list items - remove None values and ensure proper format"""
+        if v is None:
+            return None
+        if isinstance(v, list):
+            # Filter out None values and ensure all items are dicts
+            cleaned = []
+            for item in v:
+                if item is not None:
+                    if isinstance(item, dict):
+                        cleaned.append(item)
+                    elif isinstance(item, str):
+                        # Convert old string format to new dict format
+                        cleaned.append({"title": item, "description": ""})
+            return cleaned if cleaned else None
+        return v
 
 # ================================
 # City Image Schemas
 # ================================
 
-class CityImageCreate(BaseModel):
+class CityImageCreate(BaseSchema):
     """Schema for creating a CityImage"""
     image_url: str
     image_type: str = Field(..., pattern="^(skyline|landmark|downtown|residential|commercial|nature|transport|culture|nightlife|education|recreation|overview)$")
@@ -475,14 +521,15 @@ class CityImageCreate(BaseModel):
     width: Optional[int] = Field(None, gt=0)
     height: Optional[int] = Field(None, gt=0)
 
-class CityImageUpdate(BaseModel):
+class CityImageUpdate(BaseSchema):
     """Schema for updating a CityImage"""
     image_url: Optional[str] = None
+    image_type: Optional[str] = Field(None, pattern="^(skyline|landmark|downtown|residential|commercial|nature|transport|culture|nightlife|education|recreation|overview)$")
     title: Optional[str] = Field(None, max_length=255)
     description: Optional[str] = None
     display_order: Optional[int] = None
 
-class CityImageSchema(BaseSchema):
+class CityImageSchema(BaseResponseSchema):
     """Schema for CityImage"""
     city_id: UUID
     image_url: str
@@ -495,15 +542,35 @@ class CityImageSchema(BaseSchema):
     width: Optional[int] = None
     height: Optional[int] = None
 
-class CityResponse(CityBase, BaseSchema):
+class CityResponse(CityBase, BaseResponseSchema):
     """Schema for City response"""
     images: List[CityImageSchema] = []
+    
+    # Override the validators from CityBase to ensure they're applied
+    @field_validator('major_employers', 'highlights', mode='before')
+    @classmethod
+    def clean_list_items_response(cls, v):
+        """Clean up list items - remove None values and ensure proper format"""
+        if v is None:
+            return None
+        if isinstance(v, list):
+            # Filter out None values and ensure all items are dicts
+            cleaned = []
+            for item in v:
+                if item is not None:
+                    if isinstance(item, dict):
+                        cleaned.append(item)
+                    elif isinstance(item, str):
+                        # Convert old string format to new dict format
+                        cleaned.append({"title": item, "description": ""})
+            return cleaned if cleaned else None
+        return v
 
 # ================================
 # Expose Template Schemas
 # ================================
 
-class ExposeTemplateBase(BaseModel):
+class ExposeTemplateBase(BaseSchema):
     """Base schema for ExposeTemplate"""
     name: str = Field(..., max_length=255)
     property_type: Optional[str] = Field(None, max_length=100)
@@ -531,7 +598,7 @@ class ExposeTemplateCreate(ExposeTemplateBase):
     """Schema for creating an ExposeTemplate"""
     pass
 
-class ExposeTemplateUpdate(BaseModel):
+class ExposeTemplateUpdate(BaseSchema):
     """Schema for updating an ExposeTemplate"""
     name: Optional[str] = Field(None, max_length=255)
     property_type: Optional[str] = Field(None, max_length=100)
@@ -553,7 +620,7 @@ class ExposeTemplateUpdate(BaseModel):
     is_active: Optional[bool] = None
     is_default: Optional[bool] = None
 
-class ExposeTemplateResponse(ExposeTemplateBase, BaseSchema):
+class ExposeTemplateResponse(ExposeTemplateBase, BaseResponseSchema):
     """Schema for ExposeTemplate response"""
     pass
 
@@ -561,7 +628,7 @@ class ExposeTemplateResponse(ExposeTemplateBase, BaseSchema):
 # Expose Link Schemas
 # ================================
 
-class ExposeLinkBase(BaseModel):
+class ExposeLinkBase(BaseSchema):
     """Base schema for ExposeLink"""
     property_id: UUID
     template_id: Optional[UUID] = None
@@ -589,7 +656,7 @@ class ExposeLinkCreate(ExposeLinkBase):
             raise ValueError('Password is required when password_protected is True')
         return v
 
-class ExposeLinkUpdate(BaseModel):
+class ExposeLinkUpdate(BaseSchema):
     """Schema for updating an ExposeLink"""
     name: Optional[str] = Field(None, max_length=255)
     
@@ -604,19 +671,21 @@ class ExposeLinkUpdate(BaseModel):
     visible_sections: Optional[Dict[str, bool]] = None
     custom_message: Optional[str] = None
 
-class ExposeLinkResponse(ExposeLinkBase, BaseSchema):
+class ExposeLinkResponse(ExposeLinkBase, BaseResponseSchema):
     """Schema for ExposeLink response"""
     link_id: str
     is_active: bool = True
     view_count: int = 0
     first_viewed_at: Optional[datetime] = None
     last_viewed_at: Optional[datetime] = None
+    created_at: datetime
+    created_by: UUID
     
     # Include property basic info - use forward reference to avoid circular imports
     property: Optional["PropertyOverview"] = None
     template: Optional[ExposeTemplateResponse] = None
 
-class ExposeLinkPublicResponse(BaseModel):
+class ExposeLinkPublicResponse(BaseSchema):
     """Schema for public ExposeLink response (for viewers)"""
     link_id: str
     property: PropertyResponse
@@ -639,7 +708,7 @@ class ExposeLinkPublicResponse(BaseModel):
 # Investagon Sync Schemas
 # ================================
 
-class InvestagonSyncSchema(BaseSchema):
+class InvestagonSyncSchema(BaseResponseSchema):
     """Schema for InvestagonSync"""
     sync_type: str  # single_property, full, incremental
     status: str  # pending, in_progress, completed, partial, failed
@@ -668,7 +737,7 @@ class ProjectFilter(PaginationParams):
     sort_by: str = Field(default="created_at", description="Field to sort by")
     sort_order: str = Field(default="desc", pattern="^(asc|desc)$", description="Sort order")
 
-class ProjectOverview(BaseModel):
+class ProjectOverview(BaseSchema):
     """Schema for Project overview (list view)"""
     id: UUID
     name: str
@@ -692,7 +761,7 @@ class ProjectOverview(BaseModel):
     
     model_config = ConfigDict(from_attributes=True)
 
-class ProjectListResponse(BaseModel):
+class ProjectListResponse(BaseSchema):
     """Schema for paginated project list"""
     items: List[ProjectOverview]
     total: int
@@ -725,7 +794,7 @@ class PropertyFilter(PaginationParams):
     sort_by: str = Field(default="created_at", description="Field to sort by")
     sort_order: str = Field(default="desc", pattern="^(asc|desc)$", description="Sort order")
 
-class PropertyOverview(BaseModel):
+class PropertyOverview(BaseSchema):
     """Schema for Property overview (list view)"""
     id: UUID
     project_id: UUID
@@ -741,7 +810,7 @@ class PropertyOverview(BaseModel):
     monthly_rent: Decimal
     size_sqm: float
     rooms: float
-    floor: Optional[int] = None
+    floor: Optional[str] = None
     investagon_id: Optional[str] = None
     # Investagon status fields
     active: Optional[int] = None
@@ -762,7 +831,7 @@ class PropertyOverview(BaseModel):
         }
     )
 
-class PropertyListResponse(BaseModel):
+class PropertyListResponse(BaseSchema):
     """Schema for paginated property list"""
     items: List[PropertyOverview]
     total: int

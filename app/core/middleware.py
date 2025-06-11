@@ -156,8 +156,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         
         # Rate Limit Check
         if self._is_rate_limited(client_ip, current_time):
-            from fastapi import HTTPException
-            raise HTTPException(status_code=429, detail="Too many requests")
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Too many requests"},
+                headers={"Retry-After": "60"}
+            )
         
         # Request tracking
         self._track_request(client_ip, current_time)

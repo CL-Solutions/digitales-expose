@@ -24,6 +24,7 @@ from app.core.security import get_password_hash, verify_password
 from app.utils.audit import AuditLogger
 from app.services.rbac_service import RBACService
 from app.services.property_service import PropertyService
+from app.mappers.expose_mapper import map_expose_links_to_responses
 
 audit_logger = AuditLogger()
 
@@ -69,14 +70,14 @@ class ExposeService:
             db.flush()
             
             # Log activity
-            audit_logger.log_event(
+            audit_logger.log_business_event(
                 db=db,
-                action="CREATE",
+                action="TEMPLATE_CREATED",
                 user_id=current_user.id,
                 tenant_id=current_user.tenant_id,
                 resource_type="template",
                 resource_id=template.id,
-                details={"name": template.name}
+                new_values={"name": template.name}
             )
             
             return template
@@ -204,14 +205,14 @@ class ExposeService:
             db.flush()
             
             # Log activity
-            audit_logger.log_event(
+            audit_logger.log_business_event(
                 db=db,
-                action="UPDATE",
+                action="TEMPLATE_UPDATED",
                 user_id=current_user.id,
                 tenant_id=current_user.tenant_id,
                 resource_type="template",
                 resource_id=template.id,
-                details={"updated_fields": list(update_data.keys())}
+                new_values={"updated_fields": list(update_data.keys())}
             )
             
             return template
@@ -257,14 +258,14 @@ class ExposeService:
                 )
             
             # Log activity before deletion
-            audit_logger.log_event(
+            audit_logger.log_business_event(
                 db=db,
-                action="DELETE",
+                action="TEMPLATE_DELETED",
                 user_id=current_user.id,
                 tenant_id=current_user.tenant_id,
                 resource_type="template",
                 resource_id=template.id,
-                details={"name": template.name}
+                old_values={"name": template.name}
             )
             
             db.delete(template)
@@ -325,14 +326,14 @@ class ExposeService:
             db.flush()
             
             # Log activity
-            audit_logger.log_event(
+            audit_logger.log_business_event(
                 db=db,
-                action="CREATE",
+                action="EXPOSE_LINK_CREATED",
                 user_id=current_user.id,
                 tenant_id=current_user.tenant_id,
                 resource_type="expose_link",
                 resource_id=link.id,
-                details={
+                new_values={
                     "property_id": str(property.id),
                     "link_id": link_id
                 }
@@ -379,11 +380,19 @@ class ExposeService:
                 )
             
             # Check expiration
-            if link.expiration_date and link.expiration_date < datetime.now(timezone.utc):
-                raise AppException(
-                    status_code=403,
-                    detail="This expose link has expired"
-                )
+            if link.expiration_date:
+                # Ensure both datetimes are timezone-aware for comparison
+                current_time = datetime.now(timezone.utc)
+                expiration_time = link.expiration_date
+                if expiration_time.tzinfo is None:
+                    # If expiration_date is naive, assume it's UTC
+                    expiration_time = expiration_time.replace(tzinfo=timezone.utc)
+                
+                if expiration_time < current_time:
+                    raise AppException(
+                        status_code=403,
+                        detail="This expose link has expired"
+                    )
             
             # Check password
             if link.password_protected:
@@ -422,7 +431,7 @@ class ExposeService:
         """List expose links"""
         try:
             query = db.query(ExposeLink).options(
-                joinedload(ExposeLink.property)
+                joinedload(ExposeLink.property).joinedload(Property.project)
             )
             
             # Apply tenant filter if not super admin
@@ -444,6 +453,27 @@ class ExposeService:
             raise AppException(
                 status_code=500,
                 detail=f"Failed to list expose links: {str(e)}"
+            )
+    
+    @staticmethod
+    def list_expose_links_with_details(
+        db: Session,
+        current_user: User,
+        property_id: Optional[UUID] = None,
+        is_active: Optional[bool] = None
+    ) -> List[Dict[str, Any]]:
+        """List expose links and return formatted response data with property details"""
+        try:
+            # Get the expose links with all relationships loaded
+            links = ExposeService.list_expose_links(db, current_user, property_id, is_active)
+            
+            # Use mapper to convert to response format
+            return map_expose_links_to_responses(links)
+            
+        except Exception as e:
+            raise AppException(
+                status_code=500,
+                detail=f"Failed to list expose links with details: {str(e)}"
             )
     
     @staticmethod
@@ -493,14 +523,14 @@ class ExposeService:
             db.flush()
             
             # Log activity
-            audit_logger.log_event(
+            audit_logger.log_business_event(
                 db=db,
-                action="UPDATE",
+                action="EXPOSE_LINK_UPDATED",
                 user_id=current_user.id,
                 tenant_id=current_user.tenant_id,
                 resource_type="expose_link",
                 resource_id=link.id,
-                details={"updated_fields": list(update_data.keys())}
+                new_values={"updated_fields": list(update_data.keys())}
             )
             
             return link
@@ -544,14 +574,14 @@ class ExposeService:
                 )
             
             # Log activity before deletion
-            audit_logger.log_event(
+            audit_logger.log_business_event(
                 db=db,
-                action="DELETE",
+                action="EXPOSE_LINK_DELETED",
                 user_id=current_user.id,
                 tenant_id=current_user.tenant_id,
                 resource_type="expose_link",
                 resource_id=link.id,
-                details={"link_id": link.link_id}
+                old_values={"link_id": link.link_id}
             )
             
             db.delete(link)

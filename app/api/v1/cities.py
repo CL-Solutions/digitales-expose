@@ -152,7 +152,7 @@ async def upload_city_image(
     display_order: int = Form(0, description="Display order"),
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
-    _: bool = Depends(require_permission("images", "upload"))
+    _: bool = Depends(require_permission("cities", "update"))
 ):
     """Upload an image file for a city"""
     try:
@@ -298,7 +298,7 @@ async def delete_city_image(
     image_id: UUID = Path(..., description="Image ID"),
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
-    _: bool = Depends(require_permission("images", "delete"))
+    _: bool = Depends(require_permission("cities", "update"))
 ):
     """Delete a city image"""
     try:

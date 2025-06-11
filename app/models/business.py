@@ -40,8 +40,10 @@ class Project(Base, TenantMixin, AuditMixin):
     # Energy Data (Building Level)
     energy_certificate_type = Column(String(50), nullable=True)  # 'consumption', 'demand'
     energy_consumption = Column(Float, nullable=True)
+    primary_energy_consumption = Column(Float, nullable=True)
     energy_class = Column(String(10), nullable=True)  # 'A+', 'A', 'B', etc.
     heating_type = Column(String(100), nullable=True)
+    heating_building_year = Column(Integer, nullable=True)
     
     # Additional Information
     description = Column(Text, nullable=True)
@@ -103,7 +105,7 @@ class Property(Base, TenantMixin, AuditMixin):
     
     # Basic Information
     unit_number = Column(String(100), nullable=False)  # e.g., "WE1", "WE2", "WHG 103", etc.
-    floor = Column(Integer, nullable=True)
+    floor = Column(String(50), nullable=True)  # e.g., "1. OG", "2. OG Mitte", "EG"
     
     # Location references (denormalized for search/filter, but project is source of truth)
     city = Column(String(255), nullable=False)
@@ -116,6 +118,7 @@ class Property(Base, TenantMixin, AuditMixin):
     size_sqm = Column(Float, nullable=False)
     rooms = Column(Float, nullable=False)
     bathrooms = Column(Integer, nullable=True)
+    balcony = Column(Boolean, nullable=True)  # Has balcony or not
     
     # Financial Data
     purchase_price = Column(Numeric(12, 2), nullable=False)
@@ -149,7 +152,8 @@ class Property(Base, TenantMixin, AuditMixin):
     
     # Energy Data
     energy_certificate_type = Column(String(50), nullable=True)  # 'consumption', 'demand'
-    energy_consumption = Column(Float, nullable=True)
+    energy_consumption = Column(Float, nullable=True)  # Endenergieverbrauch
+    primary_energy_consumption = Column(Float, nullable=True)  # Primärenergieverbrauch
     energy_class = Column(String(10), nullable=True)  # 'A+', 'A', 'B', etc.
     heating_type = Column(String(100), nullable=True)
     

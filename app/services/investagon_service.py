@@ -310,7 +310,7 @@ class InvestagonSyncService:
         else:
             display_name = project_name
         
-        return {
+        result = {
             "name": display_name,
             "street": street,
             "house_number": house_number,
@@ -323,6 +323,17 @@ class InvestagonSyncService:
             "investagon_id": str(investagon_data.get("id", "")),
             "investagon_data": investagon_data
         }
+        
+        # Add latitude, longitude, and construction year if provided in property_address
+        if property_address:
+            if property_address.get("latitude") is not None:
+                result["latitude"] = property_address["latitude"]
+            if property_address.get("longitude") is not None:
+                result["longitude"] = property_address["longitude"]
+            if property_address.get("construction_year") is not None:
+                result["construction_year"] = int(property_address["construction_year"])
+        
+        return result
     
     @staticmethod  
     def _map_investagon_to_property(investagon_data: Dict[str, Any], db: Session = None, tenant_id: UUID = None, user_id: UUID = None, project_id: UUID = None) -> Dict[str, Any]:
@@ -444,7 +455,8 @@ class InvestagonSyncService:
             "size_sqm": safe_float(investagon_data.get("object_size", 0)),
             "rooms": safe_float(investagon_data.get("object_rooms", 0)),
             "bathrooms": safe_int(investagon_data.get("object_bathrooms")),
-            "floor": safe_int(investagon_data.get("object_floor")),
+            "floor": investagon_data.get("object_floor"),  # Keep as string (e.g., "1. OG", "2. OG Mitte")
+            "balcony": bool(investagon_data.get("balcony")) if investagon_data.get("balcony") is not None else None,
             
             # Financial Data
             "purchase_price": safe_decimal(investagon_data.get("purchase_price_apartment", 0)),
@@ -478,9 +490,10 @@ class InvestagonSyncService:
             
             # Energy Data
             "energy_certificate_type": investagon_data.get("energy_certificate_type"),
-            "energy_consumption": safe_float(investagon_data.get("power_consumption")) if investagon_data.get("power_consumption") else None,
-            "energy_class": investagon_data.get("energy_efficiency_class"),
+            "energy_consumption": safe_float(investagon_data.get("power_consumption")) if investagon_data.get("power_consumption") is not None else None,
+            "energy_class": investagon_data.get("energy_efficiency_class").upper() if investagon_data.get("energy_efficiency_class") else None,
             "heating_type": investagon_data.get("heating_type"),
+            # Note: primary_energy_consumption is not provided by Investagon API
             
             # Status
             "status": status,
@@ -556,7 +569,10 @@ class InvestagonSyncService:
                             "house_number": investagon_data.get("object_house_number"),
                             "city": investagon_data.get("object_city"),
                             "state": investagon_data.get("province"),
-                            "zip_code": investagon_data.get("object_postal_code")
+                            "zip_code": investagon_data.get("object_postal_code"),
+                            "latitude": investagon_data.get("latitude") or investagon_data.get("object_latitude") or investagon_data.get("lat"),
+                            "longitude": investagon_data.get("longitude") or investagon_data.get("object_longitude") or investagon_data.get("lng"),
+                            "construction_year": investagon_data.get("object_building_year")
                         }
                         
                         # Sync or create project with property address
@@ -767,6 +783,7 @@ class InvestagonSyncService:
                 
                 # Get the first property to extract address information for the project
                 property_address = None
+                first_property_data = None
                 if property_urls:
                     try:
                         # Extract first property ID and fetch its details
@@ -777,12 +794,17 @@ class InvestagonSyncService:
                         if "/api_properties/" in first_property_url:
                             first_property_id = first_property_url.split("/api_properties/")[-1]
                             first_property_data = await self.api_client.get_property(first_property_id)
+                            # Log available fields for debugging
+                            logger.debug(f"Property data fields: {list(first_property_data.keys())}")
                             property_address = {
                                 "street": first_property_data.get("object_street"),
                                 "house_number": first_property_data.get("object_house_number"),
                                 "city": first_property_data.get("object_city"),
                                 "state": first_property_data.get("province"),
-                                "zip_code": first_property_data.get("object_postal_code")
+                                "zip_code": first_property_data.get("object_postal_code"),
+                                "latitude": first_property_data.get("latitude") or first_property_data.get("object_latitude") or first_property_data.get("lat"),
+                                "longitude": first_property_data.get("longitude") or first_property_data.get("object_longitude") or first_property_data.get("lng"),
+                                "construction_year": first_property_data.get("object_building_year")
                             }
                             logger.info(f"Extracted address from first property: {property_address}")
                     except Exception as e:
@@ -793,7 +815,7 @@ class InvestagonSyncService:
                     from app.models.business import Project
                     local_project = db.query(Project).filter(Project.id == local_project_id).first()
                     if local_project:
-                        # Only update if the current address is incomplete
+                        # Update address fields if incomplete
                         if not local_project.street or not local_project.house_number:
                             updated_project_data = self._map_investagon_to_project(
                                 project_details,
@@ -810,10 +832,55 @@ class InvestagonSyncService:
                             local_project.city_id = updated_project_data["city_id"]
                             local_project.state = updated_project_data["state"]
                             local_project.zip_code = updated_project_data["zip_code"]
+                        
+                        # Always update lat/lng if available from property (regardless of address completeness)
+                        if property_address.get("latitude") is not None:
+                            local_project.latitude = property_address["latitude"]
+                            logger.info(f"Updating project {local_project_id} latitude to {property_address['latitude']}")
+                        if property_address.get("longitude") is not None:
+                            local_project.longitude = property_address["longitude"]
+                            logger.info(f"Updating project {local_project_id} longitude to {property_address['longitude']}")
+                        # Update construction year if available and not already set
+                        if property_address.get("construction_year") and not local_project.construction_year:
+                            local_project.construction_year = int(property_address["construction_year"])
+                            logger.info(f"Updating project {local_project_id} construction year to {property_address['construction_year']}")
+                        
+                        # Update energy information from first property if available
+                        if first_property_data:
+                            # Energy class - update if available and not already set
+                            if first_property_data.get("energy_efficiency_class") and not local_project.energy_class:
+                                local_project.energy_class = first_property_data.get("energy_efficiency_class").upper()
+                                logger.info(f"Updating project {local_project_id} energy class to {local_project.energy_class}")
+                            
+                            # Energy consumption - update if available and not already set
+                            if first_property_data.get("power_consumption") and not local_project.energy_consumption:
+                                try:
+                                    local_project.energy_consumption = float(first_property_data.get("power_consumption"))
+                                    logger.info(f"Updating project {local_project_id} energy consumption to {local_project.energy_consumption}")
+                                except (ValueError, TypeError):
+                                    logger.warning(f"Invalid power_consumption value: {first_property_data.get('power_consumption')}")
+                            
+                            # Heating type - update if available and not already set
+                            if first_property_data.get("heating_type") and not local_project.heating_type:
+                                local_project.heating_type = first_property_data.get("heating_type")
+                                logger.info(f"Updating project {local_project_id} heating type to {local_project.heating_type}")
+                        
+                        # Check if any updates were made to the project
+                        energy_updated = (
+                            (first_property_data.get("energy_efficiency_class") and not local_project.energy_class) or
+                            (first_property_data.get("power_consumption") and not local_project.energy_consumption) or
+                            (first_property_data.get("heating_type") and not local_project.heating_type)
+                        ) if first_property_data else False
+                        
+                        if (property_address.get("latitude") is not None or 
+                            property_address.get("longitude") is not None or
+                            property_address.get("construction_year") is not None or
+                            not local_project.street or not local_project.house_number or
+                            energy_updated):
                             local_project.updated_by = current_user.id
                             local_project.updated_at = datetime.now(timezone.utc)
                             db.flush()
-                            logger.info(f"Updated project {local_project_id} with address from properties")
+                            logger.info(f"Updated project {local_project_id} with data from properties")
                 
                 # Import project images - fetch from /projects endpoint which includes photos
                 project_photos = []
@@ -1044,12 +1111,17 @@ class InvestagonSyncService:
                                 if "/api_properties/" in first_property_url:
                                     first_property_id = first_property_url.split("/api_properties/")[-1]
                                     first_property_data = await self.api_client.get_property(first_property_id)
+                                    # Log available fields for debugging
+                                    logger.debug(f"Property data fields: {list(first_property_data.keys())}")
                                     property_address = {
                                         "street": first_property_data.get("object_street"),
                                         "house_number": first_property_data.get("object_house_number"),
                                         "city": first_property_data.get("object_city"),
                                         "state": first_property_data.get("province"),
-                                        "zip_code": first_property_data.get("object_postal_code")
+                                        "zip_code": first_property_data.get("object_postal_code"),
+                                        "latitude": first_property_data.get("latitude") or first_property_data.get("object_latitude") or first_property_data.get("lat"),
+                                        "longitude": first_property_data.get("longitude") or first_property_data.get("object_longitude") or first_property_data.get("lng"),
+                                        "construction_year": first_property_data.get("object_building_year")
                                     }
                             except Exception as e:
                                 logger.debug(f"Could not extract address from first property: {str(e)}")
@@ -1071,6 +1143,14 @@ class InvestagonSyncService:
                             for key, value in project_data.items():
                                 if key not in ["investagon_data", "created_at", "created_by"]:
                                     setattr(project_obj, key, value)
+                            # Also update lat/lng if available from property
+                            if property_address and property_address.get("latitude") is not None:
+                                project_obj.latitude = property_address["latitude"]
+                            if property_address and property_address.get("longitude") is not None:
+                                project_obj.longitude = property_address["longitude"]
+                            # Update construction year if available and not already set
+                            if property_address and property_address.get("construction_year") and not project_obj.construction_year:
+                                project_obj.construction_year = int(property_address["construction_year"])
                             project_obj.updated_by = current_user.id
                             project_obj.updated_at = datetime.now(timezone.utc)
                             projects_updated += 1

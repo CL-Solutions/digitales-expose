@@ -148,7 +148,7 @@ async def upload_property_image(
     display_order: int = Form(0, description="Display order"),
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
-    _: bool = Depends(require_permission("images", "upload"))
+    _: bool = Depends(require_permission("properties", "update"))
 ):
     """Upload an image file for a property"""
     try:
@@ -268,7 +268,7 @@ async def delete_property_image(
     image_id: UUID = Path(..., description="Image ID"),
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
-    _: bool = Depends(require_permission("images", "delete"))
+    _: bool = Depends(require_permission("properties", "update"))
 ):
     """Delete a property image"""
     try:

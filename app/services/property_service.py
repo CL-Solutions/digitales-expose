@@ -18,6 +18,7 @@ from app.core.exceptions import AppException
 from app.utils.audit import AuditLogger
 from app.services.rbac_service import RBACService
 from decimal import Decimal
+from app.mappers.property_mapper import map_property_to_overview
 
 audit_logger = AuditLogger()
 
@@ -256,54 +257,12 @@ class PropertyService:
             from app.schemas.business import PropertyOverview
             items = []
             for prop in properties:
-                # Get thumbnail - first try property images, then fall back to project images
-                thumbnail_url = prop.thumbnail_url  # This checks property images
-                
-                if not thumbnail_url and prop.project and prop.project.images:
-                    # If no property images, use first project image
-                    sorted_project_images = sorted(
-                        prop.project.images, 
-                        key=lambda x: (x.display_order, x.created_at if x.created_at else datetime.min.replace(tzinfo=timezone.utc))
-                    )
-                    if sorted_project_images:
-                        thumbnail_url = sorted_project_images[0].image_url
-                
-                # Calculate gross rental yield (Bruttomietrendite)
-                gross_rental_yield = None
-                if prop.purchase_price and prop.monthly_rent and prop.purchase_price > 0:
-                    annual_rent = float(prop.monthly_rent) * 12
-                    gross_rental_yield = (annual_rent / float(prop.purchase_price)) * 100
-                
-                overview_data = {
-                    "id": prop.id,
-                    "project_id": prop.project_id,
-                    "unit_number": prop.unit_number,
-                    "city": prop.city,
-                    "state": prop.state,
-                    "property_type": prop.property_type,
-                    "status": prop.status,
-                    "purchase_price": prop.purchase_price,
-                    "monthly_rent": prop.monthly_rent,
-                    "size_sqm": prop.size_sqm,
-                    "rooms": prop.rooms,
-                    "floor": prop.floor,
-                    "investagon_id": prop.investagon_id,
-                    "active": prop.active,
-                    "pre_sale": prop.pre_sale,
-                    "draft": prop.draft,
-                    "visibility": prop.visibility,
-                    "thumbnail_url": thumbnail_url,
-                    "gross_rental_yield": gross_rental_yield
-                }
-                
-                # Add project information if loaded
-                if prop.project:
-                    overview_data["project_name"] = prop.project.name
-                    overview_data["project_street"] = prop.project.street
-                    overview_data["project_house_number"] = prop.project.house_number
+                # Use mapper to convert property to overview format
+                overview_data = map_property_to_overview(prop)
                 
                 # Apply rental yield filter if needed
                 if needs_yield_filter:
+                    gross_rental_yield = overview_data.get("gross_rental_yield")
                     if filter_params.min_rental_yield is not None and gross_rental_yield is not None:
                         if gross_rental_yield < filter_params.min_rental_yield:
                             continue

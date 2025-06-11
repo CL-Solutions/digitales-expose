@@ -1,0 +1,1 @@
+# Mapper module for converting ORM objects to response dictionaries

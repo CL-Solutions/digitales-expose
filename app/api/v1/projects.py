@@ -209,7 +209,7 @@ async def upload_project_image(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     tenant_id: UUID = Depends(get_current_tenant_id),
-    _: bool = Depends(require_permission("images", "upload"))
+    _: bool = Depends(require_permission("projects", "update"))
 ):
     """Upload an image for a project"""
     try:
@@ -274,7 +274,7 @@ async def update_project_image(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     tenant_id: UUID = Depends(get_current_tenant_id),
-    _: bool = Depends(require_permission("images", "update"))
+    _: bool = Depends(require_permission("projects", "update"))
 ):
     """Update project image metadata"""
     try:
@@ -297,7 +297,7 @@ async def delete_project_image(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     tenant_id: UUID = Depends(get_current_tenant_id),
-    _: bool = Depends(require_permission("images", "delete"))
+    _: bool = Depends(require_permission("projects", "update"))
 ):
     """Delete project image"""
     try:

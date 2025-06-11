@@ -428,6 +428,8 @@ async def list_items(...):
 - Sync history tracking with creation/update/failure counts
 - Connection testing endpoint for API validation
 - Rate limiting and tenant context validation
+- Energy consumption mapping: `power_consumption` from Investagon → `energy_consumption` field
+- Primary energy consumption field available for manual entry (not synced from Investagon)
 
 **Hetzner S3-Compatible Storage:**
 - Professional image upload and management system
@@ -574,6 +576,7 @@ S3_REGION=fsn1
 - Comprehensive image management for properties and cities
 - Removed redundant apartment_number field (consolidated into unit_number)
 - Property visibility field for role-based access control
+- Added primary_energy_consumption field to properties table for Primärenergieverbrauch
 
 **API Implementation:**
 - Full CRUD operations for all core entities
@@ -634,6 +637,181 @@ S3_REGION=fsn1
 - Image uploads validated for file type and size limits
 - Public expose links use secure, unpredictable identifiers
 - Comprehensive audit trails for administrative actions
+
+### Mapper Pattern for ORM to Response Conversion
+
+When Pydantic's `model_validate()` fails to properly handle complex ORM relationships or computed fields, use the mapper pattern to convert ORM objects to response dictionaries. This pattern has been implemented to solve recurring issues with manual response construction.
+
+**Mapper Structure:**
+```
+app/mappers/
+├── __init__.py
+├── property_mapper.py    # Property-related mappings
+├── expose_mapper.py      # Expose-related mappings
+└── [entity]_mapper.py    # New entity mappings
+```
+
+**Implementation Pattern:**
+
+1. **Create mapper functions** in `app/mappers/[entity]_mapper.py`:
+```python
+def map_property_to_overview(prop: Property) -> Dict[str, Any]:
+    """Map Property ORM object to PropertyOverview format"""
+    response_data = {
+        "id": prop.id,
+        # ... base fields
+    }
+    
+    # Handle relationships
+    if prop.project:
+        response_data["project_name"] = prop.project.name
+    
+    # Calculate computed fields
+    if prop.purchase_price and prop.monthly_rent:
+        response_data["gross_rental_yield"] = ...
+    
+    return response_data
+```
+
+2. **Use in service layer**:
+```python
+from app.mappers.property_mapper import map_property_to_overview
+
+@staticmethod
+def list_properties_with_details(...) -> List[Dict[str, Any]]:
+    properties = PropertyService.list_properties(...)
+    return [map_property_to_overview(prop) for prop in properties]
+```
+
+3. **Use in API endpoint**:
+```python
+@router.get("/properties", response_model=List[PropertyResponse])
+async def list_properties(...):
+    response_data = PropertyService.list_properties_with_details(...)
+    return [PropertyResponse(**data) for data in response_data]
+```
+
+**Existing Mappers:**
+- `property_mapper.py`: `map_property_to_overview()`, `map_property_to_response()`
+- `expose_mapper.py`: `map_expose_link_to_response()`, `map_expose_links_to_responses()`
+
+**When to Use Mappers:**
+- Complex ORM relationships need special handling
+- Computed fields must be included in responses
+- Response format differs from ORM structure
+- Same conversion logic needed in multiple places
+- Fallback logic required (e.g., property → project images)
+
+**Best Practices:**
+- Check relationships exist before accessing: `if prop.project:`
+- Keep mappers pure - no database queries or side effects
+- Use type hints for clarity
+- Reuse existing mappers for nested relationships
+- Document complex logic with comments
+
+### Energy Field Synchronization from Investagon
+
+**Investagon Energy Field Mapping (Updated January 2025):**
+- The Investagon API provides energy data that needs case conversion and null handling
+- Energy fields are synced at both property and project levels
+- Project energy data is inherited from the first property if not already set
+
+**Field Mappings:**
+- `energy_efficiency_class` → `energy_class` (converted to UPPERCASE)
+- `power_consumption` → `energy_consumption` (handled as float with null checks)
+- `energy_certificate_type` → `energy_certificate_type` (passed as-is)
+- `heating_type` → `heating_type` (passed as-is)
+- `primary_energy_consumption` - NOT provided by Investagon API (manual entry only)
+
+**Important Implementation Details:**
+1. **Case Conversion**: Investagon sends energy classes in lowercase (e.g., "c") but the frontend expects uppercase (e.g., "C"). The sync automatically converts to uppercase.
+2. **Null Handling**: Energy fields may come as `null` from Investagon. The sync uses `is not None` checks to handle this properly.
+3. **Project Energy Inheritance**: During project sync, energy data from the first property is copied to the project if the project doesn't already have values.
+4. **Consistent Sync**: All sync methods (single property, bulk sync, project sync) use the same mapping logic.
+
+**Example Investagon Response:**
+```json
+{
+  "energy_efficiency_class": "c",
+  "energy_certificate_type": null,
+  "power_consumption": null,
+  "heating_type": "Gasheizung"
+}
+```
+
+### Common Audit Logger Errors and Solutions
+
+**Error: `AttributeError: 'AuditLogger' object has no attribute 'log_event'` or `'log_activity'`**
+- **Cause**: Using incorrect method names for the AuditLogger
+- **Solution**: Use the correct method based on the type of event:
+  - `log_business_event()` - For CRUD operations on business entities
+  - `log_auth_event()` - For authentication/authorization events
+  - `log_security_event()` - For security-related events
+  - `log_admin_action()` - For admin actions
+  - `log_system_event()` - For system-level events
+
+- **Correct Usage for Business Operations**:
+  ```python
+  from app.utils.audit import AuditLogger
+  audit_logger = AuditLogger()
+  
+  # For CREATE operations
+  audit_logger.log_business_event(
+      db=db,
+      action="CITY_CREATED",  # Use descriptive action names
+      user_id=current_user.id,
+      tenant_id=current_user.tenant_id,
+      resource_type="city",
+      resource_id=city.id,
+      new_values={"name": city.name, "state": city.state}
+  )
+  
+  # For UPDATE operations
+  audit_logger.log_business_event(
+      db=db,
+      action="CITY_UPDATED",
+      user_id=current_user.id,
+      tenant_id=current_user.tenant_id,
+      resource_type="city",
+      resource_id=city.id,
+      old_values={},  # Previous values if needed
+      new_values=update_data  # New values
+  )
+  
+  # For DELETE operations
+  audit_logger.log_business_event(
+      db=db,
+      action="CITY_DELETED",
+      user_id=current_user.id,
+      tenant_id=current_user.tenant_id,
+      resource_type="city",
+      resource_id=city.id,
+      old_values={"name": city.name, "state": city.state}
+  )
+  
+  # Wrong - these methods don't exist
+  audit_logger.log_event(...)     # ❌ No such method
+  audit_logger.log_activity(...)  # ❌ No such method
+  ```
+
+### Common Schema Errors and Solutions
+
+**Error: `Field required` for 'id' in request schemas**
+- **Cause**: Using `BaseSchema` for request schemas when it includes an `id` field
+- **Solution**: Use `BaseSchema` for request schemas and `BaseResponseSchema` for response schemas
+- **Pattern**:
+  ```python
+  # For requests (no ID needed)
+  class LoginRequest(BaseSchema):
+      email: str
+      password: str
+  
+  # For responses (ID included automatically)
+  class UserResponse(BaseResponseSchema):
+      email: str
+      name: str
+      # id: UUID is inherited from BaseResponseSchema
+  ```
 
 ### Common Permission Errors and Solutions
 

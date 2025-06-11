@@ -68,14 +68,14 @@ class CityService:
             db.flush()
             
             # Log activity
-            audit_logger.log_event(
+            audit_logger.log_business_event(
                 db=db,
-                action="CREATE",
+                action="CITY_CREATED",
                 user_id=current_user.id,
                 tenant_id=current_user.tenant_id,
                 resource_type="city",
                 resource_id=city.id,
-                details={"city": f"{city.name}, {city.state}"}
+                new_values={"name": city.name, "state": city.state}
             )
             
             return city
@@ -223,14 +223,15 @@ class CityService:
             db.flush()
             
             # Log activity
-            audit_logger.log_event(
+            audit_logger.log_business_event(
                 db=db,
-                action="UPDATE",
+                action="CITY_UPDATED",
                 user_id=current_user.id,
                 tenant_id=current_user.tenant_id,
                 resource_type="city",
                 resource_id=city.id,
-                details={"updated_fields": list(update_data.keys())}
+                old_values={},
+                new_values=update_data
             )
             
             return city
@@ -280,14 +281,14 @@ class CityService:
                 )
             
             # Log activity before deletion
-            audit_logger.log_event(
+            audit_logger.log_business_event(
                 db=db,
-                action="DELETE",
+                action="CITY_DELETED",
                 user_id=current_user.id,
                 tenant_id=current_user.tenant_id,
                 resource_type="city",
                 resource_id=city.id,
-                details={"city": f"{city.name}, {city.state}"}
+                old_values={"name": city.name, "state": city.state}
             )
             
             db.delete(city)
