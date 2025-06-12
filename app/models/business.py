@@ -48,6 +48,7 @@ class Project(Base, TenantMixin, AuditMixin):
     # Additional Information
     description = Column(Text, nullable=True)
     amenities = Column(JSON, nullable=True)  # List of building amenities
+    micro_location = Column(JSON, nullable=True)  # Micro location data from ChatGPT
     
     # Status
     status = Column(String(50), default="available", nullable=False)  # 'available', 'reserved', 'sold'

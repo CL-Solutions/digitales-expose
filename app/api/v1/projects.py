@@ -285,3 +285,47 @@ async def delete_project_image(
         )
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
+
+# ================================
+# Micro Location Management
+# ================================
+
+@router.post("/{project_id}/refresh-micro-location", response_model=ProjectResponse)
+async def refresh_micro_location(
+    project_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: UUID = Depends(get_current_tenant_id),
+    _: bool = Depends(require_permission("projects", "update"))
+):
+    """Manually refresh micro location data for a project"""
+    try:
+        # Get the project
+        project = ProjectService.get_project(db, project_id, tenant_id)
+        
+        # Import here to avoid circular imports
+        from app.services.chatgpt_service import ChatGPTService
+        
+        # Generate new micro location data
+        chatgpt_service = ChatGPTService()
+        micro_location_data = chatgpt_service.generate_micro_location_data(
+            db=db,
+            project=project,
+            user_id=str(current_user.id),
+            tenant_id=str(tenant_id)
+        )
+        
+        # Update project
+        project.micro_location = micro_location_data
+        db.commit()
+        db.refresh(project)
+        
+        return ProjectResponse.model_validate(project)
+        
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to refresh micro location data: {str(e)}"
+        )

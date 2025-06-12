@@ -49,6 +49,7 @@ class ProjectBase(BaseSchema):
     # Additional Information
     description: Optional[str] = None
     amenities: Optional[List[str]] = None
+    micro_location: Optional[Dict[str, Any]] = None  # Micro location data from ChatGPT
     
     status: str = Field(default="available", pattern="^(available|reserved|sold)$")
 
@@ -90,6 +91,7 @@ class ProjectUpdate(BaseSchema):
     
     description: Optional[str] = None
     amenities: Optional[List[str]] = None
+    micro_location: Optional[Dict[str, Any]] = None  # Micro location data from ChatGPT
     
     status: Optional[str] = Field(None, pattern="^(available|reserved|sold)$")
 

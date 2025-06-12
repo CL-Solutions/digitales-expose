@@ -693,6 +693,14 @@ class InvestagonSyncService:
                 tenant_id=current_user.tenant_id
             )
             
+            # Refresh micro location for the project
+            ProjectService.refresh_project_micro_location(
+                db=db,
+                project_id=property_obj.project_id,
+                tenant_id=current_user.tenant_id,
+                user_id=current_user.id
+            )
+            
             # Log activity
             audit_logger.log_business_event(
                 db=db,
@@ -993,6 +1001,18 @@ class InvestagonSyncService:
             except Exception as e:
                 logger.warning(f"Failed to update project status for {local_project_id}: {str(e)}")
             
+            # Refresh micro location for the project
+            try:
+                ProjectService.refresh_project_micro_location(
+                    db=db,
+                    project_id=local_project_id,
+                    tenant_id=current_user.tenant_id,
+                    user_id=current_user.id
+                )
+                logger.info(f"Refreshed micro location for project {local_project_id}")
+            except Exception as e:
+                logger.warning(f"Failed to refresh micro location for {local_project_id}: {str(e)}")
+            
             return {
                 "total_synced": total_synced,
                 "created": total_created,
@@ -1182,6 +1202,20 @@ class InvestagonSyncService:
                             except Exception as img_error:
                                 logger.error(f"Failed to import images for project {project_obj.id}: {str(img_error)}")
                         
+                        # Refresh micro location for newly created/updated project
+                        if project_obj:
+                            try:
+                                from app.services.project_service import ProjectService
+                                ProjectService.refresh_project_micro_location(
+                                    db=db,
+                                    project_id=project_obj.id,
+                                    tenant_id=current_user.tenant_id,
+                                    user_id=current_user.id
+                                )
+                                logger.info(f"Refreshed micro location for project {project_obj.id}")
+                            except Exception as e:
+                                logger.warning(f"Failed to refresh micro location for project {project_obj.id}: {str(e)}")
+                        
                         # Now process properties for this project
                         property_urls = project_details.get("properties", [])
                         logger.info(f"Project {project_id} has {len(property_urls)} properties")
@@ -1322,6 +1356,17 @@ class InvestagonSyncService:
                     )
                 except Exception as e:
                     logger.warning(f"Failed to update project status for {project_id}: {str(e)}")
+                
+                # Refresh micro location for the project
+                try:
+                    ProjectService.refresh_project_micro_location(
+                        db=db,
+                        project_id=project_id,
+                        tenant_id=current_user.tenant_id,
+                        user_id=current_user.id
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to refresh micro location for {project_id}: {str(e)}")
             
             # Log activity
             audit_logger.log_business_event(

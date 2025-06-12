@@ -857,3 +857,106 @@ from app.dependencies import (
     require_permission
 )
 ```
+
+## Micro Location Feature (January 2025)
+
+### Overview
+The micro location feature automatically generates location-specific amenity information for projects using ChatGPT. This data includes shopping facilities, leisure activities, and infrastructure details in German, tailored to the specific address of each project.
+
+### Implementation Details
+
+1. **Database Schema**
+   - Added `micro_location` JSON column to the `projects` table via Alembic migration
+   - Stores structured data with three categories:
+     - `einkaufsmoeglichkeiten` (shopping facilities) - array of strings
+     - `freizeitmoeglichkeiten` (leisure activities) - array of strings  
+     - `infrastruktur` (infrastructure) - array of strings
+     - `raw_text` (optional raw response from ChatGPT)
+
+2. **ChatGPT Service** (`app/services/chatgpt_service.py`)
+   - Uses OpenAI Assistants API v2 (not completions API)
+   - Assistant must be pre-configured in OpenAI dashboard to return specific JSON format
+   - Synchronous implementation to match existing codebase patterns
+   - Generates location data based on project address (street, house number, city, state)
+   - Returns structured JSON with German language content
+   - Graceful error handling - project creation continues even if micro location fails
+
+3. **API Integration**
+   - **Automatic generation**: Micro location data is fetched automatically when creating a project via `ProjectService.create_project()`
+   - **Manual refresh endpoint**: `POST /api/v1/projects/{project_id}/refresh-micro-location`
+   - **Data included in**: Project detail responses (`GET /api/v1/projects/{id}`)
+
+4. **Service Layer Integration**
+   ```python
+   # ProjectService.create_project() - Auto-fetch on creation
+   project = Project(...)
+   db.add(project)
+   db.commit()
+   
+   # Try to fetch micro location data
+   try:
+       chatgpt_service = ChatGPTService()
+       micro_location_data = chatgpt_service.generate_micro_location_data(
+           db=db,
+           project=project,
+           user_id=str(created_by),
+           tenant_id=str(tenant_id)
+       )
+       project.micro_location = micro_location_data
+       db.commit()
+   except Exception as e:
+       logger.error(f"Failed to fetch micro location data: {str(e)}")
+       # Continue without micro location data
+   ```
+
+5. **Investagon Sync Integration**
+   - After syncing properties, automatically refreshes micro location for the project
+   - Implemented in `sync_single_property`, `sync_project_properties`, and `sync_all_properties`
+   - Uses `ProjectService.refresh_project_micro_location()` method
+
+### Configuration
+```bash
+# Required environment variables in .env
+OPENAI_API_KEY=your-openai-api-key
+OPENAI_ASSISTANT_ID=your-assistant-id  # Must be created in OpenAI dashboard
+```
+
+### API Endpoints
+
+1. **Create Project with Auto Micro Location**
+   ```
+   POST /api/v1/projects
+   {
+     "name": "Project Name",
+     "street": "Musterstraße",
+     "house_number": "123",
+     "city": "München",
+     "state": "Bayern",
+     ...
+   }
+   ```
+   Response includes populated `micro_location` field
+
+2. **Manually Refresh Micro Location**
+   ```
+   POST /api/v1/projects/{project_id}/refresh-micro-location
+   ```
+   Returns updated project with new micro location data
+
+3. **View Project with Micro Location**
+   ```
+   GET /api/v1/projects/{project_id}
+   ```
+   Response includes `micro_location` object
+
+### Error Handling
+- ChatGPT failures don't break project creation or sync operations
+- Errors are logged but operations continue
+- Manual refresh can be triggered later if initial fetch fails
+- Empty arrays returned for categories if no data available
+
+### Frontend Display
+- Project edit dialog shows micro location data in dedicated tab
+- Expose view dynamically displays micro location instead of static content
+- Categories shown with appropriate icons and German labels
+- Fallback messages when data is not yet available

@@ -7,6 +7,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session, selectinload, joinedload
 from sqlalchemy import and_, or_, func, select, desc
 from sqlalchemy.exc import IntegrityError
+import logging
 
 from app.models.business import Project, ProjectImage, Property
 from app.models.user import User
@@ -17,16 +18,18 @@ from app.schemas.business import (
 )
 from app.core.exceptions import AppException
 from app.services.s3_service import get_s3_service
+from app.services.chatgpt_service import ChatGPTService
 from app.utils.audit import AuditLogger
 
 audit_logger = AuditLogger()
+logger = logging.getLogger(__name__)
 
 class ProjectService:
     """Service für Project-Management"""
     
     @staticmethod
     def create_project(db: Session, project_data: ProjectCreate, created_by: UUID, tenant_id: UUID) -> Project:
-        """Create a new project"""
+        """Create a new project and automatically fetch micro location data"""
         try:
             # Check if project with same name already exists
             existing = db.query(Project).filter(
@@ -54,6 +57,27 @@ class ProjectService:
             db.add(project)
             db.commit()
             db.refresh(project)
+            
+            # Try to fetch micro location data from ChatGPT
+            try:
+                chatgpt_service = ChatGPTService()
+                micro_location_data = chatgpt_service.generate_micro_location_data(
+                    db=db,
+                    project=project,
+                    user_id=str(created_by),
+                    tenant_id=str(tenant_id)
+                )
+                
+                # Update project with micro location data
+                project.micro_location = micro_location_data
+                db.commit()
+                db.refresh(project)
+                
+                logger.info(f"Successfully fetched micro location data for project {project.id}")
+            except Exception as e:
+                # Log error but don't fail the project creation
+                logger.error(f"Failed to fetch micro location data for project {project.id}: {str(e)}")
+                # Continue without micro location data
             
             # Log activity
             audit_logger.log_business_event(
@@ -480,6 +504,57 @@ class ProjectService:
             },
             "occupancy_rate": (reserved_units + sold_units) / total_properties * 100 if total_properties > 0 else 0
         }
+    
+    @staticmethod
+    def refresh_project_micro_location(
+        db: Session,
+        project_id: UUID,
+        tenant_id: UUID,
+        user_id: UUID = None
+    ) -> bool:
+        """Refresh micro location data for a project"""
+        try:
+            # Get the project
+            project = db.query(Project).filter(
+                and_(
+                    Project.id == project_id,
+                    Project.tenant_id == tenant_id
+                )
+            ).first()
+            
+            if not project:
+                logger.warning(f"Project {project_id} not found for tenant {tenant_id}")
+                return False
+            
+            # Only refresh if project has required address data
+            if not all([project.street, project.house_number, project.city, project.state]):
+                logger.warning(f"Project {project_id} missing required address data for micro location")
+                return False
+            
+            # Try to generate micro location data
+            try:
+                chatgpt_service = ChatGPTService()
+                micro_location_data = chatgpt_service.generate_micro_location_data(
+                    db=db,
+                    project=project,
+                    user_id=str(user_id or project.updated_by or project.created_by),
+                    tenant_id=str(tenant_id)
+                )
+                
+                # Update project with micro location data
+                project.micro_location = micro_location_data
+                db.commit()
+                
+                logger.info(f"Successfully refreshed micro location data for project {project_id}")
+                return True
+                
+            except Exception as e:
+                logger.error(f"Failed to refresh micro location for project {project_id}: {str(e)}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error in refresh_project_micro_location: {str(e)}")
+            return False
     
     @staticmethod
     def update_project_status_from_properties(

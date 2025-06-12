@@ -48,6 +48,10 @@ class settings(BaseSettings):
     INVESTAGON_API_KEY: Optional[str] = None
     ENABLE_AUTO_SYNC: bool = True  # Enable automatic hourly sync
     
+    # OpenAI API Settings
+    OPENAI_API_KEY: Optional[str] = None
+    OPENAI_ASSISTANT_ID: Optional[str] = None
+    
     # Fallback SMTP (falls SES nicht verfügbar)
     SMTP_HOST: Optional[str] = None
     SMTP_PORT: int = 587
