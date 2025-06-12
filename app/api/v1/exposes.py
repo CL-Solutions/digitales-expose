@@ -289,6 +289,23 @@ async def get_public_expose(
             if city:
                 city_info = city
         
+        # Get tenant contact information
+        from app.models.tenant import Tenant
+        tenant = db.query(Tenant).filter(Tenant.id == link.tenant_id).first()
+        tenant_contact = None
+        if tenant:
+            tenant_contact = {
+                "email": tenant.contact_email,
+                "phone": tenant.contact_phone,
+                "street": tenant.contact_street,
+                "house_number": tenant.contact_house_number,
+                "city": tenant.contact_city,
+                "state": tenant.contact_state,
+                "zip_code": tenant.contact_zip_code,
+                "country": tenant.contact_country,
+                "company_name": tenant.name
+            }
+        
         # Build response
         response = ExposeLinkPublicResponse(
             link_id=link.link_id,
@@ -300,7 +317,8 @@ async def get_public_expose(
             preset_monthly_rent=link.preset_monthly_rent,
             visible_sections=link.visible_sections,
             custom_message=link.custom_message,
-            city_info=city_info
+            city_info=city_info,
+            tenant_contact=tenant_contact
         )
         
         return response

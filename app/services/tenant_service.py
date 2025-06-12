@@ -191,6 +191,32 @@ class TenantService:
             tenant.investagon_sync_enabled = tenant_update.investagon_sync_enabled
             update_data["investagon_sync_enabled"] = tenant_update.investagon_sync_enabled
         
+        # Update Contact Information fields
+        if tenant_update.contact_email is not None:
+            tenant.contact_email = tenant_update.contact_email
+            update_data["contact_email"] = tenant_update.contact_email
+        if tenant_update.contact_phone is not None:
+            tenant.contact_phone = tenant_update.contact_phone
+            update_data["contact_phone"] = tenant_update.contact_phone
+        if tenant_update.contact_street is not None:
+            tenant.contact_street = tenant_update.contact_street
+            update_data["contact_street"] = tenant_update.contact_street
+        if tenant_update.contact_house_number is not None:
+            tenant.contact_house_number = tenant_update.contact_house_number
+            update_data["contact_house_number"] = tenant_update.contact_house_number
+        if tenant_update.contact_city is not None:
+            tenant.contact_city = tenant_update.contact_city
+            update_data["contact_city"] = tenant_update.contact_city
+        if tenant_update.contact_state is not None:
+            tenant.contact_state = tenant_update.contact_state
+            update_data["contact_state"] = tenant_update.contact_state
+        if tenant_update.contact_zip_code is not None:
+            tenant.contact_zip_code = tenant_update.contact_zip_code
+            update_data["contact_zip_code"] = tenant_update.contact_zip_code
+        if tenant_update.contact_country is not None:
+            tenant.contact_country = tenant_update.contact_country
+            update_data["contact_country"] = tenant_update.contact_country
+        
         # Audit log
         audit_logger.log_auth_event(
             db, "TENANT_UPDATED", super_admin.id, tenant.id,

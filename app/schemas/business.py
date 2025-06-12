@@ -699,6 +699,9 @@ class ExposeLinkPublicResponse(BaseSchema):
     
     # City information if available
     city_info: Optional[CityResponse] = None
+    
+    # Tenant contact information
+    tenant_contact: Optional[Dict[str, Any]] = None
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -22,6 +22,16 @@ class Tenant(Base):
     subscription_plan = Column(String(50), default="basic", nullable=False)
     max_users = Column(Integer, default=10, nullable=False)
     
+    # Contact Information
+    contact_email = Column(String(255), nullable=True)
+    contact_phone = Column(String(100), nullable=True)
+    contact_street = Column(String(255), nullable=True)
+    contact_house_number = Column(String(50), nullable=True)
+    contact_city = Column(String(100), nullable=True)
+    contact_state = Column(String(100), nullable=True)
+    contact_zip_code = Column(String(20), nullable=True)
+    contact_country = Column(String(100), nullable=True)
+    
     # Investagon Integration
     investagon_organization_id = Column(String(255), nullable=True)
     investagon_api_key = Column(String(255), nullable=True)  # Should be encrypted in production

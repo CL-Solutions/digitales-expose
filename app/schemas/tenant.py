@@ -20,6 +20,16 @@ class TenantBase(BaseSchema, DomainFieldMixin):
     investagon_organization_id: Optional[str] = Field(None, max_length=255, description="Investagon organization ID")
     investagon_api_key: Optional[str] = Field(None, max_length=255, description="Investagon API key")
     investagon_sync_enabled: bool = Field(default=False, description="Enable automatic Investagon sync")
+    
+    # Contact Information
+    contact_email: Optional[str] = Field(None, max_length=255, description="Contact email")
+    contact_phone: Optional[str] = Field(None, max_length=100, description="Contact phone")
+    contact_street: Optional[str] = Field(None, max_length=255, description="Contact street")
+    contact_house_number: Optional[str] = Field(None, max_length=50, description="Contact house number")
+    contact_city: Optional[str] = Field(None, max_length=100, description="Contact city")
+    contact_state: Optional[str] = Field(None, max_length=100, description="Contact state")
+    contact_zip_code: Optional[str] = Field(None, max_length=20, description="Contact ZIP code")
+    contact_country: Optional[str] = Field(None, max_length=100, description="Contact country")
 
 class TenantCreate(TenantBase, SlugFieldMixin):
     """Schema für Tenant-Erstellung (nur Super-Admin)"""
@@ -44,6 +54,16 @@ class TenantUpdate(BaseSchema, DomainFieldMixin):
     investagon_organization_id: Optional[str] = Field(None, max_length=255)
     investagon_api_key: Optional[str] = Field(None, max_length=255)
     investagon_sync_enabled: Optional[bool] = None
+    
+    # Contact Information
+    contact_email: Optional[str] = Field(None, max_length=255)
+    contact_phone: Optional[str] = Field(None, max_length=100)
+    contact_street: Optional[str] = Field(None, max_length=255)
+    contact_house_number: Optional[str] = Field(None, max_length=50)
+    contact_city: Optional[str] = Field(None, max_length=100)
+    contact_state: Optional[str] = Field(None, max_length=100)
+    contact_zip_code: Optional[str] = Field(None, max_length=20)
+    contact_country: Optional[str] = Field(None, max_length=100)
 
 class TenantResponse(TenantBase, TimestampMixin):
     """Schema für Tenant-Responses"""
