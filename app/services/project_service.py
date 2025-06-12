@@ -499,41 +499,42 @@ class ProjectService:
         if not project:
             return
         
-        # Count properties by status
+        # Count properties by active status
         from app.models.business import Property
-        property_statuses = db.query(
-            Property.status,
+        property_active_statuses = db.query(
+            Property.active,
             func.count(Property.id)
         ).filter(
             Property.project_id == project_id
-        ).group_by(Property.status).all()
+        ).group_by(Property.active).all()
         
-        status_counts = {status: count for status, count in property_statuses}
-        total_properties = sum(status_counts.values())
+        active_counts = {active: count for active, count in property_active_statuses}
+        total_properties = sum(active_counts.values())
         
         if total_properties == 0:
             # No properties, keep current project status
             return
         
-        # Determine new project status based on property statuses
-        available_count = status_counts.get('available', 0)
-        sold_count = status_counts.get('sold', 0)
-        reserved_count = status_counts.get('reserved', 0)
+        # Determine new project status based on property active values
+        # Active values: 0=Verkauft, 1=Frei, 5=Angefragt, 6=Reserviert, 7=Notartermin, 9=Notarvorbereitung
+        available_count = active_counts.get(1, 0)  # Frei
+        reserved_count = active_counts.get(5, 0) + active_counts.get(6, 0)  # Angefragt + Reserviert
+        sold_count = active_counts.get(0, 0) + active_counts.get(7, 0) + active_counts.get(9, 0)  # Verkauft + Notartermin + Notarvorbereitung
         
         new_status = None
         
         if available_count > 0:
-            # If any property is available, project is available
+            # If any property is available (Frei), project is available
             new_status = 'available'
         elif sold_count == total_properties:
-            # If all properties are sold, project is sold
+            # If all properties are sold/in sale process, project is sold
             new_status = 'sold'
         elif reserved_count == total_properties:
-            # If all properties are reserved, project is reserved
+            # If all properties are reserved/inquired, project is reserved
             new_status = 'reserved'
         else:
-            # Mixed status (reserved and sold), default to reserved
-            new_status = 'reserved'
+            # Mixed status, default to reserved if there are any reserved properties
+            new_status = 'reserved' if reserved_count > 0 else 'sold'
         
         # Update project status if changed
         if project.status != new_status:
@@ -551,5 +552,5 @@ class ProjectService:
                 resource_id=project.id,
                 old_values={"status": old_status},
                 new_values={"status": new_status},
-                additional_context={"property_counts": status_counts}
+                additional_context={"property_active_counts": active_counts}
             )

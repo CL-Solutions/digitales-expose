@@ -200,9 +200,6 @@ class PropertyService:
             if filter_params.property_type:
                 query = query.filter(Property.property_type == filter_params.property_type)
             
-            if filter_params.status:
-                query = query.filter(Property.status == filter_params.status)
-            
             if filter_params.min_price:
                 query = query.filter(Property.purchase_price >= filter_params.min_price)
             
@@ -225,8 +222,8 @@ class PropertyService:
                 query = query.filter(Property.energy_class == filter_params.energy_class)
             
             # Apply Investagon status filters
-            if filter_params.active is not None:
-                query = query.filter(Property.active == filter_params.active)
+            if filter_params.active is not None and len(filter_params.active) > 0:
+                query = query.filter(Property.active.in_(filter_params.active))
             
             if filter_params.pre_sale is not None:
                 query = query.filter(Property.pre_sale == filter_params.pre_sale)
@@ -386,8 +383,7 @@ class PropertyService:
                 details={
                     "project_id": str(property.project_id),
                     "unit_number": property.unit_number,
-                    "city": property.city,
-                    "status": property.status
+                    "city": property.city
                 }
             )
             
@@ -567,9 +563,10 @@ class PropertyService:
                 query = query.filter(Property.tenant_id == current_user.tenant_id)
             
             total_properties = query.count()
-            available_properties = query.filter(Property.status == "available").count()
-            reserved_properties = query.filter(Property.status == "reserved").count()
-            sold_properties = query.filter(Property.status == "sold").count()
+            # Count by active status values
+            available_properties = query.filter(Property.active == 1).count()  # Frei
+            reserved_properties = query.filter(Property.active.in_([5, 6])).count()  # Angefragt + Reserviert
+            sold_properties = query.filter(Property.active.in_([0, 7, 9])).count()  # Verkauft + Notartermin + Notarvorbereitung
             
             # Get value statistics
             total_value = db.query(func.sum(Property.purchase_price)).filter(

@@ -228,8 +228,6 @@ class PropertyBase(BaseSchema):
     energy_class: Optional[str] = Field(None, max_length=10)
     heating_type: Optional[str] = Field(None, max_length=100)
     
-    status: str = Field(default="available", pattern="^(available|reserved|sold)$")
-    
     # Investagon Status Flags
     active: Optional[int] = Field(None, ge=0)
     pre_sale: Optional[int] = Field(None, ge=0, le=1)
@@ -301,8 +299,6 @@ class PropertyUpdate(BaseSchema):
     primary_energy_consumption: Optional[float] = Field(None, ge=0)
     energy_class: Optional[str] = Field(None, max_length=10)
     heating_type: Optional[str] = Field(None, max_length=100)
-    
-    status: Optional[str] = Field(None, pattern="^(available|reserved|sold)$")
     
     # Investagon Status Flags
     active: Optional[int] = Field(None, ge=0)
@@ -777,7 +773,6 @@ class PropertyFilter(PaginationParams):
     city: Optional[str] = None
     state: Optional[str] = None
     property_type: Optional[str] = None
-    status: Optional[str] = None
     min_price: Optional[Decimal] = None
     max_price: Optional[Decimal] = None
     min_size: Optional[float] = None
@@ -788,7 +783,7 @@ class PropertyFilter(PaginationParams):
     max_rental_yield: Optional[float] = None  # Filter by maximum Bruttomietrendite
     energy_class: Optional[str] = None
     # Investagon status filters
-    active: Optional[int] = None
+    active: Optional[List[int]] = None  # Multiple statuses
     pre_sale: Optional[int] = None
     draft: Optional[int] = None
     sort_by: str = Field(default="created_at", description="Field to sort by")
@@ -805,7 +800,6 @@ class PropertyOverview(BaseSchema):
     city: str
     state: str
     property_type: str
-    status: str
     purchase_price: Decimal
     monthly_rent: Decimal
     size_sqm: float

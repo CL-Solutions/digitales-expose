@@ -419,7 +419,7 @@ class CityService:
                 Property.state,
                 func.count(Property.id).label('property_count')
             ).filter(
-                Property.status == 'available'
+                Property.active == 1  # Only count active properties
             )
             
             # Apply tenant filter

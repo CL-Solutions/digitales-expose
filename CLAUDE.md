@@ -559,6 +559,27 @@ S3_REGION=fsn1
 **Investagon Integration Permissions:**
 - `investagon:sync` - Trigger property and project synchronization
 
+### Investagon Active Status Values
+
+The `active` field from Investagon represents the property sale status with these specific values:
+- `0` = Verkauft (Sold)
+- `1` = Frei (Available)
+- `5` = Angefragt (Requested/Inquired)
+- `6` = Reserviert (Reserved)
+- `7` = Notartermin (Notary Appointment)
+- `9` = Notarvorbereitung (Notary Preparation)
+
+**Implementation Notes:**
+- The `status` field has been removed from the Property model - use `active` field directly
+- Frontend displays German labels based on the `active` value
+- No mapping/transformation during sync - store Investagon values as-is
+- The `active` field is preserved exactly as received from Investagon
+- Project status is calculated from property active values:
+  - If any property has `active=1` (Frei) → project is 'available'
+  - If all properties have `active=0,7,9` (sold/sale process) → project is 'sold'
+  - If all properties have `active=5,6` (reserved/inquired) → project is 'reserved'
+  - Mixed status defaults to 'reserved' if any reserved properties exist
+
 **Role Assignments:**
 - `sales_person` - Can view projects and properties, create expose links
 - `property_manager` - Can manage projects, properties, images and exposes, sync from Investagon

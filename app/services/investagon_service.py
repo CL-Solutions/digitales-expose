@@ -416,9 +416,6 @@ class InvestagonSyncService:
         api_property_type = investagon_data.get("property_type", "apartment")
         mapped_property_type = property_type_map.get(str(api_property_type).lower(), "apartment")
         
-        # Determine property status from active field (0 = sold, 1 = available)
-        status = "available" if investagon_data.get("active") == 1 else "sold"
-        
         # Extract unit number from the full string (e.g., "Friedrich-Engels-Bogen / WHG 103" -> "WHG 103")
         raw_apartment = investagon_data.get("object_apartment_number") or ""
         if raw_apartment and "/" in raw_apartment:
@@ -494,9 +491,6 @@ class InvestagonSyncService:
             "energy_class": investagon_data.get("energy_efficiency_class").upper() if investagon_data.get("energy_efficiency_class") else None,
             "heating_type": investagon_data.get("heating_type"),
             # Note: primary_energy_consumption is not provided by Investagon API
-            
-            # Status
-            "status": status,
             
             # Investagon Status Flags
             "active": safe_int(investagon_data.get("active", 0)),

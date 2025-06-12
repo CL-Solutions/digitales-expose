@@ -32,6 +32,7 @@ router = APIRouter()
 @router.get("/", response_model=PropertyListResponse)
 async def list_properties(
     filter_params: PropertyFilter = Depends(),
+    active: Optional[List[int]] = Query(None),
     current_user: User = Depends(get_current_active_user),
     tenant_id: Optional[UUID] = Depends(get_current_tenant_id),
     db: Session = Depends(get_db),
@@ -39,6 +40,9 @@ async def list_properties(
 ):
     """List all properties with filtering (overview only)"""
     try:
+        # Override the active filter with the list from query params
+        if active is not None:
+            filter_params.active = active
         result = PropertyService.list_properties(db, current_user, filter_params, tenant_id)
         db.commit()
         

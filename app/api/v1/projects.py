@@ -71,43 +71,18 @@ async def get_project(
     try:
         import re
         from app.schemas.business import PropertyOverview
+        from app.mappers.property_mapper import map_property_to_overview
         
         project = ProjectService.get_project(db, project_id, tenant_id)
         
-        # Convert properties to PropertyOverview with calculated rental yield
+        # Convert properties to PropertyOverview using mapper
         property_overviews = []
         if project.properties:
             for prop in project.properties:
-                # Calculate gross rental yield
-                gross_rental_yield = None
-                if prop.purchase_price and prop.monthly_rent and prop.purchase_price > 0:
-                    annual_rent = float(prop.monthly_rent) * 12
-                    gross_rental_yield = (annual_rent / float(prop.purchase_price)) * 100
-                
-                overview = PropertyOverview(
-                    id=prop.id,
-                    project_id=prop.project_id,
-                    project_name=project.name,
-                    project_street=project.street,
-                    project_house_number=project.house_number,
-                    unit_number=prop.unit_number,
-                    city=prop.city,
-                    state=prop.state,
-                    property_type=prop.property_type,
-                    status=prop.status,
-                    purchase_price=prop.purchase_price,
-                    monthly_rent=prop.monthly_rent,
-                    size_sqm=prop.size_sqm,
-                    rooms=prop.rooms,
-                    floor=prop.floor,
-                    investagon_id=prop.investagon_id,
-                    active=prop.active,
-                    pre_sale=prop.pre_sale,
-                    draft=prop.draft,
-                    visibility=prop.visibility,
-                    thumbnail_url=prop.thumbnail_url,
-                    gross_rental_yield=gross_rental_yield
-                )
+                # Use mapper to convert property to overview dict
+                overview_data = map_property_to_overview(prop)
+                # Create PropertyOverview from the mapped data
+                overview = PropertyOverview(**overview_data)
                 property_overviews.append(overview)
             
             # Sort properties by unit number
@@ -187,9 +162,9 @@ async def get_project_statistics(
         return {
             "total_properties": len(project.properties),
             "total_size_sqm": sum(p.size_sqm for p in project.properties if p.size_sqm),
-            "available_properties": sum(1 for p in project.properties if p.status == "available"),
-            "sold_properties": sum(1 for p in project.properties if p.status == "sold"),
-            "reserved_properties": sum(1 for p in project.properties if p.status == "reserved")
+            "active_properties": sum(1 for p in project.properties if p.active and p.active > 0),
+            "pre_sale_properties": sum(1 for p in project.properties if p.pre_sale == 1),
+            "draft_properties": sum(1 for p in project.properties if p.draft == 1)
         }
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)

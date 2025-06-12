@@ -157,9 +157,6 @@ class Property(Base, TenantMixin, AuditMixin):
     energy_class = Column(String(10), nullable=True)  # 'A+', 'A', 'B', etc.
     heating_type = Column(String(100), nullable=True)
     
-    # Status
-    status = Column(String(50), default="available", nullable=False)  # 'available', 'reserved', 'sold'
-    
     # Investagon Status Flags
     active = Column(Integer, nullable=True)  # Can be more than 1
     pre_sale = Column(Integer, nullable=True)  # 0 or 1 from Investagon
@@ -193,7 +190,7 @@ class Property(Base, TenantMixin, AuditMixin):
         return None
 
     def __repr__(self):
-        return f"<Property(unit='{self.unit_number}', project='{self.project.name if self.project else 'N/A'}', status='{self.status}')>"
+        return f"<Property(unit='{self.unit_number}', project='{self.project.name if self.project else 'N/A'}')>"
 
 class PropertyImage(Base, TenantMixin, AuditMixin):
     """Property Image Model"""
