@@ -52,6 +52,7 @@ async def get_current_user_profile(
         # Create profile response
         profile_data = UserProfileResponse.model_validate(current_user)
         profile_data.permissions = permissions
+        profile_data.settings = current_user.settings or {}
         
         return profile_data
     

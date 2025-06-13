@@ -35,7 +35,8 @@ class UserService:
             "first_name": user.first_name,
             "last_name": user.last_name,
             "is_active": user.is_active,
-            "avatar_url": user.avatar_url
+            "avatar_url": user.avatar_url,
+            "settings": user.settings
         }
         
         # Update fields
@@ -52,6 +53,12 @@ class UserService:
         if user_update.avatar_url is not None:
             user.avatar_url = user_update.avatar_url
             update_data["avatar_url"] = user_update.avatar_url
+        if user_update.settings is not None:
+            # Merge settings to preserve existing values
+            if user.settings is None:
+                user.settings = {}
+            user.settings = {**user.settings, **user_update.settings}
+            update_data["settings"] = user.settings
         
         # Audit log
         audit_logger.log_auth_event(

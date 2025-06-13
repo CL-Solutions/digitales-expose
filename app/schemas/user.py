@@ -30,6 +30,7 @@ class UserUpdate(BaseSchema):
     last_name: Optional[str] = Field(None, min_length=1, max_length=100)
     is_active: Optional[bool] = None
     avatar_url: Optional[str] = Field(None, description="Avatar image URL")
+    settings: Optional[dict] = Field(None, description="User settings")
 
 class UserResponse(UserBase, TimestampMixin):
     """Schema für User-Responses"""
@@ -40,6 +41,7 @@ class UserResponse(UserBase, TimestampMixin):
     is_verified: bool
     last_login_at: Optional[datetime]
     avatar_url: Optional[str] = None
+    settings: Optional[dict] = Field(default_factory=dict, description="User settings")
     
     # Role Information
     roles: List['RoleResponse'] = Field(default_factory=list)
@@ -56,6 +58,7 @@ class UserProfileResponse(UserResponse):
     failed_login_attempts: int
     locked_until: Optional[datetime]
     permissions: List[str] = Field(default_factory=list, description="List of user permissions")
+    settings: dict = Field(default_factory=dict, description="User settings")
 
 class UserFilterParams(PaginationParams, SortParams, SearchParams):
     """Schema für User-Filtering"""

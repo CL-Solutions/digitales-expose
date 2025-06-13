@@ -29,11 +29,23 @@ def map_property_to_overview(prop: Property) -> Dict[str, Any]:
         if sorted_project_images:
             thumbnail_url = sorted_project_images[0].image_url
     
-    # Calculate gross rental yield (Bruttomietrendite)
+    # Calculate total purchase price including parking and furniture
+    total_purchase_price = float(prop.purchase_price or 0)
+    if prop.purchase_price_parking:
+        total_purchase_price += float(prop.purchase_price_parking)
+    if prop.purchase_price_furniture:
+        total_purchase_price += float(prop.purchase_price_furniture)
+    
+    # Calculate total monthly rent including parking
+    total_monthly_rent = float(prop.monthly_rent or 0)
+    if prop.rent_parking_month:
+        total_monthly_rent += float(prop.rent_parking_month)
+    
+    # Calculate gross rental yield (Bruttomietrendite) based on total price and total rent
     gross_rental_yield = None
-    if prop.purchase_price and prop.monthly_rent and prop.purchase_price > 0:
-        annual_rent = float(prop.monthly_rent) * 12
-        gross_rental_yield = (annual_rent / float(prop.purchase_price)) * 100
+    if total_purchase_price > 0 and total_monthly_rent > 0:
+        annual_rent = total_monthly_rent * 12
+        gross_rental_yield = (annual_rent / total_purchase_price) * 100
     
     overview_data = {
         "id": prop.id,
@@ -42,8 +54,8 @@ def map_property_to_overview(prop: Property) -> Dict[str, Any]:
         "city": prop.city,
         "state": prop.state,
         "property_type": prop.property_type,
-        "purchase_price": prop.purchase_price,
-        "monthly_rent": prop.monthly_rent,
+        "purchase_price": total_purchase_price,  # Total including parking and furniture
+        "monthly_rent": total_monthly_rent,  # Total including parking rent
         "size_sqm": prop.size_sqm,
         "rooms": prop.rooms,
         "floor": prop.floor,
@@ -128,16 +140,28 @@ def map_property_to_response(prop: Property) -> Dict[str, Any]:
         "updated_by": prop.updated_by
     }
     
+    # Calculate total purchase price including parking and furniture
+    total_purchase_price = float(prop.purchase_price or 0)
+    if prop.purchase_price_parking:
+        total_purchase_price += float(prop.purchase_price_parking)
+    if prop.purchase_price_furniture:
+        total_purchase_price += float(prop.purchase_price_furniture)
+    
+    # Calculate total monthly rent including parking
+    total_monthly_rent = float(prop.monthly_rent or 0)
+    if prop.rent_parking_month:
+        total_monthly_rent += float(prop.rent_parking_month)
+    
     # Add calculated fields
-    if prop.purchase_price and prop.monthly_rent and prop.purchase_price > 0:
-        annual_rent = float(prop.monthly_rent) * 12
-        response_data["total_investment"] = prop.purchase_price
-        response_data["gross_rental_yield"] = (annual_rent / float(prop.purchase_price)) * 100
+    if total_purchase_price > 0 and total_monthly_rent > 0:
+        annual_rent = total_monthly_rent * 12
+        response_data["total_investment"] = total_purchase_price
+        response_data["gross_rental_yield"] = (annual_rent / total_purchase_price) * 100
         
         if prop.additional_costs and prop.management_fee:
             annual_costs = float(prop.additional_costs + prop.management_fee) * 12
             net_annual_rent = annual_rent - annual_costs
-            response_data["net_rental_yield"] = (net_annual_rent / float(prop.purchase_price)) * 100
+            response_data["net_rental_yield"] = (net_annual_rent / total_purchase_price) * 100
     
     # Add related data
     if hasattr(prop, 'project'):

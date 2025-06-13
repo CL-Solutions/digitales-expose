@@ -1,12 +1,6 @@
-# CLAUDE.md
+# Backend Development Guide - Digitales Expose API
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Project Structure
-
-- This is the backend API (FastAPI) for the digitales-expose system
-- Frontend application is located in `../digitales-expose-frontend/` (Next.js)
-- Template folder `../backend-template/` should be ignored
+This guide provides backend-specific instructions for the FastAPI API. For general project information, see the root CLAUDE.md.
 
 ## Project Overview
 
@@ -670,159 +664,63 @@ The `active` field from Investagon represents the property sale status with thes
 
 ### Mapper Pattern for ORM to Response Conversion
 
-When Pydantic's `model_validate()` fails to properly handle complex ORM relationships or computed fields, use the mapper pattern to convert ORM objects to response dictionaries. This pattern has been implemented to solve recurring issues with manual response construction.
+Use the mapper pattern when Pydantic's `model_validate()` fails with complex ORM relationships or computed fields.
 
-**Mapper Structure:**
-```
-app/mappers/
-├── __init__.py
-├── property_mapper.py    # Property-related mappings
-├── expose_mapper.py      # Expose-related mappings
-└── [entity]_mapper.py    # New entity mappings
-```
-
-**Implementation Pattern:**
-
-1. **Create mapper functions** in `app/mappers/[entity]_mapper.py`:
-```python
-def map_property_to_overview(prop: Property) -> Dict[str, Any]:
-    """Map Property ORM object to PropertyOverview format"""
-    response_data = {
-        "id": prop.id,
-        # ... base fields
-    }
-    
-    # Handle relationships
-    if prop.project:
-        response_data["project_name"] = prop.project.name
-    
-    # Calculate computed fields
-    if prop.purchase_price and prop.monthly_rent:
-        response_data["gross_rental_yield"] = ...
-    
-    return response_data
-```
-
-2. **Use in service layer**:
-```python
-from app.mappers.property_mapper import map_property_to_overview
-
-@staticmethod
-def list_properties_with_details(...) -> List[Dict[str, Any]]:
-    properties = PropertyService.list_properties(...)
-    return [map_property_to_overview(prop) for prop in properties]
-```
-
-3. **Use in API endpoint**:
-```python
-@router.get("/properties", response_model=List[PropertyResponse])
-async def list_properties(...):
-    response_data = PropertyService.list_properties_with_details(...)
-    return [PropertyResponse(**data) for data in response_data]
-```
+**Location**: `app/mappers/` directory
 
 **Existing Mappers:**
-- `property_mapper.py`: `map_property_to_overview()`, `map_property_to_response()`
-- `expose_mapper.py`: `map_expose_link_to_response()`, `map_expose_links_to_responses()`
+- `property_mapper.py`: Handles property-to-response conversions with computed fields
+- `expose_mapper.py`: Handles expose link conversions
 
-**When to Use Mappers:**
+**When to Use:**
 - Complex ORM relationships need special handling
-- Computed fields must be included in responses
+- Computed fields (e.g., `gross_rental_yield`, `thumbnail_url`)
 - Response format differs from ORM structure
-- Same conversion logic needed in multiple places
 - Fallback logic required (e.g., property → project images)
 
 **Best Practices:**
 - Check relationships exist before accessing: `if prop.project:`
-- Keep mappers pure - no database queries or side effects
-- Use type hints for clarity
-- Reuse existing mappers for nested relationships
-- Document complex logic with comments
+- Keep mappers pure - no database queries
+- Handle None values gracefully
+- Document complex calculations
 
-### Energy Field Synchronization from Investagon
+### Energy Field Synchronization
 
-**Investagon Energy Field Mapping (Updated January 2025):**
-- The Investagon API provides energy data that needs case conversion and null handling
-- Energy fields are synced at both property and project levels
-- Project energy data is inherited from the first property if not already set
+**Investagon Mappings:**
+- `energy_efficiency_class` → `energy_class` (auto-converted to UPPERCASE)
+- `power_consumption` → `energy_consumption` (float with null checks)
+- `energy_certificate_type` → `energy_certificate_type`
+- `heating_type` → `heating_type`
+- `primary_energy_consumption` - Manual entry only (not from Investagon)
 
-**Field Mappings:**
-- `energy_efficiency_class` → `energy_class` (converted to UPPERCASE)
-- `power_consumption` → `energy_consumption` (handled as float with null checks)
-- `energy_certificate_type` → `energy_certificate_type` (passed as-is)
-- `heating_type` → `heating_type` (passed as-is)
-- `primary_energy_consumption` - NOT provided by Investagon API (manual entry only)
+**Key Points:**
+- Investagon sends lowercase energy classes ("c") - converted to uppercase ("C")
+- Handle null values with `is not None` checks
+- Projects inherit energy data from first property during sync
 
-**Important Implementation Details:**
-1. **Case Conversion**: Investagon sends energy classes in lowercase (e.g., "c") but the frontend expects uppercase (e.g., "C"). The sync automatically converts to uppercase.
-2. **Null Handling**: Energy fields may come as `null` from Investagon. The sync uses `is not None` checks to handle this properly.
-3. **Project Energy Inheritance**: During project sync, energy data from the first property is copied to the project if the project doesn't already have values.
-4. **Consistent Sync**: All sync methods (single property, bulk sync, project sync) use the same mapping logic.
+### Common Audit Logger Errors
 
-**Example Investagon Response:**
-```json
-{
-  "energy_efficiency_class": "c",
-  "energy_certificate_type": null,
-  "power_consumption": null,
-  "heating_type": "Gasheizung"
-}
+**Error: `'AuditLogger' object has no attribute 'log_event'`**
+
+**Correct Methods:**
+- `log_business_event()` - CRUD operations
+- `log_auth_event()` - Authentication events  
+- `log_security_event()` - Security events
+- `log_admin_action()` - Admin actions
+- `log_system_event()` - System events
+
+**Example:**
+```python
+audit_logger.log_business_event(
+    db=db,
+    action="CITY_CREATED",
+    user_id=current_user.id,
+    tenant_id=current_user.tenant_id,
+    resource_type="city",
+    resource_id=city.id,
+    new_values={"name": city.name}
+)
 ```
-
-### Common Audit Logger Errors and Solutions
-
-**Error: `AttributeError: 'AuditLogger' object has no attribute 'log_event'` or `'log_activity'`**
-- **Cause**: Using incorrect method names for the AuditLogger
-- **Solution**: Use the correct method based on the type of event:
-  - `log_business_event()` - For CRUD operations on business entities
-  - `log_auth_event()` - For authentication/authorization events
-  - `log_security_event()` - For security-related events
-  - `log_admin_action()` - For admin actions
-  - `log_system_event()` - For system-level events
-
-- **Correct Usage for Business Operations**:
-  ```python
-  from app.utils.audit import AuditLogger
-  audit_logger = AuditLogger()
-  
-  # For CREATE operations
-  audit_logger.log_business_event(
-      db=db,
-      action="CITY_CREATED",  # Use descriptive action names
-      user_id=current_user.id,
-      tenant_id=current_user.tenant_id,
-      resource_type="city",
-      resource_id=city.id,
-      new_values={"name": city.name, "state": city.state}
-  )
-  
-  # For UPDATE operations
-  audit_logger.log_business_event(
-      db=db,
-      action="CITY_UPDATED",
-      user_id=current_user.id,
-      tenant_id=current_user.tenant_id,
-      resource_type="city",
-      resource_id=city.id,
-      old_values={},  # Previous values if needed
-      new_values=update_data  # New values
-  )
-  
-  # For DELETE operations
-  audit_logger.log_business_event(
-      db=db,
-      action="CITY_DELETED",
-      user_id=current_user.id,
-      tenant_id=current_user.tenant_id,
-      resource_type="city",
-      resource_id=city.id,
-      old_values={"name": city.name, "state": city.state}
-  )
-  
-  # Wrong - these methods don't exist
-  audit_logger.log_event(...)     # ❌ No such method
-  audit_logger.log_activity(...)  # ❌ No such method
-  ```
 
 ### Common Schema Errors and Solutions
 
@@ -867,140 +765,30 @@ from app.dependencies import (
 )
 ```
 
-## Micro Location Feature (January 2025)
+## Micro Location Feature
 
-### Overview
-The micro location feature automatically generates location-specific amenity information for projects using ChatGPT. This data includes shopping facilities, leisure activities, and infrastructure details in German, tailored to the specific address of each project.
+See root CLAUDE.md for complete documentation. Backend-specific notes:
 
-### Implementation Details
+**Service**: `app/services/chatgpt_service.py`
+- Uses OpenAI Assistants API v2 (synchronous)
+- Requires pre-configured assistant in OpenAI dashboard
+- Auto-fetches on project creation
+- Manual refresh via `POST /api/v1/projects/{id}/refresh-micro-location`
 
-1. **Database Schema**
-   - Added `micro_location` JSON column to the `projects` table via Alembic migration
-   - Stores structured data with three categories:
-     - `einkaufsmoeglichkeiten` (shopping facilities) - array of strings
-     - `freizeitmoeglichkeiten` (leisure activities) - array of strings  
-     - `infrastruktur` (infrastructure) - array of strings
-     - `raw_text` (optional raw response from ChatGPT)
-
-2. **ChatGPT Service** (`app/services/chatgpt_service.py`)
-   - Uses OpenAI Assistants API v2 (not completions API)
-   - Assistant must be pre-configured in OpenAI dashboard to return specific JSON format
-   - Synchronous implementation to match existing codebase patterns
-   - Generates location data based on project address (street, house number, city, state)
-   - Returns structured JSON with German language content
-   - Graceful error handling - project creation continues even if micro location fails
-
-3. **API Integration**
-   - **Automatic generation**: Micro location data is fetched automatically when creating a project via `ProjectService.create_project()`
-   - **Manual refresh endpoint**: `POST /api/v1/projects/{project_id}/refresh-micro-location`
-   - **Data included in**: Project detail responses (`GET /api/v1/projects/{id}`)
-
-4. **Service Layer Integration**
-   ```python
-   # ProjectService.create_project() - Auto-fetch on creation
-   project = Project(...)
-   db.add(project)
-   db.commit()
-   
-   # Try to fetch micro location data
-   try:
-       chatgpt_service = ChatGPTService()
-       micro_location_data = chatgpt_service.generate_micro_location_data(
-           db=db,
-           project=project,
-           user_id=str(created_by),
-           tenant_id=str(tenant_id)
-       )
-       project.micro_location = micro_location_data
-       db.commit()
-   except Exception as e:
-       logger.error(f"Failed to fetch micro location data: {str(e)}")
-       # Continue without micro location data
-   ```
-
-5. **Investagon Sync Integration**
-   - After syncing properties, automatically refreshes micro location for the project
-   - Implemented in `sync_single_property`, `sync_project_properties`, and `sync_all_properties`
-   - Uses `ProjectService.refresh_project_micro_location()` method
-
-### Configuration
+**Configuration**:
 ```bash
-# Required environment variables in .env
-OPENAI_API_KEY=your-openai-api-key
-OPENAI_ASSISTANT_ID=your-assistant-id  # Must be created in OpenAI dashboard
+OPENAI_API_KEY=your-key
+OPENAI_ASSISTANT_ID=your-assistant-id
 ```
 
-### API Endpoints
+## Recent Updates (January 2025)
 
-1. **Create Project with Auto Micro Location**
-   ```
-   POST /api/v1/projects
-   {
-     "name": "Project Name",
-     "street": "Musterstraße",
-     "house_number": "123",
-     "city": "München",
-     "state": "Bayern",
-     ...
-   }
-   ```
-   Response includes populated `micro_location` field
+See root CLAUDE.md for complete documentation on:
+- Micro Location Feature
+- Expose Link Parameter Updates  
+- Financial Calculations & Display Updates
 
-2. **Manually Refresh Micro Location**
-   ```
-   POST /api/v1/projects/{project_id}/refresh-micro-location
-   ```
-   Returns updated project with new micro location data
-
-3. **View Project with Micro Location**
-   ```
-   GET /api/v1/projects/{project_id}
-   ```
-   Response includes `micro_location` object
-
-### Error Handling
-- ChatGPT failures don't break project creation or sync operations
-- Errors are logged but operations continue
-- Manual refresh can be triggered later if initial fetch fails
-- Empty arrays returned for categories if no data available
-
-### Frontend Display
-- Project edit dialog shows micro location data in dedicated tab
-- Expose view dynamically displays micro location instead of static content
-- Categories shown with appropriate icons and German labels
-- Fallback messages when data is not yet available
-
-## Expose Link Parameter Update (January 2025)
-
-### Database Schema Changes
-The `expose_links` table has been updated to support comprehensive financial parameter presets:
-
-**Added columns:**
-- `preset_equity_percentage` (Float) - Equity percentage (0-100)
-- `preset_repayment_rate` (Float) - Repayment rate percentage
-- `preset_gross_income` (Numeric) - Annual gross income
-- `preset_is_married` (Boolean) - Marital status for tax calculations
-
-**Removed columns:**
-- `preset_equity_amount` - Replaced by percentage-based calculation
-- `preset_loan_term_years` - Now calculated from interest and repayment rates
-
-### Migration Commands
-```bash
-# Migrations already created and applied:
-# 1. Add new fields: 2025_06_13_1406-31b5ceb8e19c_add_new_preset_fields_to_expose_links.py
-# 2. Drop deprecated fields: 2025_06_13_1428-f0e38007a1ea_drop_deprecated_preset_columns_from_.py
-```
-
-### Backend Updates
-- Updated `ExposeLink` model to include new fields
-- Updated all schemas (`ExposeLinkBase`, `ExposeLinkCreate`, `ExposeLinkUpdate`, `ExposeLinkResponse`, `ExposeLinkPublicResponse`)
-- Updated `expose_mapper.py` to map new fields
-- Updated API endpoints to handle new parameters
-
-### Frontend Updates
-- Updated `FinanceParams` interface to include new optional parameters
-- Updated `ExposeLinkData` interface to match backend schema
-- Updated `CreateExposeLinkDialog` with sliders for all parameters
-- Fixed zero-value handling with explicit `!== undefined` checks
-- Removed all references to deprecated `loan_term_years`
+Backend-specific implementations:
+- `property_mapper.py` - Calculates total purchase price and monthly rent
+- `expose_mapper.py` - Maps new expose link parameters
+- Energy field mappings in Investagon sync
