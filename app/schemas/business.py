@@ -632,9 +632,12 @@ class ExposeLinkBase(BaseSchema):
     template_id: Optional[UUID] = None
     name: Optional[str] = Field(None, max_length=255)
     
-    preset_equity_amount: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    # Financial presets
+    preset_equity_percentage: Optional[float] = Field(None, ge=0, le=100)
     preset_interest_rate: Optional[float] = Field(None, ge=0, le=20)
-    preset_loan_term_years: Optional[int] = Field(None, ge=1, le=50)
+    preset_repayment_rate: Optional[float] = Field(None, ge=0, le=10)
+    preset_gross_income: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    preset_is_married: Optional[bool] = None
     preset_monthly_rent: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
     
     expiration_date: Optional[datetime] = None
@@ -658,9 +661,12 @@ class ExposeLinkUpdate(BaseSchema):
     """Schema for updating an ExposeLink"""
     name: Optional[str] = Field(None, max_length=255)
     
-    preset_equity_amount: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    # Financial presets
+    preset_equity_percentage: Optional[float] = Field(None, ge=0, le=100)
     preset_interest_rate: Optional[float] = Field(None, ge=0, le=20)
-    preset_loan_term_years: Optional[int] = Field(None, ge=1, le=50)
+    preset_repayment_rate: Optional[float] = Field(None, ge=0, le=10)
+    preset_gross_income: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    preset_is_married: Optional[bool] = None
     preset_monthly_rent: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
     
     expiration_date: Optional[datetime] = None
@@ -689,9 +695,12 @@ class ExposeLinkPublicResponse(BaseSchema):
     property: PropertyResponse
     template: Optional[ExposeTemplateResponse] = None
     
-    preset_equity_amount: Optional[Decimal] = None
+    # Financial presets
+    preset_equity_percentage: Optional[float] = None
     preset_interest_rate: Optional[float] = None
-    preset_loan_term_years: Optional[int] = None
+    preset_repayment_rate: Optional[float] = None
+    preset_gross_income: Optional[Decimal] = None
+    preset_is_married: Optional[bool] = None
     preset_monthly_rent: Optional[Decimal] = None
     
     visible_sections: Optional[Dict[str, bool]] = None

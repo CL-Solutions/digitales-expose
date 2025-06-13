@@ -349,12 +349,18 @@ async def list_items(...):
 
 1. **Templates**: Create reusable expose templates with:
    - Investment-focused content sections (benefits, location, financing, tax info)
-   - Default calculation parameters (equity percentage, interest rates, loan terms)
+   - Default calculation parameters (equity percentage, interest rates)
    - Property type-specific customization
    - Active/inactive status management
 2. **Link Generation**: Generate unique shareable links with:
    - Short, secure link IDs (8-character UUIDs)
-   - Preset calculation parameters that override template defaults
+   - Comprehensive preset calculation parameters:
+     - `preset_equity_percentage` (Float) - Equity percentage (0-100)
+     - `preset_interest_rate` (Float) - Interest rate percentage
+     - `preset_repayment_rate` (Float) - Repayment rate percentage
+     - `preset_gross_income` (Decimal) - Annual gross income in EUR
+     - `preset_is_married` (Boolean) - Marital status for tax calculations
+     - `preset_monthly_rent` (Decimal) - Monthly rent override
    - Custom messages for personalization
    - Password protection and expiration dates
    - Visible section controls (show/hide specific content)
@@ -363,11 +369,14 @@ async def list_items(...):
    - Password verification when protected
    - Automatic view tracking with visitor analytics
    - City information integration for location context
+   - All financial parameters from link presets applied to calculations
 4. **Analytics**: Comprehensive tracking including:
    - View count and timestamps (first/last viewed)
    - Visitor information (IP, user agent, referrer)
    - Individual view records for detailed analysis
    - Link performance metrics
+
+**Note**: The deprecated fields `preset_equity_amount` and `preset_loan_term_years` have been removed. Loan terms are now calculated automatically from interest and repayment rates using the annuity loan formula.
 
 ### Property Display Optimizations
 
@@ -960,3 +969,38 @@ OPENAI_ASSISTANT_ID=your-assistant-id  # Must be created in OpenAI dashboard
 - Expose view dynamically displays micro location instead of static content
 - Categories shown with appropriate icons and German labels
 - Fallback messages when data is not yet available
+
+## Expose Link Parameter Update (January 2025)
+
+### Database Schema Changes
+The `expose_links` table has been updated to support comprehensive financial parameter presets:
+
+**Added columns:**
+- `preset_equity_percentage` (Float) - Equity percentage (0-100)
+- `preset_repayment_rate` (Float) - Repayment rate percentage
+- `preset_gross_income` (Numeric) - Annual gross income
+- `preset_is_married` (Boolean) - Marital status for tax calculations
+
+**Removed columns:**
+- `preset_equity_amount` - Replaced by percentage-based calculation
+- `preset_loan_term_years` - Now calculated from interest and repayment rates
+
+### Migration Commands
+```bash
+# Migrations already created and applied:
+# 1. Add new fields: 2025_06_13_1406-31b5ceb8e19c_add_new_preset_fields_to_expose_links.py
+# 2. Drop deprecated fields: 2025_06_13_1428-f0e38007a1ea_drop_deprecated_preset_columns_from_.py
+```
+
+### Backend Updates
+- Updated `ExposeLink` model to include new fields
+- Updated all schemas (`ExposeLinkBase`, `ExposeLinkCreate`, `ExposeLinkUpdate`, `ExposeLinkResponse`, `ExposeLinkPublicResponse`)
+- Updated `expose_mapper.py` to map new fields
+- Updated API endpoints to handle new parameters
+
+### Frontend Updates
+- Updated `FinanceParams` interface to include new optional parameters
+- Updated `ExposeLinkData` interface to match backend schema
+- Updated `CreateExposeLinkDialog` with sliders for all parameters
+- Fixed zero-value handling with explicit `!== undefined` checks
+- Removed all references to deprecated `loan_term_years`

@@ -377,9 +377,11 @@ def create_sample_data(db: Session):
         tenant_id=sample_tenant.id,
         property_id=sample_property.id,
         name="Sample Expose Link",
-        preset_equity_amount=Decimal('90000.00'),
+        preset_equity_percentage=10.0,
         preset_interest_rate=3.5,
-        preset_loan_term_years=20,
+        preset_repayment_rate=2.0,
+        preset_gross_income=Decimal('80000.00'),
+        preset_is_married=False,
         is_active=True,
         created_by=admin_user.id
     )

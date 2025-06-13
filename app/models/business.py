@@ -334,9 +334,11 @@ class ExposeLink(Base, TenantMixin, AuditMixin):
     name = Column(String(255), nullable=True)  # Optional name for internal tracking
     
     # Predefined Calculation Parameters (can be overridden by viewer)
-    preset_equity_amount = Column(Numeric(10, 2), nullable=True)
+    preset_equity_percentage = Column(Float, nullable=True)  # Percentage-based equity
     preset_interest_rate = Column(Float, nullable=True)
-    preset_loan_term_years = Column(Integer, nullable=True)
+    preset_repayment_rate = Column(Float, nullable=True)  # Repayment percentage
+    preset_gross_income = Column(Numeric(10, 2), nullable=True)  # Annual gross income
+    preset_is_married = Column(Boolean, nullable=True)  # Marital status for tax calculation
     preset_monthly_rent = Column(Numeric(10, 2), nullable=True)
     
     # Access Control
