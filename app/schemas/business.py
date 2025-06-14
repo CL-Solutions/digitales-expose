@@ -440,7 +440,6 @@ class CityBase(BaseSchema):
     
     universities: Optional[List[str]] = None
     major_employers: Optional[List[Dict[str, str]]] = None
-    public_transport: Optional[Dict[str, Any]] = None
     
     description: Optional[str] = None
     highlights: Optional[List[Dict[str, str]]] = None

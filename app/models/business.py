@@ -240,7 +240,6 @@ class City(Base, TenantMixin, AuditMixin):
     # Infrastructure
     universities = Column(JSON, nullable=True)  # List of major universities
     major_employers = Column(JSON, nullable=True)  # List of major employers
-    public_transport = Column(JSON, nullable=True)  # Public transport info
     
     # Additional Data
     description = Column(Text, nullable=True)
