@@ -24,7 +24,7 @@ router = APIRouter()
 # SYSTEM OVERVIEW & ANALYTICS
 # ================================
 
-@router.get("/dashboard")
+@router.get("/dashboard/")
 async def get_admin_dashboard(
     super_admin: User = Depends(get_super_admin_user),
     db: Session = Depends(get_db)
@@ -105,7 +105,7 @@ async def get_admin_dashboard(
 # EMERGENCY OPERATIONS
 # ================================
 
-@router.post("/emergency/disable-tenant")
+@router.post("/emergency/disable-tenant/")
 async def emergency_disable_tenant(
     tenant_id: uuid.UUID = Query(..., description="Tenant ID to disable"),
     reason: str = Query(..., description="Reason for emergency disable"),
@@ -155,7 +155,7 @@ async def emergency_disable_tenant(
         db.rollback()
         raise HTTPException(status_code=500, detail="Emergency operation failed")
 
-@router.post("/emergency/global-logout")
+@router.post("/emergency/global-logout/")
 async def emergency_global_logout(
     reason: str = Query(..., description="Reason for global logout"),
     super_admin: User = Depends(get_super_admin_user),
@@ -197,7 +197,7 @@ async def emergency_global_logout(
 # BACKUP & RESTORE OPERATIONS
 # ================================
 
-@router.post("/backup/create")
+@router.post("/backup/create/")
 async def create_system_backup(
     backup_type: str = Query(default="full", description="Backup type: full, incremental, config"),
     super_admin: User = Depends(get_super_admin_user),
@@ -243,7 +243,7 @@ async def create_system_backup(
 # ANALYTICS & REPORTING
 # ================================
 
-@router.get("/analytics/growth")
+@router.get("/analytics/growth/")
 async def get_growth_analytics(
     period: str = Query(default="30d", description="Period: 7d, 30d, 90d, 1y"),
     super_admin: User = Depends(get_super_admin_user),
@@ -327,7 +327,7 @@ async def get_growth_analytics(
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to get growth analytics")
 
-@router.get("/audit/logs")
+@router.get("/audit/logs/")
 async def get_audit_logs(
     filter_params: AuthAuditFilterParams = Depends(),
     limit: int = Query(default=100, ge=1, le=1000),
@@ -395,7 +395,7 @@ async def get_audit_logs(
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to get audit logs")
 
-@router.get("/security/threats")
+@router.get("/security/threats/")
 async def get_security_threats(
     hours: int = Query(default=24, ge=1, le=168, description="Hours to look back"),
     super_admin: User = Depends(get_super_admin_user),
@@ -495,7 +495,7 @@ async def get_security_threats(
 # SYSTEM MAINTENANCE
 # ================================
 
-@router.post("/maintenance/cleanup")
+@router.post("/maintenance/cleanup/")
 async def system_cleanup(
     cleanup_type: str = Query(..., description="Type: sessions, audit_logs, deleted_users"),
     days_old: int = Query(default=30, ge=1, le=365, description="Remove data older than N days"),
@@ -567,7 +567,7 @@ async def system_cleanup(
         db.rollback()
         raise HTTPException(status_code=500, detail="Cleanup operation failed")
 
-@router.get("/maintenance/status")
+@router.get("/maintenance/status/")
 async def get_maintenance_status(
     super_admin: User = Depends(get_super_admin_user),
     db: Session = Depends(get_db)
@@ -619,7 +619,7 @@ async def get_maintenance_status(
 # USER & TENANT MANAGEMENT
 # ================================
 
-@router.get("/users/problematic")
+@router.get("/users/problematic/")
 async def get_problematic_users(
     limit: int = Query(default=50, ge=1, le=200),
     super_admin: User = Depends(get_super_admin_user),
@@ -781,7 +781,7 @@ async def unlock_user_account(
 # SYSTEM CONFIGURATION
 # ================================
 
-@router.get("/config/limits")
+@router.get("/config/limits/")
 async def get_system_limits(
     super_admin: User = Depends(get_super_admin_user),
     db: Session = Depends(get_db)
@@ -839,7 +839,7 @@ async def get_system_limits(
 # FEATURE TOGGLES & CONFIGURATION
 # ================================
 
-@router.get("/config/features")
+@router.get("/config/features/")
 async def get_feature_configuration(
     super_admin: User = Depends(get_super_admin_user),
     db: Session = Depends(get_db)
@@ -934,7 +934,7 @@ async def toggle_feature(
 # PERFORMANCE MONITORING
 # ================================
 
-@router.get("/performance/metrics")
+@router.get("/performance/metrics/")
 async def get_performance_metrics(
     hours: int = Query(default=24, ge=1, le=168),
     super_admin: User = Depends(get_super_admin_user),
@@ -987,7 +987,7 @@ async def get_performance_metrics(
 # NOTIFICATION SYSTEM
 # ================================
 
-@router.post("/notifications/send")
+@router.post("/notifications/send/")
 async def send_system_notification(
     title: str = Query(..., description="Notification title"),
     message: str = Query(..., description="Notification message"),

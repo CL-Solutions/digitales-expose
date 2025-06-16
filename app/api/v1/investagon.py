@@ -20,7 +20,7 @@ from app.core.exceptions import AppException
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-@router.get("/sync/status", response_model=Dict[str, Any])
+@router.get("/sync/status/", response_model=Dict[str, Any])
 async def check_sync_status(
     current_user: User = Depends(get_current_active_user),
     tenant_id: Optional[UUID] = Depends(get_current_tenant_id),
@@ -53,7 +53,7 @@ async def check_sync_status(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/sync/history", response_model=List[InvestagonSyncSchema])
+@router.get("/sync/history/", response_model=List[InvestagonSyncSchema])
 async def get_sync_history(
     limit: int = Query(default=10, ge=1, le=50, description="Number of sync records to return"),
     current_user: User = Depends(get_current_active_user),
@@ -187,7 +187,7 @@ async def sync_project_properties(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/sync/all", response_model=InvestagonSyncSchema, status_code=status.HTTP_202_ACCEPTED)
+@router.post("/sync/all/", response_model=InvestagonSyncSchema, status_code=status.HTTP_202_ACCEPTED)
 async def sync_all_properties(
     background_tasks: BackgroundTasks,
     incremental: bool = Query(
@@ -281,7 +281,7 @@ async def sync_all_properties(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/sync/all-sync", response_model=InvestagonSyncSchema)
+@router.post("/sync/all-sync/", response_model=InvestagonSyncSchema)
 async def sync_all_properties_sync(
     incremental: bool = Query(
         default=False, 
@@ -343,7 +343,7 @@ async def sync_all_properties_sync(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/test-connection", response_model=Dict[str, Any])
+@router.get("/test-connection/", response_model=Dict[str, Any])
 async def test_investagon_connection(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),

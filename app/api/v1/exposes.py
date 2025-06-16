@@ -28,7 +28,7 @@ router = APIRouter()
 
 # Template Management Endpoints
 
-@router.get("/templates", response_model=List[ExposeTemplateResponse])
+@router.get("/templates/", response_model=List[ExposeTemplateResponse])
 async def list_templates(
     property_type: Optional[str] = Query(None, description="Filter by property type"),
     is_active: Optional[bool] = Query(True, description="Filter by active status"),
@@ -46,7 +46,7 @@ async def list_templates(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/templates", response_model=ExposeTemplateResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/templates/", response_model=ExposeTemplateResponse, status_code=status.HTTP_201_CREATED)
 async def create_template(
     template_data: ExposeTemplateCreate,
     current_user: User = Depends(get_current_active_user),
@@ -127,7 +127,7 @@ async def delete_template(
 
 # Expose Link Management Endpoints
 
-@router.get("/links", response_model=List[ExposeLinkResponse])
+@router.get("/links/", response_model=List[ExposeLinkResponse])
 async def list_expose_links(
     property_id: Optional[UUID] = Query(None, description="Filter by property ID"),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
@@ -147,7 +147,7 @@ async def list_expose_links(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/links", response_model=ExposeLinkResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/links/", response_model=ExposeLinkResponse, status_code=status.HTTP_201_CREATED)
 async def create_expose_link(
     link_data: ExposeLinkCreate,
     current_user: User = Depends(get_current_active_user),

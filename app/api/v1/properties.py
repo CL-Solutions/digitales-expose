@@ -306,7 +306,7 @@ async def delete_property_image(
 
 # Property Statistics
 
-@router.get("/stats/overview", response_model=dict)
+@router.get("/stats/overview/", response_model=dict)
 async def get_property_statistics(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),

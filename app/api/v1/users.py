@@ -36,7 +36,7 @@ router = APIRouter()
 # USER PROFILE MANAGEMENT
 # ================================
 
-@router.get("/me", response_model=UserProfileResponse)
+@router.get("/me/", response_model=UserProfileResponse)
 async def get_current_user_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -59,7 +59,7 @@ async def get_current_user_profile(
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to get user profile")
 
-@router.put("/me", response_model=UserResponse)
+@router.put("/me/", response_model=UserResponse)
 async def update_current_user_profile(
     user_update: UserUpdate,
     current_user: User = Depends(get_current_user),
@@ -383,7 +383,7 @@ async def terminate_user_sessions(
 # USER INVITATIONS
 # ================================
 
-@router.post("/invite", response_model=UserInviteResponse)
+@router.post("/invite/", response_model=UserInviteResponse)
 async def invite_user(
     invite_data: UserInviteRequest,
     current_user: User = Depends(get_current_user),
@@ -418,7 +418,7 @@ async def invite_user(
 # BULK OPERATIONS
 # ================================
 
-@router.post("/bulk/create", response_model=UserBulkCreateResponse)
+@router.post("/bulk/create/", response_model=UserBulkCreateResponse)
 async def bulk_create_users(
     bulk_data: UserBulkCreateRequest,
     current_user: User = Depends(get_current_user),
@@ -441,7 +441,7 @@ async def bulk_create_users(
         db.rollback()
         raise HTTPException(status_code=500, detail="Bulk user creation failed")
 
-@router.post("/bulk/action", response_model=UserBulkActionResponse)
+@router.post("/bulk/action/", response_model=UserBulkActionResponse)
 async def bulk_user_action(
     action_data: UserBulkActionRequest,
     current_user: User = Depends(get_current_user),
@@ -469,7 +469,7 @@ async def bulk_user_action(
 # USER STATISTICS & ANALYTICS
 # ================================
 
-@router.get("/stats", response_model=UserStatsResponse)
+@router.get("/stats/", response_model=UserStatsResponse)
 async def get_user_stats(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -527,7 +527,7 @@ async def get_user_security_info(
 # PASSWORD MANAGEMENT FOR USERS
 # ================================
 
-@router.post("/me/change-password")
+@router.post("/me/change-password/")
 async def change_current_user_password(
     password_data: ChangePasswordRequest,
     current_user: User = Depends(get_current_user),
@@ -552,7 +552,7 @@ async def change_current_user_password(
 # USER EXPORT & REPORTS
 # ================================
 
-@router.get("/export")
+@router.get("/export/")
 async def export_users(
     format: str = Query(default="csv", description="Export format: csv, xlsx, json"),
     current_user: User = Depends(get_current_user),

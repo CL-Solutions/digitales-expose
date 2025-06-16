@@ -504,7 +504,7 @@ async def delete_identity_provider(
 # TENANT STATISTICS & ANALYTICS
 # ================================
 
-@router.get("/stats", response_model=TenantStatsResponse)
+@router.get("/stats/", response_model=TenantStatsResponse)
 async def get_tenant_statistics(
     super_admin: User = Depends(get_super_admin_user),
     db: Session = Depends(get_db)

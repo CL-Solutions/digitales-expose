@@ -20,7 +20,7 @@ from app.core.exceptions import AppException
 router = APIRouter(prefix="/user-preferences", tags=["user-preferences"])
 
 
-@router.get("/filters", response_model=List[UserFilterPreferenceResponse])
+@router.get("/filters/", response_model=List[UserFilterPreferenceResponse])
 async def get_user_filters(
     view_name: str = Query(..., description="View name (e.g., 'projects', 'properties')"),
     db: Session = Depends(get_db),
@@ -40,7 +40,7 @@ async def get_user_filters(
         raise HTTPException(status_code=e.status_code, detail=e.detail)
 
 
-@router.get("/filters/default", response_model=UserFilterPreferenceResponse)
+@router.get("/filters/default/", response_model=UserFilterPreferenceResponse)
 async def get_default_filter(
     view_name: str = Query(..., description="View name (e.g., 'projects', 'properties')"),
     db: Session = Depends(get_db),
@@ -61,7 +61,7 @@ async def get_default_filter(
     return default_filter
 
 
-@router.post("/filters", response_model=UserFilterPreferenceResponse)
+@router.post("/filters/", response_model=UserFilterPreferenceResponse)
 async def create_filter(
     filter_data: UserFilterPreferenceCreate,
     db: Session = Depends(get_db),
