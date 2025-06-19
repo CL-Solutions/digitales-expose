@@ -259,6 +259,11 @@ class PropertyBase(BaseSchema):
 
 class PropertyCreate(PropertyBase):
     """Schema for creating a Property"""
+    # Override location fields to make them optional since they come from the project
+    city: Optional[str] = Field(None, max_length=255)
+    state: Optional[str] = Field(None, max_length=255)
+    zip_code: Optional[str] = Field(None, max_length=20)
+    
     city_id: Optional[UUID] = None
     investagon_id: Optional[str] = None
 

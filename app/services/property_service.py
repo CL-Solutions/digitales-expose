@@ -62,6 +62,12 @@ class PropertyService:
             
             # Create property with denormalized location data from project
             property_dict = property_data.model_dump()
+            # Remove location fields that will come from project to avoid duplicate arguments
+            property_dict.pop('city', None)
+            property_dict.pop('state', None)
+            property_dict.pop('zip_code', None)
+            property_dict.pop('city_id', None)
+            
             property = Property(
                 **property_dict,
                 # Denormalize location data from project
@@ -77,14 +83,14 @@ class PropertyService:
             db.flush()
             
             # Log activity
-            audit_logger.log_event(
+            audit_logger.log_business_event(
                 db=db,
-                action="CREATE",
+                action="PROPERTY_CREATED",
                 user_id=current_user.id,
                 tenant_id=current_user.tenant_id,
                 resource_type="property",
                 resource_id=property.id,
-                details={
+                new_values={
                     "project_id": str(property.project_id),
                     "unit_number": property.unit_number,
                     "city": property.city
@@ -322,14 +328,14 @@ class PropertyService:
             db.flush()
             
             # Log activity
-            audit_logger.log_event(
+            audit_logger.log_business_event(
                 db=db,
-                action="UPDATE",
+                action="PROPERTY_UPDATED",
                 user_id=current_user.id,
                 tenant_id=current_user.tenant_id,
                 resource_type="property",
                 resource_id=property.id,
-                details={"updated_fields": list(update_data.keys())}
+                new_values={"updated_fields": list(update_data.keys())}
             )
             
             # If status was updated, update project status
@@ -373,14 +379,14 @@ class PropertyService:
                     )
             
             # Log activity before deletion
-            audit_logger.log_event(
+            audit_logger.log_business_event(
                 db=db,
-                action="DELETE",
+                action="PROPERTY_DELETED",
                 user_id=current_user.id,
                 tenant_id=current_user.tenant_id,
                 resource_type="property",
                 resource_id=property.id,
-                details={
+                old_values={
                     "project_id": str(property.project_id),
                     "unit_number": property.unit_number,
                     "city": property.city
