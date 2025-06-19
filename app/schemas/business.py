@@ -97,6 +97,21 @@ class ProjectUpdate(BaseSchema):
 
     model_config = ConfigDict(from_attributes=True)
 
+class GenericImageSchema(BaseResponseSchema):
+    """Generic schema for images (can be used for both project and property images)"""
+    image_url: str
+    image_type: str
+    title: Optional[str] = None
+    description: Optional[str] = None
+    display_order: int = 0
+    file_size: Optional[int] = None
+    mime_type: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    # Optional fields to identify the source
+    property_id: Optional[UUID] = None
+    project_id: Optional[UUID] = None
+
 class ProjectImageSchema(BaseResponseSchema):
     """Schema for ProjectImage"""
     project_id: UUID
@@ -342,7 +357,7 @@ class PropertyResponse(PropertyBase, BaseResponseSchema):
     total_investment: Optional[Decimal] = None
     gross_rental_yield: Optional[float] = None
     net_rental_yield: Optional[float] = None
-    all_images: List[PropertyImageSchema] = []  # Combined project + property images
+    all_images: List[GenericImageSchema] = []  # Combined project + property images
     
     model_config = ConfigDict(
         from_attributes=True,
@@ -362,9 +377,14 @@ class PropertyResponse(PropertyBase, BaseResponseSchema):
             
             # Start with project images if available
             all_images = []
-            if project and hasattr(project, 'images') and project.images:
-                # Add project images first (they're usually exterior/building shots)
-                all_images.extend(project.images)
+            if project:
+                # Check if project is a dict (already converted) or ORM object
+                if isinstance(project, dict) and 'images' in project:
+                    # Add project images first (they're usually exterior/building shots)
+                    all_images.extend(project.get('images', []))
+                elif hasattr(project, 'images') and project.images:
+                    # ORM object case
+                    all_images.extend(project.images)
             
             # Then add property-specific images
             if property_images:
@@ -380,21 +400,31 @@ class PropertyResponse(PropertyBase, BaseResponseSchema):
     def calculate_yields(cls, values):
         """Calculate yield metrics before validation"""
         if isinstance(values, dict):
-            purchase_price = values.get('purchase_price')
-            monthly_rent = values.get('monthly_rent')
-            additional_costs = values.get('additional_costs')
-            management_fee = values.get('management_fee')
+            # Calculate total purchase price including parking and furniture
+            purchase_price = float(values.get('purchase_price') or 0)
+            purchase_price_parking = float(values.get('purchase_price_parking') or 0)
+            purchase_price_furniture = float(values.get('purchase_price_furniture') or 0)
+            total_purchase_price = purchase_price + purchase_price_parking + purchase_price_furniture
             
-            if purchase_price and monthly_rent:
+            # Calculate total monthly rent including parking
+            monthly_rent = float(values.get('monthly_rent') or 0)
+            rent_parking_month = float(values.get('rent_parking_month') or 0)
+            total_monthly_rent = monthly_rent + rent_parking_month
+            
+            # Calculate yields based on totals
+            if total_purchase_price > 0 and total_monthly_rent > 0:
                 try:
-                    annual_rent = monthly_rent * 12
-                    values['total_investment'] = purchase_price
-                    values['gross_rental_yield'] = float((annual_rent / purchase_price) * 100)
+                    annual_rent = total_monthly_rent * 12
+                    values['total_investment'] = total_purchase_price
+                    values['gross_rental_yield'] = float((annual_rent / total_purchase_price) * 100)
                     
+                    # Calculate net yield if costs are available
+                    additional_costs = values.get('additional_costs')
+                    management_fee = values.get('management_fee')
                     if additional_costs and management_fee:
-                        annual_costs = (additional_costs + management_fee) * 12
+                        annual_costs = float(additional_costs + management_fee) * 12
                         net_annual_rent = annual_rent - annual_costs
-                        values['net_rental_yield'] = float((net_annual_rent / purchase_price) * 100)
+                        values['net_rental_yield'] = float((net_annual_rent / total_purchase_price) * 100)
                 except (TypeError, ZeroDivisionError, ValueError):
                     # Skip calculation if there are type/calculation errors
                     pass

@@ -126,6 +126,7 @@ def map_property_to_response(prop: Property) -> Dict[str, Any]:
         "depreciation_rate_building_manual": prop.depreciation_rate_building_manual,
         "energy_certificate_type": prop.energy_certificate_type,
         "energy_consumption": prop.energy_consumption,
+        "primary_energy_consumption": prop.primary_energy_consumption,
         "energy_class": prop.energy_class,
         "heating_type": prop.heating_type,
         "active": prop.active,
@@ -172,5 +173,8 @@ def map_property_to_response(prop: Property) -> Dict[str, Any]:
     
     if hasattr(prop, 'city_ref'):
         response_data["city_ref"] = prop.city_ref
+    
+    # Don't set all_images here - let the PropertyResponse validator handle it
+    # The validator in schemas/business.py will combine project and property images
     
     return response_data

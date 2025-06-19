@@ -26,6 +26,7 @@ from app.services.property_service import PropertyService
 from app.services.s3_service import get_s3_service
 from app.core.exceptions import AppException
 from app.config import settings
+from app.mappers.property_mapper import map_property_to_response
 
 router = APIRouter()
 
@@ -92,7 +93,37 @@ async def get_property(
     """Get property details"""
     try:
         property = PropertyService.get_property(db, property_id, current_user)
-        return PropertyResponse.model_validate(property)
+        
+        # Use mapper to get response data with calculated fields
+        response_data = map_property_to_response(property)
+        
+        # Convert related objects to dicts for proper serialization
+        if property.project:
+            project_dict = property.project.__dict__.copy()
+            project_dict.pop('_sa_instance_state', None)
+            
+            # Convert project images if they exist
+            if hasattr(property.project, 'images') and property.project.images:
+                project_images = []
+                for img in property.project.images:
+                    img_dict = img.__dict__.copy()
+                    img_dict.pop('_sa_instance_state', None)
+                    project_images.append(img_dict)
+                project_dict['images'] = project_images
+            
+            response_data['project'] = project_dict
+            
+        if property.images:
+            response_data['images'] = [img.__dict__.copy() for img in property.images]
+            for img_dict in response_data['images']:
+                img_dict.pop('_sa_instance_state', None)
+                
+        if property.city_ref:
+            response_data['city_ref'] = property.city_ref.__dict__.copy()
+            response_data['city_ref'].pop('_sa_instance_state', None)
+        
+        # The PropertyResponse validator will handle combining all_images
+        return PropertyResponse.model_validate(response_data)
     
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
