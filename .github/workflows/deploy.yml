@@ -19,10 +19,10 @@ jobs:
         chmod 600 ~/.ssh/id_ed25519
         ssh-keyscan -H 91.99.139.66 >> ~/.ssh/known_hosts
 
-    - name: Deploy application using rsync
+    - name: Copy application using rsync
       run: |
         rsync -avz --delete ./ digitalesexpose@91.99.139.66:/home/digitalesexpose/backend
-    - name: Deploy via Docker
+    - name: Deploy and start application
       run: |
         ssh digitalesexpose@91.99.139.66 "
           cd backend &&
