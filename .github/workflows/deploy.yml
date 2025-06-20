@@ -25,6 +25,7 @@ jobs:
     - name: Deploy via Docker
       run: |
         ssh digitalesexpose@91.99.139.66 "
+          cd backend &&
           python3 -m venv venv &&
           source venv/bin/activate &&
           pip3 install -r requirements.txt &&
