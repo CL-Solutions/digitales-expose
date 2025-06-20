@@ -17,8 +17,8 @@ jobs:
         mkdir -p ~/.ssh
         echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
         chmod 600 ~/.ssh/id_ed25519
-        ssh-keyscan -H 142.132.221.243 >> ~/.ssh/known_hosts
+        ssh-keyscan -H 91.99.139.66 >> ~/.ssh/known_hosts
 
     - name: Deploy application using rsync
       run: |
-        rsync -avz --delete ./ digitalesexpose@142.132.221.243:/home/digitalesexpose/backend
+        rsync -avz --delete ./ digitalesexpose@91.99.139.66:/home/digitalesexpose/backend
