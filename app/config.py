@@ -66,7 +66,14 @@ class settings(BaseSettings):
     BASE_URL: str = "https://yourapp.com"
     FRONTEND_URL: str = "https://app.yourapp.com"
     DEBUG: bool = False
-    CORS_ORIGINS: list[str] = ["http://localhost:3000"]
+    CORS_ORIGINS: list[str] = [
+        "http://localhost:3000", 
+        "http://91.99.139.66:3000",
+        "http://nevesto.de",
+        "https://nevesto.de",
+        "http://www.nevesto.de",
+        "https://www.nevesto.de"
+    ]
     
     # Super Admin Settings
     SUPER_ADMIN_EMAIL: Optional[str] = None
