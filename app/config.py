@@ -71,6 +71,7 @@ class settings(BaseSettings):
         "http://91.99.139.66:3000",
         "http://nevesto.de",
         "https://nevesto.de",
+        "https://dev.nevesto.de",
         "http://www.nevesto.de",
         "https://www.nevesto.de"
     ]
