@@ -1090,7 +1090,7 @@ class InvestagonSyncService:
             )
             if modified_since:
                 properties_query = properties_query.filter(
-                    Property.investagon_id.isnot(None)
+                    Property.investagon_id.is_not(None)
                 )
             
             for prop in properties_query.all():

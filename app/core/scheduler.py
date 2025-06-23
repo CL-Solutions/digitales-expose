@@ -178,10 +178,10 @@ async def sync_investagon_properties():
         
         # Get all tenants that have Investagon sync enabled
         tenants_to_sync = db.query(Tenant).filter(
-            Tenant.is_active == True,
-            Tenant.investagon_sync_enabled == True,
-            Tenant.investagon_organization_id.isnot(None),
-            Tenant.investagon_api_key.isnot(None)
+            Tenant.is_active.is_(True),
+            Tenant.investagon_sync_enabled.is_(True),
+            Tenant.investagon_organization_id.is_not(None),
+            Tenant.investagon_api_key.is_not(None)
         ).all()
         
         if not tenants_to_sync:
@@ -196,7 +196,7 @@ async def sync_investagon_properties():
                 # Get a user from this tenant for the sync (prefer admin)
                 sync_user = db.query(User).filter(
                     User.tenant_id == tenant.id,
-                    User.is_active == True
+                    User.is_active.is_(True)
                 ).first()
                 
                 if not sync_user:

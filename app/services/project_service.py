@@ -239,9 +239,22 @@ class ProjectService:
             rental_yields = []
             
             for prop in project.properties:
-                if prop.purchase_price and prop.monthly_rent and prop.purchase_price > 0:
-                    annual_rent = float(prop.monthly_rent) * 12
-                    yield_value = (annual_rent / float(prop.purchase_price)) * 100
+                # Calculate total purchase price including parking and furniture
+                total_price = float(prop.purchase_price or 0)
+                if prop.purchase_price_parking:
+                    total_price += float(prop.purchase_price_parking)
+                if prop.purchase_price_furniture:
+                    total_price += float(prop.purchase_price_furniture)
+                
+                # Calculate total monthly rent including parking
+                total_rent = float(prop.monthly_rent or 0)
+                if prop.rent_parking_month:
+                    total_rent += float(prop.rent_parking_month)
+                
+                # Calculate yield only if we have valid values
+                if total_price > 0 and total_rent > 0:
+                    annual_rent = total_rent * 12
+                    yield_value = (annual_rent / total_price) * 100
                     rental_yields.append(yield_value)
             
             if rental_yields:
