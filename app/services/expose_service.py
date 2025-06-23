@@ -434,9 +434,8 @@ class ExposeService:
                 joinedload(ExposeLink.property).joinedload(Property.project)
             )
             
-            # Apply tenant filter if not super admin
-            if not current_user.is_super_admin:
-                query = query.filter(ExposeLink.tenant_id == current_user.tenant_id)
+            # Always filter by current tenant (even for super admins)
+            query = query.filter(ExposeLink.tenant_id == current_user.tenant_id)
             
             if property_id:
                 query = query.filter(ExposeLink.property_id == property_id)
@@ -488,9 +487,8 @@ class ExposeService:
             # Get link by UUID (not link_id string)
             query = db.query(ExposeLink)
             
-            # Apply tenant filter if not super admin
-            if not current_user.is_super_admin:
-                query = query.filter(ExposeLink.tenant_id == current_user.tenant_id)
+            # Always filter by current tenant (even for super admins)
+            query = query.filter(ExposeLink.tenant_id == current_user.tenant_id)
             
             link = query.filter(ExposeLink.id == link_id).first()
             
@@ -554,9 +552,8 @@ class ExposeService:
             # Get link by UUID (not link_id string)
             query = db.query(ExposeLink)
             
-            # Apply tenant filter if not super admin
-            if not current_user.is_super_admin:
-                query = query.filter(ExposeLink.tenant_id == current_user.tenant_id)
+            # Always filter by current tenant (even for super admins)
+            query = query.filter(ExposeLink.tenant_id == current_user.tenant_id)
             
             link = query.filter(ExposeLink.id == link_id).first()
             
@@ -656,9 +653,8 @@ class ExposeService:
             # Get link by UUID
             query = db.query(ExposeLink)
             
-            # Apply tenant filter if not super admin
-            if not current_user.is_super_admin:
-                query = query.filter(ExposeLink.tenant_id == current_user.tenant_id)
+            # Always filter by current tenant (even for super admins)
+            query = query.filter(ExposeLink.tenant_id == current_user.tenant_id)
             
             link = query.filter(ExposeLink.id == link_id).first()
             
