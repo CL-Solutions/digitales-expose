@@ -249,6 +249,7 @@ class PropertyBase(BaseSchema):
     active: Optional[int] = Field(None, ge=0)
     pre_sale: Optional[int] = Field(None, ge=0, le=1)
     draft: Optional[int] = Field(None, ge=0, le=1)
+    visibility: Optional[int] = Field(None, ge=-1, le=1)  # -1: deactivated, 0: in progress, 1: active
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -326,6 +327,7 @@ class PropertyUpdate(BaseSchema):
     active: Optional[int] = Field(None, ge=0)
     pre_sale: Optional[int] = Field(None, ge=0, le=1)
     draft: Optional[int] = Field(None, ge=0, le=1)
+    visibility: Optional[int] = Field(None, ge=-1, le=1)  # -1: deactivated, 0: in progress, 1: active
 
     model_config = ConfigDict(
         from_attributes=True,

@@ -132,6 +132,7 @@ def map_property_to_response(prop: Property) -> Dict[str, Any]:
         "active": prop.active,
         "pre_sale": prop.pre_sale,
         "draft": prop.draft,
+        "visibility": prop.visibility,
         "city_id": prop.city_id,
         "investagon_id": prop.investagon_id,
         "last_sync": prop.last_sync,
