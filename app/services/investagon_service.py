@@ -476,8 +476,9 @@ class InvestagonSyncService:
             "operation_cost_reserve": safe_decimal(investagon_data.get("operation_cost_reserve_apartment", 0)),
             
             # Additional Property Data
-            "object_share_owner": safe_float(investagon_data.get("object_share_owner", 0)),
-            "share_land": safe_float(investagon_data.get("share_land", 0)),
+            # Convert percentage values (e.g., 3 for 3%) to decimal (0.03)
+            "object_share_owner": safe_float(investagon_data.get("object_share_owner", 0)) / 100 if investagon_data.get("object_share_owner") is not None else None,
+            "share_land": safe_float(investagon_data.get("share_land", 0)) / 100 if investagon_data.get("share_land") is not None else None,
             "property_usage": investagon_data.get("property_usage"),
             "initial_maintenance_expenses": safe_decimal(investagon_data.get("initial_investment_extra_1y_manual", 0)),
             

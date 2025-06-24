@@ -230,8 +230,8 @@ class PropertyBase(BaseSchema):
     operation_cost_reserve: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
     
     # Additional Property Data
-    object_share_owner: Optional[float] = Field(None, ge=0)  # Can be percentage value from Investagon
-    share_land: Optional[float] = Field(None, ge=0)
+    object_share_owner: Optional[float] = Field(None, ge=0, le=1)  # Decimal percentage (0.0 to 1.0)
+    share_land: Optional[float] = Field(None, ge=0, le=1)  # Decimal percentage (0.0 to 1.0)
     property_usage: Optional[str] = Field(None, max_length=100)
     initial_maintenance_expenses: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
     
