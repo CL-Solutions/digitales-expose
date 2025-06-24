@@ -1002,15 +1002,18 @@ class InvestagonSyncService:
             except Exception as e:
                 logger.warning(f"Failed to update project status for {local_project_id}: {str(e)}")
             
-            # Refresh micro location for the project
+            # Refresh micro location for the project (only if not already exists)
             try:
-                ProjectService.refresh_project_micro_location(
+                refreshed = ProjectService.refresh_project_micro_location(
                     db=db,
                     project_id=local_project_id,
                     tenant_id=current_user.tenant_id,
                     user_id=current_user.id
                 )
-                logger.info(f"Refreshed micro location for project {local_project_id}")
+                if refreshed:
+                    logger.info(f"Generated micro location for project {local_project_id}")
+                else:
+                    logger.info(f"Project {local_project_id} already has micro location data, skipped generation")
             except Exception as e:
                 logger.warning(f"Failed to refresh micro location for {local_project_id}: {str(e)}")
             

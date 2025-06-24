@@ -523,9 +523,21 @@ class ProjectService:
         db: Session,
         project_id: UUID,
         tenant_id: UUID,
-        user_id: UUID = None
+        user_id: UUID = None,
+        force_refresh: bool = False
     ) -> bool:
-        """Refresh micro location data for a project"""
+        """Refresh micro location data for a project
+        
+        Args:
+            db: Database session
+            project_id: Project ID
+            tenant_id: Tenant ID
+            user_id: User ID
+            force_refresh: If True, refresh even if data already exists
+        
+        Returns:
+            bool: True if refreshed, False otherwise
+        """
         try:
             # Get the project
             project = db.query(Project).filter(
@@ -537,6 +549,11 @@ class ProjectService:
             
             if not project:
                 logger.warning(f"Project {project_id} not found for tenant {tenant_id}")
+                return False
+            
+            # Check if micro location already exists (unless force refresh)
+            if project.micro_location and not force_refresh:
+                logger.info(f"Project {project_id} already has micro location data, skipping refresh")
                 return False
             
             # Only refresh if project has required address data

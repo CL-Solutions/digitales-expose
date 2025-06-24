@@ -300,25 +300,23 @@ async def refresh_micro_location(
 ):
     """Manually refresh micro location data for a project"""
     try:
-        # Get the project
-        project = ProjectService.get_project(db, project_id, tenant_id)
-        
-        # Import here to avoid circular imports
-        from app.services.chatgpt_service import ChatGPTService
-        
-        # Generate new micro location data
-        chatgpt_service = ChatGPTService()
-        micro_location_data = chatgpt_service.generate_micro_location_data(
+        # Use the service method with force_refresh=True for manual refresh
+        success = ProjectService.refresh_project_micro_location(
             db=db,
-            project=project,
-            user_id=str(current_user.id),
-            tenant_id=str(tenant_id)
+            project_id=project_id,
+            tenant_id=tenant_id,
+            user_id=current_user.id,
+            force_refresh=True  # Always refresh when manually triggered
         )
         
-        # Update project
-        project.micro_location = micro_location_data
-        db.commit()
-        db.refresh(project)
+        if not success:
+            raise AppException(
+                status_code=400,
+                detail="Failed to refresh micro location data"
+            )
+        
+        # Get the updated project
+        project = ProjectService.get_project(db, project_id, tenant_id)
         
         return ProjectResponse.model_validate(project)
         
