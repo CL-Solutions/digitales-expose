@@ -71,6 +71,9 @@ async def startup_tasks():
     # Initialize and start background scheduler
     await initialize_background_scheduler()
     
+    # Clean up stuck Investagon syncs
+    await cleanup_stuck_syncs()
+    
     # Run health checks
     await run_startup_health_checks()
 
@@ -210,6 +213,48 @@ async def stop_background_scheduler():
         
     except Exception as e:
         logger.error(f"Error stopping background scheduler: {e}")
+
+async def cleanup_stuck_syncs():
+    """Clean up any Investagon syncs stuck in 'in_progress' status"""
+    try:
+        from app.core.database import SessionLocal
+        from app.models.business import InvestagonSync
+        from datetime import datetime, timezone
+        from sqlalchemy import and_
+        
+        db = SessionLocal()
+        try:
+            # Find all syncs stuck in in_progress status
+            stuck_syncs = db.query(InvestagonSync).filter(
+                InvestagonSync.status == "in_progress"
+            ).all()
+            
+            if stuck_syncs:
+                logger.warning(f"Found {len(stuck_syncs)} stuck Investagon sync(s)")
+                
+                for sync in stuck_syncs:
+                    # Update to failed status
+                    sync.status = "failed"
+                    sync.completed_at = datetime.now(timezone.utc)
+                    sync.error_details = {
+                        "error": "Sync interrupted by server restart",
+                        "fixed_at": datetime.now(timezone.utc).isoformat(),
+                        "fixed_by": "startup cleanup"
+                    }
+                    
+                    logger.info(f"Fixed stuck sync {sync.id} for tenant {sync.tenant_id}")
+                
+                db.commit()
+                logger.info(f"Successfully cleaned up {len(stuck_syncs)} stuck sync(s)")
+            else:
+                logger.info("No stuck Investagon syncs found")
+                
+        finally:
+            db.close()
+            
+    except Exception as e:
+        logger.error(f"Failed to cleanup stuck syncs: {e}")
+        # Don't raise - app should start even if cleanup fails
 
 async def run_startup_health_checks():
     """Run health checks on startup"""
