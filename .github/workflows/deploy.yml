@@ -25,6 +25,7 @@ jobs:
     - name: Deploy and start application
       run: |
         ssh digitalesexpose@91.99.139.66 "
+          cp backend_env backend/.env &&
           cd backend &&
           python3 -m venv venv &&
           source venv/bin/activate &&
