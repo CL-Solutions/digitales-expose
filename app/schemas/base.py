@@ -14,6 +14,7 @@ class BaseSchema(BaseModel):
         str_strip_whitespace=True,
         validate_assignment=True,
         arbitrary_types_allowed=True,
+        exclude_none=True,  # Exclude None values from responses
         json_schema_extra={
             "examples": []
         }
