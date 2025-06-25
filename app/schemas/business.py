@@ -290,20 +290,20 @@ class PropertyUpdate(BaseSchema):
     purchase_price_parking: Optional[float] = Field(None, ge=0)
     purchase_price_furniture: Optional[float] = Field(None, ge=0)
     monthly_rent: Optional[float] = Field(None, ge=0)
-    rent_parking_month: Optional[float] = Field(None, decimal_places=2, ge=0)
-    additional_costs: Optional[float] = Field(None, decimal_places=2, ge=0)
-    management_fee: Optional[float] = Field(None, decimal_places=2, ge=0)
+    rent_parking_month: Optional[float] = Field(None, ge=0)
+    additional_costs: Optional[float] = Field(None, ge=0)
+    management_fee: Optional[float] = Field(None, ge=0)
     
     # Transaction Costs
-    transaction_broker_rate: Optional[float] = Field(None, decimal_places=2, ge=0)
-    transaction_tax_rate: Optional[float] = Field(None, decimal_places=2, ge=0)
-    transaction_notary_rate: Optional[float] = Field(None, decimal_places=2, ge=0)
-    transaction_register_rate: Optional[float] = Field(None, decimal_places=2, ge=0)
+    transaction_broker_rate: Optional[float] = Field(None, ge=0)
+    transaction_tax_rate: Optional[float] = Field(None, ge=0)
+    transaction_notary_rate: Optional[float] = Field(None, ge=0)
+    transaction_register_rate: Optional[float] = Field(None, ge=0)
     
     # Operating Costs
-    operation_cost_landlord: Optional[float] = Field(None, decimal_places=2, ge=0)
-    operation_cost_tenant: Optional[float] = Field(None, decimal_places=2, ge=0)
-    operation_cost_reserve: Optional[float] = Field(None, decimal_places=2, ge=0)
+    operation_cost_landlord: Optional[float] = Field(None, ge=0)
+    operation_cost_tenant: Optional[float] = Field(None, ge=0)
+    operation_cost_reserve: Optional[float] = Field(None, ge=0)
     
     # Additional Property Data
     object_share_owner: Optional[float] = Field(None, ge=0, le=1)
@@ -664,9 +664,9 @@ class ExposeLinkBase(BaseSchema):
     preset_equity_percentage: Optional[float] = Field(None, ge=0, le=100)
     preset_interest_rate: Optional[float] = Field(None, ge=0, le=20)
     preset_repayment_rate: Optional[float] = Field(None, ge=0, le=10)
-    preset_gross_income: Optional[float] = Field(None, decimal_places=2, ge=0)
+    preset_gross_income: Optional[float] = Field(None, ge=0)
     preset_is_married: Optional[bool] = None
-    preset_monthly_rent: Optional[float] = Field(None, decimal_places=2, ge=0)
+    preset_monthly_rent: Optional[float] = Field(None, ge=0)
     
     expiration_date: Optional[datetime] = None
     password_protected: bool = False
@@ -693,9 +693,9 @@ class ExposeLinkUpdate(BaseSchema):
     preset_equity_percentage: Optional[float] = Field(None, ge=0, le=100)
     preset_interest_rate: Optional[float] = Field(None, ge=0, le=20)
     preset_repayment_rate: Optional[float] = Field(None, ge=0, le=10)
-    preset_gross_income: Optional[float] = Field(None, decimal_places=2, ge=0)
+    preset_gross_income: Optional[float] = Field(None, ge=0)
     preset_is_married: Optional[bool] = None
-    preset_monthly_rent: Optional[float] = Field(None, decimal_places=2, ge=0)
+    preset_monthly_rent: Optional[float] = Field(None, ge=0)
     
     expiration_date: Optional[datetime] = None
     is_active: Optional[bool] = None
