@@ -29,6 +29,7 @@ class Project(Base, TenantMixin, AuditMixin):
     construction_year = Column(Integer, nullable=True)
     renovation_year = Column(Integer, nullable=True)
     total_floors = Column(Integer, nullable=True)
+    total_units = Column(Integer, nullable=True)
     building_type = Column(String(100), nullable=True)  # 'apartment_building', 'mixed_use', etc.
     
     # Building Features

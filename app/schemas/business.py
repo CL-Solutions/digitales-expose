@@ -30,6 +30,7 @@ class ProjectBase(BaseSchema):
     construction_year: Optional[int] = Field(None, ge=1800, le=2100)
     renovation_year: Optional[int] = Field(None, ge=1800, le=2100)
     total_floors: Optional[int] = Field(None, gt=0)
+    total_units: Optional[int] = Field(None, gt=0)
     building_type: Optional[str] = Field(None, max_length=100)
     
     # Building Features
@@ -75,6 +76,7 @@ class ProjectUpdate(BaseSchema):
     construction_year: Optional[int] = Field(None, ge=1800, le=2100)
     renovation_year: Optional[int] = Field(None, ge=1800, le=2100)
     total_floors: Optional[int] = Field(None, gt=0)
+    total_units: Optional[int] = Field(None, gt=0)
     building_type: Optional[str] = Field(None, max_length=100)
     
     has_elevator: Optional[bool] = None
