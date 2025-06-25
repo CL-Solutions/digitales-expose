@@ -10,26 +10,26 @@ from app.schemas.base import BaseSchema, TimestampMixin, SlugFieldMixin, DomainF
 class TenantBase(BaseSchema, DomainFieldMixin):
     """Base Tenant Schema"""
     name: str = Field(..., min_length=2, max_length=255, description="Organization name")
-    domain: Optional[str] = Field(None, max_length=255, description="Organization domain")
+    domain: Optional[str] = Field(max_length=255, description="Organization domain")
     settings: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Tenant-specific settings")
     subscription_plan: str = Field(default="basic", description="Subscription plan")
     max_users: int = Field(default=10, ge=1, le=10000, description="Maximum number of users")
     is_active: bool = Field(default=True, description="Tenant active status")
     
     # Investagon Integration
-    investagon_organization_id: Optional[str] = Field(None, max_length=255, description="Investagon organization ID")
-    investagon_api_key: Optional[str] = Field(None, max_length=255, description="Investagon API key")
+    investagon_organization_id: Optional[str] = Field(max_length=255, description="Investagon organization ID")
+    investagon_api_key: Optional[str] = Field(max_length=255, description="Investagon API key")
     investagon_sync_enabled: bool = Field(default=False, description="Enable automatic Investagon sync")
     
     # Contact Information
-    contact_email: Optional[str] = Field(None, max_length=255, description="Contact email")
-    contact_phone: Optional[str] = Field(None, max_length=100, description="Contact phone")
-    contact_street: Optional[str] = Field(None, max_length=255, description="Contact street")
-    contact_house_number: Optional[str] = Field(None, max_length=50, description="Contact house number")
-    contact_city: Optional[str] = Field(None, max_length=100, description="Contact city")
-    contact_state: Optional[str] = Field(None, max_length=100, description="Contact state")
-    contact_zip_code: Optional[str] = Field(None, max_length=20, description="Contact ZIP code")
-    contact_country: Optional[str] = Field(None, max_length=100, description="Contact country")
+    contact_email: Optional[str] = Field(max_length=255, description="Contact email")
+    contact_phone: Optional[str] = Field(max_length=100, description="Contact phone")
+    contact_street: Optional[str] = Field(max_length=255, description="Contact street")
+    contact_house_number: Optional[str] = Field(max_length=50, description="Contact house number")
+    contact_city: Optional[str] = Field(max_length=100, description="Contact city")
+    contact_state: Optional[str] = Field(max_length=100, description="Contact state")
+    contact_zip_code: Optional[str] = Field(max_length=20, description="Contact ZIP code")
+    contact_country: Optional[str] = Field(max_length=100, description="Contact country")
 
 class TenantCreate(TenantBase, SlugFieldMixin):
     """Schema für Tenant-Erstellung (nur Super-Admin)"""
@@ -39,37 +39,37 @@ class TenantCreate(TenantBase, SlugFieldMixin):
     admin_email: EmailStr = Field(..., description="Email of the first tenant admin")
     admin_first_name: str = Field(..., min_length=1, max_length=100)
     admin_last_name: str = Field(..., min_length=1, max_length=100)
-    admin_password: Optional[str] = Field(None, min_length=8, description="Admin password (optional, will generate if not provided)")
+    admin_password: Optional[str] = Field(min_length=8, description="Admin password (optional, will generate if not provided)")
 
 class TenantUpdate(BaseSchema, DomainFieldMixin):
     """Schema für Tenant-Updates"""
-    name: Optional[str] = Field(None, min_length=2, max_length=255)
-    domain: Optional[str] = Field(None, max_length=255)
+    name: Optional[str] = Field(min_length=2, max_length=255)
+    domain: Optional[str] = Field(max_length=255)
     settings: Optional[Dict[str, Any]] = None
-    subscription_plan: Optional[str] = None
-    max_users: Optional[int] = Field(None, ge=1, le=10000)
-    is_active: Optional[bool] = None
+    subscription_plan: Optional[str]
+    max_users: Optional[int] = Field(ge=1, le=10000)
+    is_active: Optional[bool]
     
     # Investagon Integration
-    investagon_organization_id: Optional[str] = Field(None, max_length=255)
-    investagon_api_key: Optional[str] = Field(None, max_length=255)
-    investagon_sync_enabled: Optional[bool] = None
+    investagon_organization_id: Optional[str] = Field(max_length=255)
+    investagon_api_key: Optional[str] = Field(max_length=255)
+    investagon_sync_enabled: Optional[bool]
     
     # Contact Information
-    contact_email: Optional[str] = Field(None, max_length=255)
-    contact_phone: Optional[str] = Field(None, max_length=100)
-    contact_street: Optional[str] = Field(None, max_length=255)
-    contact_house_number: Optional[str] = Field(None, max_length=50)
-    contact_city: Optional[str] = Field(None, max_length=100)
-    contact_state: Optional[str] = Field(None, max_length=100)
-    contact_zip_code: Optional[str] = Field(None, max_length=20)
-    contact_country: Optional[str] = Field(None, max_length=100)
+    contact_email: Optional[str] = Field(max_length=255)
+    contact_phone: Optional[str] = Field(max_length=100)
+    contact_street: Optional[str] = Field(max_length=255)
+    contact_house_number: Optional[str] = Field(max_length=50)
+    contact_city: Optional[str] = Field(max_length=100)
+    contact_state: Optional[str] = Field(max_length=100)
+    contact_zip_code: Optional[str] = Field(max_length=20)
+    contact_country: Optional[str] = Field(max_length=100)
 
 class TenantResponse(TenantBase, TimestampMixin):
     """Schema für Tenant-Responses"""
     id: UUID
     slug: str
-    user_count: Optional[int] = Field(None, description="Current number of users")
+    user_count: Optional[int] = Field(description="Current number of users")
 
 class TenantListResponse(BaseSchema):
     """Schema für Tenant-Listen"""
@@ -89,11 +89,11 @@ class TenantIdentityProviderBase(BaseSchema):
     
     # OAuth2/OIDC Configuration
     client_id: str = Field(..., min_length=1, description="OAuth client ID")
-    discovery_endpoint: Optional[str] = Field(None, description="OIDC discovery endpoint")
-    authorization_endpoint: Optional[str] = None
-    token_endpoint: Optional[str] = None
-    userinfo_endpoint: Optional[str] = None
-    jwks_uri: Optional[str] = None
+    discovery_endpoint: Optional[str] = Field(description="OIDC discovery endpoint")
+    authorization_endpoint: Optional[str]
+    token_endpoint: Optional[str]
+    userinfo_endpoint: Optional[str]
+    jwks_uri: Optional[str]
     
     # User Mapping
     user_attribute_mapping: Dict[str, str] = Field(default_factory=dict, description="Map provider attributes to user fields")
@@ -123,20 +123,20 @@ class IdentityProviderResponse(TenantIdentityProviderBase, TimestampMixin):
     id: UUID
     tenant_id: UUID
     # client_secret wird nicht zurückgegeben
-    azure_tenant_id: Optional[str] = None
+    azure_tenant_id: Optional[str]
 
 class IdentityProviderUpdate(BaseSchema):
     """Schema für Identity Provider Updates"""
-    client_id: Optional[str] = Field(None, min_length=1)
-    client_secret: Optional[str] = Field(None, min_length=1)
-    azure_tenant_id: Optional[str] = None
-    discovery_endpoint: Optional[str] = None
+    client_id: Optional[str] = Field(min_length=1)
+    client_secret: Optional[str] = Field(min_length=1)
+    azure_tenant_id: Optional[str]
+    discovery_endpoint: Optional[str]
     user_attribute_mapping: Optional[Dict[str, str]] = None
     role_attribute_mapping: Optional[Dict[str, str]] = None
-    auto_provision_users: Optional[bool] = None
-    require_verified_email: Optional[bool] = None
+    auto_provision_users: Optional[bool]
+    require_verified_email: Optional[bool]
     allowed_domains: Optional[List[str]] = None
-    is_active: Optional[bool] = None
+    is_active: Optional[bool]
 
 class IdentityProviderListResponse(BaseSchema):
     """Schema für Identity Provider Listen"""
@@ -151,9 +151,9 @@ from app.schemas.base import PaginationParams, SortParams, SearchParams
 
 class TenantFilterParams(PaginationParams, SortParams, SearchParams):
     """Schema für Tenant-Filtering"""
-    subscription_plan: Optional[str] = None
-    is_active: Optional[bool] = None
-    has_domain: Optional[bool] = None
+    subscription_plan: Optional[str]
+    is_active: Optional[bool]
+    has_domain: Optional[bool]
 
 class TenantStatsResponse(BaseSchema):
     """Schema für Tenant-Statistiken"""

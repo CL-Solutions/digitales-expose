@@ -22,32 +22,32 @@ class ProjectBase(BaseSchema):
     state: str = Field(..., max_length=255)
     country: Optional[str] = Field(default="Deutschland", max_length=100)
     zip_code: str = Field(..., max_length=20)
-    latitude: Optional[float] = Field(None, ge=-90, le=90)
-    longitude: Optional[float] = Field(None, ge=-180, le=180)
+    latitude: Optional[float] = Field(ge=-90, le=90)
+    longitude: Optional[float] = Field(ge=-180, le=180)
     
     # Building Details
-    construction_year: Optional[int] = Field(None, ge=1800, le=2100)
-    renovation_year: Optional[int] = Field(None, ge=1800, le=2100)
-    total_floors: Optional[int] = Field(None, gt=0)
-    total_units: Optional[int] = Field(None, gt=0)
-    building_type: Optional[str] = Field(None, max_length=100)
+    construction_year: Optional[int] = Field(ge=1800, le=2100)
+    renovation_year: Optional[int] = Field(ge=1800, le=2100)
+    total_floors: Optional[int] = Field(gt=0)
+    total_units: Optional[int] = Field(gt=0)
+    building_type: Optional[str] = Field(max_length=100)
     
     # Building Features
-    has_elevator: Optional[bool] = None
-    has_parking: Optional[bool] = None
-    has_basement: Optional[bool] = None
-    has_garden: Optional[bool] = None
+    has_elevator: Optional[bool]
+    has_parking: Optional[bool]
+    has_basement: Optional[bool]
+    has_garden: Optional[bool]
     
     # Energy Data
-    energy_certificate_type: Optional[str] = Field(None, max_length=50)
-    energy_consumption: Optional[float] = Field(None, ge=0)
-    energy_class: Optional[str] = Field(None, max_length=10)
-    heating_type: Optional[str] = Field(None, max_length=100)
-    primary_energy_consumption: Optional[float] = Field(None, ge=0)
-    heating_building_year: Optional[int] = Field(None, ge=1800, le=2100)
+    energy_certificate_type: Optional[str] = Field(max_length=50)
+    energy_consumption: Optional[float] = Field(ge=0)
+    energy_class: Optional[str] = Field(max_length=10)
+    heating_type: Optional[str] = Field(max_length=100)
+    primary_energy_consumption: Optional[float] = Field(ge=0)
+    heating_building_year: Optional[int] = Field(ge=1800, le=2100)
     
     # Additional Information
-    description: Optional[str] = None
+    description: Optional[str]
     amenities: Optional[List[str]] = None
     micro_location: Optional[Dict[str, Any]] = None  # Micro location data from ChatGPT
     
@@ -57,44 +57,44 @@ class ProjectBase(BaseSchema):
 
 class ProjectCreate(ProjectBase):
     """Schema for creating a Project"""
-    city_id: Optional[UUID] = None
+    city_id: Optional[UUID]
 
 class ProjectUpdate(BaseSchema):
     """Schema for updating a Project"""
-    name: Optional[str] = Field(None, max_length=255)
-    street: Optional[str] = Field(None, max_length=255)
-    house_number: Optional[str] = Field(None, max_length=50)
-    city: Optional[str] = Field(None, max_length=255)
-    city_id: Optional[UUID] = None
-    state: Optional[str] = Field(None, max_length=255)
-    country: Optional[str] = Field(None, max_length=100)
-    zip_code: Optional[str] = Field(None, max_length=20)
-    latitude: Optional[float] = Field(None, ge=-90, le=90)
-    longitude: Optional[float] = Field(None, ge=-180, le=180)
+    name: Optional[str] = Field(max_length=255)
+    street: Optional[str] = Field(max_length=255)
+    house_number: Optional[str] = Field(max_length=50)
+    city: Optional[str] = Field(max_length=255)
+    city_id: Optional[UUID]
+    state: Optional[str] = Field(max_length=255)
+    country: Optional[str] = Field(max_length=100)
+    zip_code: Optional[str] = Field(max_length=20)
+    latitude: Optional[float] = Field(ge=-90, le=90)
+    longitude: Optional[float] = Field(ge=-180, le=180)
     
-    construction_year: Optional[int] = Field(None, ge=1800, le=2100)
-    renovation_year: Optional[int] = Field(None, ge=1800, le=2100)
-    total_floors: Optional[int] = Field(None, gt=0)
-    total_units: Optional[int] = Field(None, gt=0)
-    building_type: Optional[str] = Field(None, max_length=100)
+    construction_year: Optional[int] = Field(ge=1800, le=2100)
+    renovation_year: Optional[int] = Field(ge=1800, le=2100)
+    total_floors: Optional[int] = Field(gt=0)
+    total_units: Optional[int] = Field(gt=0)
+    building_type: Optional[str] = Field(max_length=100)
     
-    has_elevator: Optional[bool] = None
-    has_parking: Optional[bool] = None
-    has_basement: Optional[bool] = None
-    has_garden: Optional[bool] = None
+    has_elevator: Optional[bool]
+    has_parking: Optional[bool]
+    has_basement: Optional[bool]
+    has_garden: Optional[bool]
     
-    energy_certificate_type: Optional[str] = Field(None, max_length=50)
-    energy_consumption: Optional[float] = Field(None, ge=0)
-    energy_class: Optional[str] = Field(None, max_length=10)
-    heating_type: Optional[str] = Field(None, max_length=100)
-    primary_energy_consumption: Optional[float] = Field(None, ge=0)
-    heating_building_year: Optional[int] = Field(None, ge=1800, le=2100)
+    energy_certificate_type: Optional[str] = Field(max_length=50)
+    energy_consumption: Optional[float] = Field(ge=0)
+    energy_class: Optional[str] = Field(max_length=10)
+    heating_type: Optional[str] = Field(max_length=100)
+    primary_energy_consumption: Optional[float] = Field(ge=0)
+    heating_building_year: Optional[int] = Field(ge=1800, le=2100)
     
-    description: Optional[str] = None
+    description: Optional[str]
     amenities: Optional[List[str]] = None
     micro_location: Optional[Dict[str, Any]] = None  # Micro location data from ChatGPT
     
-    status: Optional[str] = Field(None, pattern="^(available|reserved|sold)$")
+    status: Optional[str] = Field(pattern="^(available|reserved|sold)$")
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -102,43 +102,43 @@ class GenericImageSchema(BaseResponseSchema):
     """Generic schema for images (can be used for both project and property images)"""
     image_url: str
     image_type: str
-    title: Optional[str] = None
-    description: Optional[str] = None
+    title: Optional[str]
+    description: Optional[str]
     display_order: int = 0
-    file_size: Optional[int] = None
-    mime_type: Optional[str] = None
-    width: Optional[int] = None
-    height: Optional[int] = None
+    file_size: Optional[int]
+    mime_type: Optional[str]
+    width: Optional[int]
+    height: Optional[int]
     # Optional fields to identify the source
-    property_id: Optional[UUID] = None
-    project_id: Optional[UUID] = None
+    property_id: Optional[UUID]
+    project_id: Optional[UUID]
 
 class ProjectImageSchema(BaseResponseSchema):
     """Schema for ProjectImage"""
     project_id: UUID
     image_url: str
     image_type: str
-    title: Optional[str] = None
-    description: Optional[str] = None
+    title: Optional[str]
+    description: Optional[str]
     display_order: int = 0
-    file_size: Optional[int] = None
-    mime_type: Optional[str] = None
-    width: Optional[int] = None
-    height: Optional[int] = None
+    file_size: Optional[int]
+    mime_type: Optional[str]
+    width: Optional[int]
+    height: Optional[int]
 
 class ProjectResponse(ProjectBase, BaseResponseSchema):
     """Schema for Project response"""
-    city_id: Optional[UUID] = None
-    investagon_id: Optional[str] = None
+    city_id: Optional[UUID]
+    investagon_id: Optional[str]
     
     # Include related data
     images: List[ProjectImageSchema] = []
-    city_ref: Optional["CityResponse"] = None
+    city_ref: Optional["CityResponse"]
     properties: List["PropertyOverview"] = []
     
     # Computed fields
     property_count: int = 0
-    thumbnail_url: Optional[str] = None
+    thumbnail_url: Optional[str]
     
     model_config = ConfigDict(
         from_attributes=True,
@@ -172,21 +172,21 @@ class ProjectImageCreate(BaseSchema):
     """Schema for creating a ProjectImage"""
     image_url: str
     image_type: str = Field(..., pattern="^(exterior|common_area|amenity|floor_plan)$")
-    title: Optional[str] = Field(None, max_length=255)
-    description: Optional[str] = None
+    title: Optional[str] = Field(max_length=255)
+    description: Optional[str]
     display_order: int = Field(default=0)
-    file_size: Optional[int] = Field(None, gt=0)
-    mime_type: Optional[str] = Field(None, max_length=100)
-    width: Optional[int] = Field(None, gt=0)
-    height: Optional[int] = Field(None, gt=0)
+    file_size: Optional[int] = Field(gt=0)
+    mime_type: Optional[str] = Field(max_length=100)
+    width: Optional[int] = Field(gt=0)
+    height: Optional[int] = Field(gt=0)
 
 class ProjectImageUpdate(BaseSchema):
     """Schema for updating a ProjectImage"""
-    image_url: Optional[str] = None
-    image_type: Optional[str] = Field(None, max_length=50)
-    title: Optional[str] = Field(None, max_length=255)
-    description: Optional[str] = None
-    display_order: Optional[int] = None
+    image_url: Optional[str]
+    image_type: Optional[str] = Field(max_length=50)
+    title: Optional[str] = Field(max_length=255)
+    description: Optional[str]
+    display_order: Optional[int]
 
 # ================================
 # Property Schemas
@@ -207,50 +207,50 @@ class PropertyBase(BaseSchema):
     # Property Details
     size_sqm: float = Field(..., ge=0)
     rooms: float = Field(..., ge=0)
-    bathrooms: Optional[int] = Field(None, ge=0)
-    floor: Optional[str] = Field(None, max_length=50)  # e.g., "1. OG", "2. OG Mitte", "EG"
-    balcony: Optional[bool] = None
+    bathrooms: Optional[int] = Field(ge=0)
+    floor: Optional[str] = Field(max_length=50)  # e.g., "1. OG", "2. OG Mitte", "EG"
+    balcony: Optional[bool]
     
     purchase_price: float = Field(..., ge=0)
-    purchase_price_parking: Optional[float] = Field(None, ge=0)
-    purchase_price_furniture: Optional[float] = Field(None, ge=0)
+    purchase_price_parking: Optional[float] = Field(ge=0)
+    purchase_price_furniture: Optional[float] = Field(ge=0)
     monthly_rent: float = Field(..., ge=0)
-    rent_parking_month: Optional[float] = Field(None, ge=0)
-    additional_costs: Optional[float] = Field(None, ge=0)
-    management_fee: Optional[float] = Field(None, ge=0)
+    rent_parking_month: Optional[float] = Field(ge=0)
+    additional_costs: Optional[float] = Field(ge=0)
+    management_fee: Optional[float] = Field(ge=0)
     
     # Transaction Costs (as percentages)
-    transaction_broker_rate: Optional[float] = Field(None, ge=0)
-    transaction_tax_rate: Optional[float] = Field(None, ge=0)
-    transaction_notary_rate: Optional[float] = Field(None, ge=0)
-    transaction_register_rate: Optional[float] = Field(None, ge=0)
+    transaction_broker_rate: Optional[float] = Field(ge=0)
+    transaction_tax_rate: Optional[float] = Field(ge=0)
+    transaction_notary_rate: Optional[float] = Field(ge=0)
+    transaction_register_rate: Optional[float] = Field(ge=0)
     
     # Operating Costs
-    operation_cost_landlord: Optional[float] = Field(None, ge=0)
-    operation_cost_tenant: Optional[float] = Field(None, ge=0)
-    operation_cost_reserve: Optional[float] = Field(None, ge=0)
+    operation_cost_landlord: Optional[float] = Field(ge=0)
+    operation_cost_tenant: Optional[float] = Field(ge=0)
+    operation_cost_reserve: Optional[float] = Field(ge=0)
     
     # Additional Property Data
-    object_share_owner: Optional[float] = Field(None, ge=0, le=1)  # float percentage (0.0 to 1.0)
-    share_land: Optional[float] = Field(None, ge=0, le=1)  # float percentage (0.0 to 1.0)
-    property_usage: Optional[str] = Field(None, max_length=100)
-    initial_maintenance_expenses: Optional[float] = Field(None, ge=0)
+    object_share_owner: Optional[float] = Field(ge=0, le=1)  # float percentage (0.0 to 1.0)
+    share_land: Optional[float] = Field(ge=0, le=1)  # float percentage (0.0 to 1.0)
+    property_usage: Optional[str] = Field(max_length=100)
+    initial_maintenance_expenses: Optional[float] = Field(ge=0)
     
     # Depreciation Settings
-    degressive_depreciation_building_onoff: Optional[int] = Field(None, ge=-1, le=1)
-    depreciation_rate_building_manual: Optional[float] = Field(None, ge=0, le=100)
+    degressive_depreciation_building_onoff: Optional[int] = Field(ge=-1, le=1)
+    depreciation_rate_building_manual: Optional[float] = Field(ge=0, le=100)
     
-    energy_certificate_type: Optional[str] = Field(None, max_length=50)
-    energy_consumption: Optional[float] = Field(None, ge=0)  # Endenergieverbrauch
-    primary_energy_consumption: Optional[float] = Field(None, ge=0)  # Primärenergieverbrauch
-    energy_class: Optional[str] = Field(None, max_length=10)
-    heating_type: Optional[str] = Field(None, max_length=100)
+    energy_certificate_type: Optional[str] = Field(max_length=50)
+    energy_consumption: Optional[float] = Field(ge=0)  # Endenergieverbrauch
+    primary_energy_consumption: Optional[float] = Field(ge=0)  # Primärenergieverbrauch
+    energy_class: Optional[str] = Field(max_length=10)
+    heating_type: Optional[str] = Field(max_length=100)
     
     # Investagon Status Flags
-    active: Optional[int] = Field(None, ge=0)
-    pre_sale: Optional[int] = Field(None, ge=0, le=1)
-    draft: Optional[int] = Field(None, ge=0, le=1)
-    visibility: Optional[int] = Field(None, ge=-1, le=1)  # -1: deactivated, 0: in progress, 1: active
+    active: Optional[int] = Field(ge=0)
+    pre_sale: Optional[int] = Field(ge=0, le=1)
+    draft: Optional[int] = Field(ge=0, le=1)
+    visibility: Optional[int] = Field(ge=-1, le=1)  # -1: deactivated, 0: in progress, 1: active
 
     model_config = ConfigDict(
         from_attributes=True
@@ -259,73 +259,73 @@ class PropertyBase(BaseSchema):
 class PropertyCreate(PropertyBase):
     """Schema for creating a Property"""
     # Override location fields to make them optional since they come from the project
-    city: Optional[str] = Field(None, max_length=255)
-    state: Optional[str] = Field(None, max_length=255)
-    zip_code: Optional[str] = Field(None, max_length=20)
+    city: Optional[str] = Field(max_length=255)
+    state: Optional[str] = Field(max_length=255)
+    zip_code: Optional[str] = Field(max_length=20)
     
-    city_id: Optional[UUID] = None
-    investagon_id: Optional[str] = None
+    city_id: Optional[UUID]
+    investagon_id: Optional[str]
 
 class PropertyUpdate(BaseSchema):
     """Schema for updating a Property"""
-    project_id: Optional[UUID] = None  # Allow changing project
-    unit_number: Optional[str] = Field(None, max_length=100)
+    project_id: Optional[UUID]  # Allow changing project
+    unit_number: Optional[str] = Field(max_length=100)
     
     # Location updates (denormalized)
-    city: Optional[str] = Field(None, max_length=255)
-    city_id: Optional[UUID] = None
-    state: Optional[str] = Field(None, max_length=255)
-    zip_code: Optional[str] = Field(None, max_length=20)
+    city: Optional[str] = Field(max_length=255)
+    city_id: Optional[UUID]
+    state: Optional[str] = Field(max_length=255)
+    zip_code: Optional[str] = Field(max_length=20)
     
-    property_type: Optional[str] = Field(None, max_length=100)
+    property_type: Optional[str] = Field(max_length=100)
     
     # Property Details
-    size_sqm: Optional[float] = Field(None, ge=0)
-    rooms: Optional[float] = Field(None, ge=0)
-    bathrooms: Optional[int] = Field(None, ge=0)
-    floor: Optional[str] = Field(None, max_length=50)
-    balcony: Optional[bool] = None
+    size_sqm: Optional[float] = Field(ge=0)
+    rooms: Optional[float] = Field(ge=0)
+    bathrooms: Optional[int] = Field(ge=0)
+    floor: Optional[str] = Field(max_length=50)
+    balcony: Optional[bool]
     
-    purchase_price: Optional[float] = Field(None, ge=0)
-    purchase_price_parking: Optional[float] = Field(None, ge=0)
-    purchase_price_furniture: Optional[float] = Field(None, ge=0)
-    monthly_rent: Optional[float] = Field(None, ge=0)
-    rent_parking_month: Optional[float] = Field(None, ge=0)
-    additional_costs: Optional[float] = Field(None, ge=0)
-    management_fee: Optional[float] = Field(None, ge=0)
+    purchase_price: Optional[float] = Field(ge=0)
+    purchase_price_parking: Optional[float] = Field(ge=0)
+    purchase_price_furniture: Optional[float] = Field(ge=0)
+    monthly_rent: Optional[float] = Field(ge=0)
+    rent_parking_month: Optional[float] = Field(ge=0)
+    additional_costs: Optional[float] = Field(ge=0)
+    management_fee: Optional[float] = Field(ge=0)
     
     # Transaction Costs
-    transaction_broker_rate: Optional[float] = Field(None, ge=0)
-    transaction_tax_rate: Optional[float] = Field(None, ge=0)
-    transaction_notary_rate: Optional[float] = Field(None, ge=0)
-    transaction_register_rate: Optional[float] = Field(None, ge=0)
+    transaction_broker_rate: Optional[float] = Field(ge=0)
+    transaction_tax_rate: Optional[float] = Field(ge=0)
+    transaction_notary_rate: Optional[float] = Field(ge=0)
+    transaction_register_rate: Optional[float] = Field(ge=0)
     
     # Operating Costs
-    operation_cost_landlord: Optional[float] = Field(None, ge=0)
-    operation_cost_tenant: Optional[float] = Field(None, ge=0)
-    operation_cost_reserve: Optional[float] = Field(None, ge=0)
+    operation_cost_landlord: Optional[float] = Field(ge=0)
+    operation_cost_tenant: Optional[float] = Field(ge=0)
+    operation_cost_reserve: Optional[float] = Field(ge=0)
     
     # Additional Property Data
-    object_share_owner: Optional[float] = Field(None, ge=0, le=1)
-    share_land: Optional[float] = Field(None, ge=0)
-    property_usage: Optional[str] = Field(None, max_length=100)
-    initial_maintenance_expenses: Optional[float] = Field(None, ge=0)
+    object_share_owner: Optional[float] = Field(ge=0, le=1)
+    share_land: Optional[float] = Field(ge=0)
+    property_usage: Optional[str] = Field(max_length=100)
+    initial_maintenance_expenses: Optional[float] = Field(ge=0)
     
     # Depreciation Settings
-    degressive_depreciation_building_onoff: Optional[int] = Field(None, ge=-1, le=1)
-    depreciation_rate_building_manual: Optional[float] = Field(None, ge=0, le=100)
+    degressive_depreciation_building_onoff: Optional[int] = Field(ge=-1, le=1)
+    depreciation_rate_building_manual: Optional[float] = Field(ge=0, le=100)
     
-    energy_certificate_type: Optional[str] = Field(None, max_length=50)
-    energy_consumption: Optional[float] = Field(None, ge=0)
-    primary_energy_consumption: Optional[float] = Field(None, ge=0)
-    energy_class: Optional[str] = Field(None, max_length=10)
-    heating_type: Optional[str] = Field(None, max_length=100)
+    energy_certificate_type: Optional[str] = Field(max_length=50)
+    energy_consumption: Optional[float] = Field(ge=0)
+    primary_energy_consumption: Optional[float] = Field(ge=0)
+    energy_class: Optional[str] = Field(max_length=10)
+    heating_type: Optional[str] = Field(max_length=100)
     
     # Investagon Status Flags
-    active: Optional[int] = Field(None, ge=0)
-    pre_sale: Optional[int] = Field(None, ge=0, le=1)
-    draft: Optional[int] = Field(None, ge=0, le=1)
-    visibility: Optional[int] = Field(None, ge=-1, le=1)  # -1: deactivated, 0: in progress, 1: active
+    active: Optional[int] = Field(ge=0)
+    pre_sale: Optional[int] = Field(ge=0, le=1)
+    draft: Optional[int] = Field(ge=0, le=1)
+    visibility: Optional[int] = Field(ge=-1, le=1)  # -1: deactivated, 0: in progress, 1: active
 
     model_config = ConfigDict(
         from_attributes=True
@@ -336,29 +336,29 @@ class PropertyImageSchema(BaseResponseSchema):
     property_id: UUID
     image_url: str
     image_type: str
-    title: Optional[str] = None
-    description: Optional[str] = None
+    title: Optional[str]
+    description: Optional[str]
     display_order: int = 0
-    file_size: Optional[int] = None
-    mime_type: Optional[str] = None
-    width: Optional[int] = None
-    height: Optional[int] = None
+    file_size: Optional[int]
+    mime_type: Optional[str]
+    width: Optional[int]
+    height: Optional[int]
 
 class PropertyResponse(PropertyBase, BaseResponseSchema):
     """Schema for Property response"""
-    city_id: Optional[UUID] = None
-    investagon_id: Optional[str] = None
-    last_sync: Optional[datetime] = None
+    city_id: Optional[UUID]
+    investagon_id: Optional[str]
+    last_sync: Optional[datetime]
     
     # Include related data
-    project: Optional["ProjectResponse"] = None
+    project: Optional["ProjectResponse"]
     images: List[PropertyImageSchema] = []  # Property-specific images only
-    city_ref: Optional["CityResponse"] = None
+    city_ref: Optional["CityResponse"]
     
     # Computed fields
-    total_investment: Optional[float] = None
-    gross_rental_yield: Optional[float] = None
-    net_rental_yield: Optional[float] = None
+    total_investment: Optional[float]
+    gross_rental_yield: Optional[float]
+    net_rental_yield: Optional[float]
     all_images: List[GenericImageSchema] = []  # Combined project + property images
     
     model_config = ConfigDict(
@@ -437,20 +437,20 @@ class PropertyImageCreate(BaseSchema):
     """Schema for creating a PropertyImage"""
     image_url: str
     image_type: str = Field(..., pattern="^(exterior|interior|floor_plan|energy_certificate|bathroom|kitchen|bedroom|living_room|balcony|garden|parking|basement|roof)$")
-    title: Optional[str] = Field(None, max_length=255)
-    description: Optional[str] = None
+    title: Optional[str] = Field(max_length=255)
+    description: Optional[str]
     display_order: int = Field(default=0)
-    file_size: Optional[int] = Field(None, gt=0)
-    mime_type: Optional[str] = Field(None, max_length=100)
-    width: Optional[int] = Field(None, gt=0)
-    height: Optional[int] = Field(None, gt=0)
+    file_size: Optional[int] = Field(gt=0)
+    mime_type: Optional[str] = Field(max_length=100)
+    width: Optional[int] = Field(gt=0)
+    height: Optional[int] = Field(gt=0)
 
 class PropertyImageUpdate(BaseSchema):
     """Schema for updating a PropertyImage"""
-    image_url: Optional[str] = None
-    title: Optional[str] = Field(None, max_length=255)
-    description: Optional[str] = None
-    display_order: Optional[int] = None
+    image_url: Optional[str]
+    title: Optional[str] = Field(max_length=255)
+    description: Optional[str]
+    display_order: Optional[int]
 
 # ================================
 # City Schemas
@@ -462,15 +462,15 @@ class CityBase(BaseSchema):
     state: str = Field(..., max_length=255)
     country: str = Field(default="Germany", max_length=100)
     
-    population: Optional[int] = Field(None, gt=0)
-    population_growth: Optional[float] = None
-    unemployment_rate: Optional[float] = Field(None, ge=0, le=100)
-    average_income: Optional[int] = Field(None, gt=0)
+    population: Optional[int] = Field(gt=0)
+    population_growth: Optional[float]
+    unemployment_rate: Optional[float] = Field(ge=0, le=100)
+    average_income: Optional[int] = Field(gt=0)
     
     universities: Optional[List[str]] = None
     major_employers: Optional[List[Dict[str, str]]] = None
     
-    description: Optional[str] = None
+    description: Optional[str]
     highlights: Optional[List[Dict[str, str]]] = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -500,16 +500,16 @@ class CityCreate(CityBase):
 
 class CityUpdate(BaseSchema):
     """Schema for updating a City"""
-    population: Optional[int] = Field(None, gt=0)
-    population_growth: Optional[float] = None
-    unemployment_rate: Optional[float] = Field(None, ge=0, le=100)
-    average_income: Optional[int] = Field(None, gt=0)
+    population: Optional[int] = Field(gt=0)
+    population_growth: Optional[float]
+    unemployment_rate: Optional[float] = Field(ge=0, le=100)
+    average_income: Optional[int] = Field(gt=0)
     
     universities: Optional[List[str]] = None
     major_employers: Optional[List[Dict[str, str]]] = None
     public_transport: Optional[Dict[str, Any]] = None
     
-    description: Optional[str] = None
+    description: Optional[str]
     highlights: Optional[List[Dict[str, str]]] = None
     
     @field_validator('major_employers', 'highlights', mode='before')
@@ -539,34 +539,34 @@ class CityImageCreate(BaseSchema):
     """Schema for creating a CityImage"""
     image_url: str
     image_type: str = Field(..., pattern="^(skyline|landmark|downtown|residential|commercial|nature|transport|culture|nightlife|education|recreation|overview)$")
-    title: Optional[str] = Field(None, max_length=255)
-    description: Optional[str] = None
+    title: Optional[str] = Field(max_length=255)
+    description: Optional[str]
     display_order: int = Field(default=0)
-    file_size: Optional[int] = Field(None, gt=0)
-    mime_type: Optional[str] = Field(None, max_length=100)
-    width: Optional[int] = Field(None, gt=0)
-    height: Optional[int] = Field(None, gt=0)
+    file_size: Optional[int] = Field(gt=0)
+    mime_type: Optional[str] = Field(max_length=100)
+    width: Optional[int] = Field(gt=0)
+    height: Optional[int] = Field(gt=0)
 
 class CityImageUpdate(BaseSchema):
     """Schema for updating a CityImage"""
-    image_url: Optional[str] = None
-    image_type: Optional[str] = Field(None, pattern="^(skyline|landmark|downtown|residential|commercial|nature|transport|culture|nightlife|education|recreation|overview)$")
-    title: Optional[str] = Field(None, max_length=255)
-    description: Optional[str] = None
-    display_order: Optional[int] = None
+    image_url: Optional[str]
+    image_type: Optional[str] = Field(pattern="^(skyline|landmark|downtown|residential|commercial|nature|transport|culture|nightlife|education|recreation|overview)$")
+    title: Optional[str] = Field(max_length=255)
+    description: Optional[str]
+    display_order: Optional[int]
 
 class CityImageSchema(BaseResponseSchema):
     """Schema for CityImage"""
     city_id: UUID
     image_url: str
     image_type: str
-    title: Optional[str] = None
-    description: Optional[str] = None
+    title: Optional[str]
+    description: Optional[str]
     display_order: int = 0
-    file_size: Optional[int] = None
-    mime_type: Optional[str] = None
-    width: Optional[int] = None
-    height: Optional[int] = None
+    file_size: Optional[int]
+    mime_type: Optional[str]
+    width: Optional[int]
+    height: Optional[int]
 
 class CityResponse(CityBase, BaseResponseSchema):
     """Schema for City response"""
@@ -599,16 +599,16 @@ class CityResponse(CityBase, BaseResponseSchema):
 class ExposeTemplateBase(BaseSchema):
     """Base schema for ExposeTemplate"""
     name: str = Field(..., max_length=255)
-    property_type: Optional[str] = Field(None, max_length=100)
+    property_type: Optional[str] = Field(max_length=100)
     
-    investment_benefits: Optional[str] = None
-    location_description: Optional[str] = None
-    property_description: Optional[str] = None
-    financing_info: Optional[str] = None
-    tax_benefits: Optional[str] = None
-    risks_disclaimer: Optional[str] = None
-    company_info: Optional[str] = None
-    process_steps: Optional[str] = None
+    investment_benefits: Optional[str]
+    location_description: Optional[str]
+    property_description: Optional[str]
+    financing_info: Optional[str]
+    tax_benefits: Optional[str]
+    risks_disclaimer: Optional[str]
+    company_info: Optional[str]
+    process_steps: Optional[str]
     
     default_equity_percentage: float = Field(default=20.0, ge=0, le=100)
     default_interest_rate: float = Field(default=3.5, ge=0, le=20)
@@ -626,25 +626,25 @@ class ExposeTemplateCreate(ExposeTemplateBase):
 
 class ExposeTemplateUpdate(BaseSchema):
     """Schema for updating an ExposeTemplate"""
-    name: Optional[str] = Field(None, max_length=255)
-    property_type: Optional[str] = Field(None, max_length=100)
+    name: Optional[str] = Field(max_length=255)
+    property_type: Optional[str] = Field(max_length=100)
     
-    investment_benefits: Optional[str] = None
-    location_description: Optional[str] = None
-    property_description: Optional[str] = None
-    financing_info: Optional[str] = None
-    tax_benefits: Optional[str] = None
-    risks_disclaimer: Optional[str] = None
-    company_info: Optional[str] = None
-    process_steps: Optional[str] = None
+    investment_benefits: Optional[str]
+    location_description: Optional[str]
+    property_description: Optional[str]
+    financing_info: Optional[str]
+    tax_benefits: Optional[str]
+    risks_disclaimer: Optional[str]
+    company_info: Optional[str]
+    process_steps: Optional[str]
     
-    default_equity_percentage: Optional[float] = Field(None, ge=0, le=100)
-    default_interest_rate: Optional[float] = Field(None, ge=0, le=20)
-    default_loan_term_years: Optional[int] = Field(None, ge=1, le=50)
-    default_tax_rate: Optional[float] = Field(None, ge=0, le=100)
+    default_equity_percentage: Optional[float] = Field(ge=0, le=100)
+    default_interest_rate: Optional[float] = Field(ge=0, le=20)
+    default_loan_term_years: Optional[int] = Field(ge=1, le=50)
+    default_tax_rate: Optional[float] = Field(ge=0, le=100)
     
-    is_active: Optional[bool] = None
-    is_default: Optional[bool] = None
+    is_active: Optional[bool]
+    is_default: Optional[bool]
 
 class ExposeTemplateResponse(ExposeTemplateBase, BaseResponseSchema):
     """Schema for ExposeTemplate response"""
@@ -657,23 +657,23 @@ class ExposeTemplateResponse(ExposeTemplateBase, BaseResponseSchema):
 class ExposeLinkBase(BaseSchema):
     """Base schema for ExposeLink"""
     property_id: UUID
-    template_id: Optional[UUID] = None
-    name: Optional[str] = Field(None, max_length=255)
+    template_id: Optional[UUID]
+    name: Optional[str] = Field(max_length=255)
     
     # Financial presets
-    preset_equity_percentage: Optional[float] = Field(None, ge=0, le=100)
-    preset_interest_rate: Optional[float] = Field(None, ge=0, le=20)
-    preset_repayment_rate: Optional[float] = Field(None, ge=0, le=10)
-    preset_gross_income: Optional[float] = Field(None, ge=0)
-    preset_is_married: Optional[bool] = None
-    preset_monthly_rent: Optional[float] = Field(None, ge=0)
+    preset_equity_percentage: Optional[float] = Field(ge=0, le=100)
+    preset_interest_rate: Optional[float] = Field(ge=0, le=20)
+    preset_repayment_rate: Optional[float] = Field(ge=0, le=10)
+    preset_gross_income: Optional[float] = Field(ge=0)
+    preset_is_married: Optional[bool]
+    preset_monthly_rent: Optional[float] = Field(ge=0)
     
-    expiration_date: Optional[datetime] = None
+    expiration_date: Optional[datetime]
     password_protected: bool = False
-    password: Optional[str] = Field(None, exclude=True)  # Only for creation
+    password: Optional[str] = Field(exclude=True)  # Only for creation
     
     visible_sections: Optional[Dict[str, bool]] = None
-    custom_message: Optional[str] = None
+    custom_message: Optional[str]
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -687,55 +687,55 @@ class ExposeLinkCreate(ExposeLinkBase):
 
 class ExposeLinkUpdate(BaseSchema):
     """Schema for updating an ExposeLink"""
-    name: Optional[str] = Field(None, max_length=255)
+    name: Optional[str] = Field(max_length=255)
     
     # Financial presets
-    preset_equity_percentage: Optional[float] = Field(None, ge=0, le=100)
-    preset_interest_rate: Optional[float] = Field(None, ge=0, le=20)
-    preset_repayment_rate: Optional[float] = Field(None, ge=0, le=10)
-    preset_gross_income: Optional[float] = Field(None, ge=0)
-    preset_is_married: Optional[bool] = None
-    preset_monthly_rent: Optional[float] = Field(None, ge=0)
+    preset_equity_percentage: Optional[float] = Field(ge=0, le=100)
+    preset_interest_rate: Optional[float] = Field(ge=0, le=20)
+    preset_repayment_rate: Optional[float] = Field(ge=0, le=10)
+    preset_gross_income: Optional[float] = Field(ge=0)
+    preset_is_married: Optional[bool]
+    preset_monthly_rent: Optional[float] = Field(ge=0)
     
-    expiration_date: Optional[datetime] = None
-    is_active: Optional[bool] = None
+    expiration_date: Optional[datetime]
+    is_active: Optional[bool]
     
     visible_sections: Optional[Dict[str, bool]] = None
-    custom_message: Optional[str] = None
+    custom_message: Optional[str]
 
 class ExposeLinkResponse(ExposeLinkBase, BaseResponseSchema):
     """Schema for ExposeLink response"""
     link_id: str
     is_active: bool = True
     view_count: int = 0
-    first_viewed_at: Optional[datetime] = None
-    last_viewed_at: Optional[datetime] = None
+    first_viewed_at: Optional[datetime]
+    last_viewed_at: Optional[datetime]
     created_at: datetime
     created_by: UUID
     
     # Include property basic info - use forward reference to avoid circular imports
-    property: Optional["PropertyOverview"] = None
-    template: Optional[ExposeTemplateResponse] = None
+    property: Optional["PropertyOverview"]
+    template: Optional[ExposeTemplateResponse]
 
 class ExposeLinkPublicResponse(BaseSchema):
     """Schema for public ExposeLink response (for viewers)"""
     link_id: str
     property: PropertyResponse
-    template: Optional[ExposeTemplateResponse] = None
+    template: Optional[ExposeTemplateResponse]
     
     # Financial presets
-    preset_equity_percentage: Optional[float] = None
-    preset_interest_rate: Optional[float] = None
-    preset_repayment_rate: Optional[float] = None
-    preset_gross_income: Optional[float] = None
-    preset_is_married: Optional[bool] = None
-    preset_monthly_rent: Optional[float] = None
+    preset_equity_percentage: Optional[float]
+    preset_interest_rate: Optional[float]
+    preset_repayment_rate: Optional[float]
+    preset_gross_income: Optional[float]
+    preset_is_married: Optional[bool]
+    preset_monthly_rent: Optional[float]
     
     visible_sections: Optional[Dict[str, bool]] = None
-    custom_message: Optional[str] = None
+    custom_message: Optional[str]
     
     # City information if available
-    city_info: Optional[CityResponse] = None
+    city_info: Optional[CityResponse]
     
     # Tenant contact information
     tenant_contact: Optional[Dict[str, Any]] = None
@@ -751,7 +751,7 @@ class InvestagonSyncSchema(BaseResponseSchema):
     sync_type: str  # single_property, full, incremental
     status: str  # pending, in_progress, completed, partial, failed
     started_at: datetime
-    completed_at: Optional[datetime] = None
+    completed_at: Optional[datetime]
     properties_created: int = 0
     properties_updated: int = 0
     properties_failed: int = 0
@@ -764,14 +764,14 @@ class InvestagonSyncSchema(BaseResponseSchema):
 
 class ProjectFilter(PaginationParams):
     """Schema for project filtering"""
-    city: Optional[str] = None
-    state: Optional[str] = None
-    status: Optional[str] = None
-    building_type: Optional[str] = None
-    has_elevator: Optional[bool] = None
-    has_parking: Optional[bool] = None
-    min_construction_year: Optional[int] = Field(None, ge=1800, le=2100)
-    max_construction_year: Optional[int] = Field(None, ge=1800, le=2100)
+    city: Optional[str]
+    state: Optional[str]
+    status: Optional[str]
+    building_type: Optional[str]
+    has_elevator: Optional[bool]
+    has_parking: Optional[bool]
+    min_construction_year: Optional[int] = Field(ge=1800, le=2100)
+    max_construction_year: Optional[int] = Field(ge=1800, le=2100)
     sort_by: str = Field(default="created_at", description="Field to sort by")
     sort_order: str = Field(default="desc", pattern="^(asc|desc)$", description="Sort order")
 
@@ -785,17 +785,17 @@ class ProjectOverview(BaseSchema):
     state: str
     zip_code: str
     status: str
-    building_type: Optional[str] = None
-    total_floors: Optional[int] = None
-    construction_year: Optional[int] = None
+    building_type: Optional[str]
+    total_floors: Optional[int]
+    construction_year: Optional[int]
     property_count: int = 0
-    has_elevator: Optional[bool] = None
-    has_parking: Optional[bool] = None
-    thumbnail_url: Optional[str] = None
-    investagon_id: Optional[str] = None
-    visibility_status: Optional[str] = None  # 'active', 'in_progress', 'deactivated', 'mixed'
-    min_rental_yield: Optional[float] = None  # Minimum Bruttomietrendite of properties
-    max_rental_yield: Optional[float] = None  # Maximum Bruttomietrendite of properties
+    has_elevator: Optional[bool]
+    has_parking: Optional[bool]
+    thumbnail_url: Optional[str]
+    investagon_id: Optional[str]
+    visibility_status: Optional[str]  # 'active', 'in_progress', 'deactivated', 'mixed'
+    min_rental_yield: Optional[float]  # Minimum Bruttomietrendite of properties
+    max_rental_yield: Optional[float]  # Maximum Bruttomietrendite of properties
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -811,23 +811,23 @@ class ProjectListResponse(BaseSchema):
 
 class PropertyFilter(PaginationParams):
     """Schema for property filtering"""
-    project_id: Optional[UUID] = None  # Filter by project
-    city: Optional[str] = None
-    state: Optional[str] = None
-    property_type: Optional[str] = None
-    min_price: Optional[float] = None
-    max_price: Optional[float] = None
-    min_size: Optional[float] = None
-    max_size: Optional[float] = None
-    min_rooms: Optional[float] = None
-    max_rooms: Optional[float] = None
-    min_rental_yield: Optional[float] = None  # Filter by minimum Bruttomietrendite
-    max_rental_yield: Optional[float] = None  # Filter by maximum Bruttomietrendite
-    energy_class: Optional[str] = None
+    project_id: Optional[UUID]  # Filter by project
+    city: Optional[str]
+    state: Optional[str]
+    property_type: Optional[str]
+    min_price: Optional[float]
+    max_price: Optional[float]
+    min_size: Optional[float]
+    max_size: Optional[float]
+    min_rooms: Optional[float]
+    max_rooms: Optional[float]
+    min_rental_yield: Optional[float]  # Filter by minimum Bruttomietrendite
+    max_rental_yield: Optional[float]  # Filter by maximum Bruttomietrendite
+    energy_class: Optional[str]
     # Investagon status filters
     active: Optional[List[int]] = None  # Multiple statuses
-    pre_sale: Optional[int] = None
-    draft: Optional[int] = None
+    pre_sale: Optional[int]
+    draft: Optional[int]
     sort_by: str = Field(default="created_at", description="Field to sort by")
     sort_order: str = Field(default="desc", pattern="^(asc|desc)$", description="Sort order")
 
@@ -835,9 +835,9 @@ class PropertyOverview(BaseSchema):
     """Schema for Property overview (list view)"""
     id: UUID
     project_id: UUID
-    project_name: Optional[str] = None  # Denormalized for performance
-    project_street: Optional[str] = None
-    project_house_number: Optional[str] = None
+    project_name: Optional[str]  # Denormalized for performance
+    project_street: Optional[str]
+    project_house_number: Optional[str]
     unit_number: str
     city: str
     state: str
@@ -846,19 +846,19 @@ class PropertyOverview(BaseSchema):
     monthly_rent: float
     size_sqm: float
     rooms: float
-    floor: Optional[str] = None
-    investagon_id: Optional[str] = None
+    floor: Optional[str]
+    investagon_id: Optional[str]
     # Investagon status fields
-    active: Optional[int] = None
-    pre_sale: Optional[int] = None
-    draft: Optional[int] = None
-    visibility: Optional[int] = None
+    active: Optional[int]
+    pre_sale: Optional[int]
+    draft: Optional[int]
+    visibility: Optional[int]
     
     # Calculated fields
-    gross_rental_yield: Optional[float] = None  # Bruttomietrendite in percent
+    gross_rental_yield: Optional[float]  # Bruttomietrendite in percent
     
     # Thumbnail URL from S3 for list view
-    thumbnail_url: Optional[str] = None
+    thumbnail_url: Optional[str]
     
     model_config = ConfigDict(
         from_attributes=True

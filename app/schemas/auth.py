@@ -28,7 +28,7 @@ class RefreshTokenRequest(BaseSchema):
 class ImpersonateRequest(BaseSchema):
     """Schema für Super-Admin Impersonation"""
     tenant_id: UUID = Field(..., description="Tenant ID to impersonate")
-    reason: Optional[str] = Field(None, description="Reason for impersonation")
+    reason: Optional[str] = Field(description="Reason for impersonation")
 
 class PasswordResetRequest(BaseSchema):
     """Schema für Password-Reset Anfrage"""
@@ -53,11 +53,11 @@ class CreateUserRequest(BaseSchema, PasswordFieldMixin):
     email: EmailStr = Field(..., description="User email address")
     first_name: str = Field(..., min_length=1, max_length=100, description="First name")
     last_name: str = Field(..., min_length=1, max_length=100, description="Last name")
-    password: Optional[str] = Field(None, min_length=8, description="User password (optional)")
+    password: Optional[str] = Field(min_length=8, description="User password (optional)")
     role_ids: list[UUID] = Field(default_factory=list, description="Role IDs to assign")
     send_welcome_email: bool = Field(default=True, description="Send welcome email")
     require_email_verification: bool = Field(default=False, description="Require email verification")
-    tenant_id: Optional[UUID] = Field(None, description="Tenant ID (only for super admin)")
+    tenant_id: Optional[UUID] = Field(description="Tenant ID (only for super admin)")
 
 # ================================
 # OAUTH SCHEMAS (schemas/oauth.py)
@@ -66,7 +66,7 @@ class CreateUserRequest(BaseSchema, PasswordFieldMixin):
 class OAuthCallbackRequest(BaseSchema):
     """Schema für OAuth Callback"""
     code: str = Field(..., description="Authorization code from OAuth provider")
-    state: Optional[str] = Field(None, description="State parameter for CSRF protection")
+    state: Optional[str] = Field(description="State parameter for CSRF protection")
 
 class OAuthUrlResponse(BaseSchema):
     """Schema für OAuth Authorization URL"""
@@ -78,8 +78,8 @@ class OAuthUrlResponse(BaseSchema):
 class OAuthErrorResponse(BaseSchema):
     """Schema für OAuth Error Response"""
     error: str = Field(..., description="OAuth error code")
-    error_description: Optional[str] = Field(None, description="Human-readable error description")
-    error_uri: Optional[str] = Field(None, description="URI for more information about the error")
+    error_description: Optional[str] = Field(description="Human-readable error description")
+    error_uri: Optional[str] = Field(description="URI for more information about the error")
 
 class OAuthTokenRefreshRequest(BaseSchema):
     """Schema für OAuth Token Refresh"""
@@ -96,13 +96,13 @@ class OAuthRevokeRequest(BaseSchema):
 class AuthStatusResponse(BaseSchema):
     """Schema für Authentication Status"""
     is_authenticated: bool = Field(..., description="User authentication status")
-    user_id: Optional[UUID] = Field(None, description="User ID if authenticated")
-    tenant_id: Optional[UUID] = Field(None, description="Current tenant ID")
+    user_id: Optional[UUID] = Field(description="User ID if authenticated")
+    tenant_id: Optional[UUID] = Field(description="Current tenant ID")
     is_super_admin: bool = Field(default=False, description="Super admin status")
     is_impersonating: bool = Field(default=False, description="Currently impersonating another tenant")
-    impersonated_tenant_id: Optional[UUID] = Field(None, description="Impersonated tenant ID")
+    impersonated_tenant_id: Optional[UUID] = Field(description="Impersonated tenant ID")
     permissions: list[str] = Field(default_factory=list, description="User permissions")
-    session_expires_at: Optional[str] = Field(None, description="Session expiration time")
+    session_expires_at: Optional[str] = Field(description="Session expiration time")
 
 class LoginHistoryResponse(BaseSchema):
     """Schema für Login History"""
@@ -111,8 +111,8 @@ class LoginHistoryResponse(BaseSchema):
     user_agent: Optional[str]
     auth_method: Literal["local", "microsoft", "google"]
     success: bool
-    failure_reason: Optional[str] = None
-    location: Optional[str] = None
+    failure_reason: Optional[str]
+    location: Optional[str]
 
 class SecurityEventResponse(BaseSchema):
     """Schema für Security Events"""
@@ -130,7 +130,7 @@ class SecurityEventResponse(BaseSchema):
 class TwoFactorSetupRequest(BaseSchema):
     """Schema für 2FA Setup (Future)"""
     method: Literal["totp", "sms", "email"] = Field(..., description="2FA method")
-    phone_number: Optional[str] = Field(None, description="Phone number for SMS")
+    phone_number: Optional[str] = Field(description="Phone number for SMS")
 
 class TwoFactorVerifyRequest(BaseSchema):
     """Schema für 2FA Verification (Future)"""
@@ -149,7 +149,7 @@ class ApiKeyCreateRequest(BaseSchema):
     """Schema für API Key Creation (Future)"""
     name: str = Field(..., min_length=1, max_length=100, description="API key name")
     permissions: list[str] = Field(..., description="Permissions for this API key")
-    expires_in_days: Optional[int] = Field(None, ge=1, le=365, description="Expiration in days")
+    expires_in_days: Optional[int] = Field(ge=1, le=365, description="Expiration in days")
 
 class ApiKeyResponse(BaseSchema):
     """Schema für API Key Response (Future)"""
@@ -178,13 +178,13 @@ class AuthAuditResponse(BaseSchema):
 
 class AuthAuditFilterParams(BaseSchema):
     """Schema für Auth Audit Filtering"""
-    user_id: Optional[UUID] = None
-    tenant_id: Optional[UUID] = None
-    action: Optional[str] = None
-    success: Optional[bool] = None
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
-    ip_address: Optional[str] = None
+    user_id: Optional[UUID]
+    tenant_id: Optional[UUID]
+    action: Optional[str]
+    success: Optional[bool]
+    start_date: Optional[str]
+    end_date: Optional[str]
+    ip_address: Optional[str]
 
 class AuthStatsResponse(BaseSchema):
     """Schema für Authentication Statistics"""

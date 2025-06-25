@@ -24,10 +24,10 @@ class UserFilterPreferenceCreate(UserFilterPreferenceBase):
 
 class UserFilterPreferenceUpdate(BaseModel):
     """Schema for updating a user filter preference"""
-    filter_name: Optional[str] = None
+    filter_name: Optional[str]
     filters: Optional[Dict[str, Any]] = None
-    is_default: Optional[bool] = None
-    display_order: Optional[int] = None
+    is_default: Optional[bool]
+    display_order: Optional[int]
 
 
 class UserFilterPreferenceResponse(UserFilterPreferenceBase):
@@ -38,7 +38,7 @@ class UserFilterPreferenceResponse(UserFilterPreferenceBase):
     created_at: datetime
     updated_at: datetime
     created_by: UUID
-    updated_by: Optional[UUID] = None
+    updated_by: Optional[UUID]
     
     class Config:
         from_attributes = True

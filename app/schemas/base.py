@@ -32,7 +32,7 @@ class TimestampMixin(BaseModel):
 class AuditMixin(BaseModel):
     """Mixin für Audit-Felder"""
     created_by: UUID = Field(..., description="User who created this resource")
-    updated_by: Optional[UUID] = Field(None, description="User who last updated this resource")
+    updated_by: Optional[UUID] = Field(description="User who last updated this resource")
 
 # ================================
 # PAGINATION & FILTERING SCHEMAS (schemas/common.py)
@@ -52,7 +52,7 @@ class SortParams(BaseSchema):
 
 class SearchParams(BaseSchema):
     """Schema für Search Parameter"""
-    search: Optional[str] = Field(None, description="Search term")
+    search: Optional[str] = Field(description="Search term")
 
 # ================================
 # ERROR RESPONSE SCHEMAS (schemas/errors.py)
@@ -63,7 +63,7 @@ from typing import Dict, Any
 class ErrorResponse(BaseSchema):
     """Standard Error Response Schema"""
     detail: str = Field(..., description="Error message")
-    error_code: Optional[str] = Field(None, description="Application-specific error code")
+    error_code: Optional[str] = Field(description="Application-specific error code")
     field_errors: Optional[Dict[str, List[str]]] = Field(None, description="Validation errors by field")
 
 class ValidationErrorResponse(BaseSchema):
@@ -92,9 +92,9 @@ class ServiceInfo(BaseSchema):
     """Schema für Service Information"""
     name: str = Field(..., description="Service name")
     version: str = Field(..., description="Service version")
-    description: Optional[str] = Field(None, description="Service description")
+    description: Optional[str] = Field(description="Service description")
     environment: str = Field(..., description="Environment (dev/staging/prod)")
-    uptime: Optional[str] = Field(None, description="Service uptime")
+    uptime: Optional[str] = Field(description="Service uptime")
 
 # ================================
 # COMMON FIELD VALIDATORS

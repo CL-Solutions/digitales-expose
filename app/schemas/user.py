@@ -18,19 +18,19 @@ class UserBase(BaseSchema):
 
 class UserCreate(UserBase):
     """Schema für User-Erstellung durch Admin"""
-    password: Optional[str] = Field(None, min_length=8, description="User password (optional, will generate if not provided)")
+    password: Optional[str] = Field(min_length=8, description="User password (optional, will generate if not provided)")
     role_ids: List[UUID] = Field(default_factory=list, description="Role IDs to assign")
     send_welcome_email: bool = Field(default=True, description="Send welcome email to user")
     require_email_verification: bool = Field(default=False, description="Require email verification before login")
-    tenant_id: Optional[UUID] = Field(None, description="Tenant ID (only for super admin)")
+    tenant_id: Optional[UUID] = Field(description="Tenant ID (only for super admin)")
 
 class UserUpdate(BaseSchema):
     """Schema für User-Updates"""
-    first_name: Optional[str] = Field(None, min_length=1, max_length=100)
-    last_name: Optional[str] = Field(None, min_length=1, max_length=100)
-    is_active: Optional[bool] = None
-    avatar_url: Optional[str] = Field(None, description="Avatar image URL")
-    settings: Optional[dict] = Field(None, description="User settings")
+    first_name: Optional[str] = Field(min_length=1, max_length=100)
+    last_name: Optional[str] = Field(min_length=1, max_length=100)
+    is_active: Optional[bool]
+    avatar_url: Optional[str] = Field(description="Avatar image URL")
+    settings: Optional[dict] = Field(description="User settings")
 
 class UserResponse(UserBase, TimestampMixin):
     """Schema für User-Responses"""
@@ -40,7 +40,7 @@ class UserResponse(UserBase, TimestampMixin):
     is_super_admin: bool
     is_verified: bool
     last_login_at: Optional[datetime]
-    avatar_url: Optional[str] = None
+    avatar_url: Optional[str]
     settings: Optional[dict] = Field(default_factory=dict, description="User settings")
     
     # Role Information
@@ -63,10 +63,10 @@ class UserProfileResponse(UserResponse):
 class UserFilterParams(PaginationParams, SortParams, SearchParams):
     """Schema für User-Filtering"""
     auth_method: Optional[Literal["local", "microsoft", "google"]] = None
-    is_active: Optional[bool] = None
-    is_verified: Optional[bool] = None
-    role_id: Optional[UUID] = None
-    tenant_id: Optional[UUID] = None  # Nur für Super-Admin
+    is_active: Optional[bool]
+    is_verified: Optional[bool]
+    role_id: Optional[UUID]
+    tenant_id: Optional[UUID]  # Nur für Super-Admin
 
 class UserStatsResponse(BaseSchema):
     """Schema für User-Statistiken"""
@@ -89,7 +89,7 @@ class UserSessionResponse(BaseSchema, TimestampMixin):
     expires_at: datetime
     last_accessed_at: datetime
     is_impersonation: bool = Field(default=False, description="Is this an impersonation session")
-    impersonated_tenant_id: Optional[UUID] = None
+    impersonated_tenant_id: Optional[UUID]
 
 class ActiveSessionsResponse(BaseSchema):
     """Schema für aktive Sessions"""
@@ -98,7 +98,7 @@ class ActiveSessionsResponse(BaseSchema):
 
 class SessionTerminateRequest(BaseSchema):
     """Schema für Session-Terminierung"""
-    session_id: Optional[UUID] = Field(None, description="Specific session to terminate (if not provided, terminates current session)")
+    session_id: Optional[UUID] = Field(description="Specific session to terminate (if not provided, terminates current session)")
     terminate_all: bool = Field(default=False, description="Terminate all sessions for user")
 
 # ================================
@@ -111,7 +111,7 @@ class UserInviteRequest(BaseSchema):
     first_name: str = Field(..., min_length=1, max_length=100)
     last_name: str = Field(..., min_length=1, max_length=100)
     role_ids: List[UUID] = Field(..., min_items=1, description="Role IDs to assign")
-    welcome_message: Optional[str] = Field(None, description="Custom welcome message")
+    welcome_message: Optional[str] = Field(description="Custom welcome message")
     expires_in_days: int = Field(default=7, ge=1, le=30, description="Invitation expiry in days")
 
 class UserInviteResponse(BaseSchema, TimestampMixin):
@@ -127,8 +127,8 @@ class UserInviteAcceptRequest(BaseSchema):
     """Schema für Einladung akzeptieren"""
     token: str = Field(..., description="Invitation token")
     password: str = Field(..., min_length=8, description="User password")
-    first_name: Optional[str] = Field(None, description="Update first name")
-    last_name: Optional[str] = Field(None, description="Update last name")
+    first_name: Optional[str] = Field(description="Update first name")
+    last_name: Optional[str] = Field(description="Update last name")
 
 # ================================
 # USER BULK OPERATIONS
@@ -138,7 +138,7 @@ class UserBulkCreateRequest(BaseSchema):
     """Schema für Bulk User Creation"""
     users: List[UserCreate] = Field(..., min_items=1, max_items=100)
     send_welcome_emails: bool = Field(default=True)
-    default_role_id: Optional[UUID] = Field(None, description="Default role to assign if user has no roles")
+    default_role_id: Optional[UUID] = Field(description="Default role to assign if user has no roles")
 
 class UserBulkCreateResponse(BaseSchema):
     """Schema für Bulk User Creation Response"""
@@ -151,13 +151,13 @@ class UserBulkUpdateRequest(BaseSchema):
     """Schema für Bulk User Updates"""
     user_ids: List[UUID] = Field(..., min_items=1, max_items=100)
     updates: UserUpdate = Field(..., description="Updates to apply to all users")
-    reason: Optional[str] = Field(None, description="Reason for bulk update")
+    reason: Optional[str] = Field(description="Reason for bulk update")
 
 class UserBulkActionRequest(BaseSchema):
     """Schema für Bulk User Actions"""
     user_ids: List[UUID] = Field(..., min_items=1, max_items=100)
     action: Literal["activate", "deactivate", "verify", "lock", "unlock", "delete"] = Field(..., description="Action to perform")
-    reason: Optional[str] = Field(None, description="Reason for the action")
+    reason: Optional[str] = Field(description="Reason for the action")
 
 class UserBulkActionResponse(BaseSchema):
     """Schema für Bulk Action Response"""
@@ -214,7 +214,7 @@ class UserSecurityEventResponse(BaseSchema, TimestampMixin):
 class TwoFactorSetupRequest(BaseSchema):
     """Schema für 2FA Setup"""
     method: Literal["totp", "sms", "email"] = Field(..., description="2FA method")
-    phone_number: Optional[str] = Field(None, description="Phone number for SMS (if method is SMS)")
+    phone_number: Optional[str] = Field(description="Phone number for SMS (if method is SMS)")
 
 class TwoFactorSetupResponse(BaseSchema):
     """Schema für 2FA Setup Response"""
@@ -231,7 +231,7 @@ class TwoFactorVerifyRequest(BaseSchema):
 class TwoFactorDisableRequest(BaseSchema):
     """Schema für 2FA Deactivation"""
     password: str = Field(..., description="Current password for confirmation")
-    backup_code: Optional[str] = Field(None, description="Backup code if password auth fails")
+    backup_code: Optional[str] = Field(description="Backup code if password auth fails")
 
 class TwoFactorBackupCodesResponse(BaseSchema):
     """Schema für 2FA Backup Codes"""
@@ -246,7 +246,7 @@ class ApiKeyCreateRequest(BaseSchema):
     """Schema für API Key Creation"""
     name: str = Field(..., min_length=1, max_length=100, description="API key name")
     permissions: List[str] = Field(..., description="Permissions for this API key")
-    expires_in_days: Optional[int] = Field(None, ge=1, le=365, description="Expiration in days")
+    expires_in_days: Optional[int] = Field(ge=1, le=365, description="Expiration in days")
 
 class ApiKeyResponse(BaseSchema, TimestampMixin):
     """Schema für API Key Response"""
@@ -308,13 +308,13 @@ class UserPreferences(BaseSchema):
 
 class UserPreferencesUpdate(BaseSchema):
     """Schema für User Preferences Update"""
-    language: Optional[str] = None
-    timezone: Optional[str] = None
-    date_format: Optional[str] = None
+    language: Optional[str]
+    timezone: Optional[str]
+    date_format: Optional[str]
     time_format: Optional[Literal["12h", "24h"]] = None
     theme: Optional[Literal["light", "dark", "auto"]] = None
-    notifications_email: Optional[bool] = None
-    notifications_browser: Optional[bool] = None
+    notifications_email: Optional[bool]
+    notifications_browser: Optional[bool]
 
 # ================================
 # USER ACTIVITY SCHEMAS
@@ -325,11 +325,11 @@ class UserActivityResponse(BaseSchema, TimestampMixin):
     id: UUID
     user_id: UUID
     activity_type: str
-    resource_type: Optional[str] = None
-    resource_id: Optional[UUID] = None
+    resource_type: Optional[str]
+    resource_id: Optional[UUID]
     description: str
-    ip_address: Optional[str] = None
-    user_agent: Optional[str] = None
+    ip_address: Optional[str]
+    user_agent: Optional[str]
     metadata: dict = Field(default_factory=dict)
 
 class UserActivityListResponse(BaseSchema):
@@ -341,10 +341,10 @@ class UserActivityListResponse(BaseSchema):
 
 class UserActivityFilterParams(PaginationParams, SortParams):
     """Schema für User Activity Filtering"""
-    activity_type: Optional[str] = None
-    resource_type: Optional[str] = None
-    start_date: Optional[datetime] = None
-    end_date: Optional[datetime] = None
+    activity_type: Optional[str]
+    resource_type: Optional[str]
+    start_date: Optional[datetime]
+    end_date: Optional[datetime]
 
 # ================================
 # COMPLIANCE & GDPR SCHEMAS

@@ -12,7 +12,7 @@ class PermissionBase(BaseSchema):
     """Base Permission Schema"""
     resource: str = Field(..., min_length=1, max_length=100, description="Resource name (e.g., 'users', 'projects')")
     action: str = Field(..., min_length=1, max_length=50, description="Action name (e.g., 'create', 'read')")
-    description: Optional[str] = Field(None, description="Permission description")
+    description: Optional[str] = Field(description="Permission description")
 
 class PermissionCreate(PermissionBase):
     """Schema für Permission-Erstellung"""
@@ -26,7 +26,7 @@ class PermissionResponse(PermissionBase, TimestampMixin):
 class RoleBase(BaseSchema):
     """Base Role Schema"""
     name: str = Field(..., min_length=1, max_length=100, description="Role name")
-    description: Optional[str] = Field(None, description="Role description")
+    description: Optional[str] = Field(description="Role description")
     is_system_role: bool = Field(default=False, description="System-defined role")
 
 class RoleCreate(RoleBase):
@@ -35,8 +35,8 @@ class RoleCreate(RoleBase):
 
 class RoleUpdate(BaseSchema):
     """Schema für Role-Updates"""
-    name: Optional[str] = Field(None, min_length=1, max_length=100)
-    description: Optional[str] = None
+    name: Optional[str] = Field(min_length=1, max_length=100)
+    description: Optional[str]
     permission_ids: Optional[List[UUID]] = None
 
 class RoleResponse(RoleBase, TimestampMixin):
@@ -44,7 +44,7 @@ class RoleResponse(RoleBase, TimestampMixin):
     id: UUID
     tenant_id: Optional[UUID]
     permissions: List[PermissionResponse] = Field(default_factory=list)
-    user_count: Optional[int] = Field(None, description="Number of users with this role")
+    user_count: Optional[int] = Field(description="Number of users with this role")
 
 class RoleDetailResponse(RoleBase, TimestampMixin):
     """Detailed Role Response with full information"""
@@ -60,8 +60,8 @@ class RoleDetailResponse(RoleBase, TimestampMixin):
     recent_assignments: int = Field(default=0, description="Recent role assignments count")
     
     # Usage statistics
-    last_assigned: Optional[datetime] = Field(None, description="When this role was last assigned")
-    created_by_name: Optional[str] = Field(None, description="Name of user who created this role")
+    last_assigned: Optional[datetime] = Field(description="When this role was last assigned")
+    created_by_name: Optional[str] = Field(description="Name of user who created this role")
 
 class RoleListResponse(BaseSchema):
     """Schema for Role List Response"""
@@ -74,13 +74,13 @@ class BulkRoleAssignment(BaseSchema):
     """Schema for Bulk Role Assignment"""
     user_ids: List[UUID] = Field(..., min_items=1, description="User IDs to assign roles to")
     role_ids: List[UUID] = Field(..., min_items=1, description="Role IDs to assign")
-    expires_at: Optional[datetime] = Field(None, description="Optional expiration for role assignments")
+    expires_at: Optional[datetime] = Field(description="Optional expiration for role assignments")
 
 class UserRoleAssignment(BaseSchema):
     """Schema für User-Role Zuordnung"""
     user_id: UUID = Field(..., description="User ID")
     role_ids: List[UUID] = Field(..., min_items=1, description="Role IDs to assign")
-    expires_at: Optional[datetime] = Field(None, description="Role expiration (optional)")
+    expires_at: Optional[datetime] = Field(description="Role expiration (optional)")
 
 class UserRoleResponse(BaseSchema, TimestampMixin):
     """Schema für User-Role Response"""
@@ -106,7 +106,7 @@ class RoleBulkAssignRequest(BaseSchema):
     """Schema für Bulk Role Assignment"""
     user_ids: List[UUID] = Field(..., min_items=1, max_items=100, description="User IDs")
     role_ids: List[UUID] = Field(..., min_items=1, description="Role IDs to assign")
-    expires_at: Optional[datetime] = Field(None, description="Expiration for all assignments")
+    expires_at: Optional[datetime] = Field(description="Expiration for all assignments")
 
 class RoleBulkAssignResponse(BaseSchema):
     """Schema für Bulk Role Assignment Response"""
@@ -118,7 +118,7 @@ class RoleCloneRequest(BaseSchema):
     """Schema für Role Cloning"""
     source_role_id: UUID = Field(..., description="Role to clone from")
     new_role_name: str = Field(..., min_length=1, max_length=100, description="Name for the new role")
-    new_role_description: Optional[str] = Field(None, description="Description for the new role")
+    new_role_description: Optional[str] = Field(description="Description for the new role")
 
 # ================================
 # PERMISSION MANAGEMENT SCHEMAS
@@ -176,7 +176,7 @@ class AccessRequest(BaseSchema):
     requested_role_id: UUID = Field(..., description="Requested role ID")
     requested_permissions: List[UUID] = Field(default_factory=list, description="Specific permissions requested")
     justification: str = Field(..., min_length=10, description="Justification for access")
-    duration_days: Optional[int] = Field(None, ge=1, le=90, description="Requested duration in days")
+    duration_days: Optional[int] = Field(ge=1, le=90, description="Requested duration in days")
 
 class AccessRequestResponse(BaseSchema, TimestampMixin):
     """Schema für Access Request Response"""
@@ -185,9 +185,9 @@ class AccessRequestResponse(BaseSchema, TimestampMixin):
     requested_role_id: UUID
     justification: str
     status: str = Field(description="pending, approved, rejected")
-    reviewer_id: Optional[UUID] = None
-    review_comment: Optional[str] = None
-    reviewed_at: Optional[datetime] = None
+    reviewer_id: Optional[UUID]
+    review_comment: Optional[str]
+    reviewed_at: Optional[datetime]
 
 # ================================
 # RBAC FILTERING & REPORTING SCHEMAS
@@ -195,16 +195,16 @@ class AccessRequestResponse(BaseSchema, TimestampMixin):
 
 class RoleFilterParams(BaseSchema):
     """Schema für Role Filtering"""
-    search: Optional[str] = Field(None, description="Search in role name/description")
-    is_system_role: Optional[bool] = None
-    has_users: Optional[bool] = None
-    permission_id: Optional[UUID] = None
+    search: Optional[str] = Field(description="Search in role name/description")
+    is_system_role: Optional[bool]
+    has_users: Optional[bool]
+    permission_id: Optional[UUID]
 
 class PermissionFilterParams(BaseSchema):
     """Schema für Permission Filtering"""
-    search: Optional[str] = Field(None, description="Search in resource/action/description")
-    resource: Optional[str] = None
-    action: Optional[str] = None
+    search: Optional[str] = Field(description="Search in resource/action/description")
+    resource: Optional[str]
+    action: Optional[str]
 
 class RBACStatsResponse(BaseSchema):
     """Schema für RBAC Statistics"""
@@ -244,9 +244,9 @@ class RBACActivityResponse(BaseSchema, TimestampMixin):
     id: UUID
     activity_type: str = Field(description="role_assigned, role_removed, permission_granted, etc.")
     user_id: UUID
-    target_user_id: Optional[UUID] = None
-    role_id: Optional[UUID] = None
-    permission_id: Optional[UUID] = None
+    target_user_id: Optional[UUID]
+    role_id: Optional[UUID]
+    permission_id: Optional[UUID]
     details: dict = Field(default_factory=dict)
 
 class RBACComplianceReport(BaseSchema):
