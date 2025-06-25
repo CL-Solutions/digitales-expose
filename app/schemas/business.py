@@ -6,7 +6,6 @@ from pydantic import Field, ConfigDict, field_validator, model_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import UUID
-from decimal import Decimal
 
 from app.schemas.base import BaseSchema, BaseResponseSchema, PaginationParams
 
@@ -212,30 +211,30 @@ class PropertyBase(BaseSchema):
     floor: Optional[str] = Field(None, max_length=50)  # e.g., "1. OG", "2. OG Mitte", "EG"
     balcony: Optional[bool] = None
     
-    purchase_price: Decimal = Field(..., decimal_places=2, ge=0)
-    purchase_price_parking: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
-    purchase_price_furniture: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
-    monthly_rent: Decimal = Field(..., decimal_places=2, ge=0)
-    rent_parking_month: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
-    additional_costs: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
-    management_fee: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    purchase_price: float = Field(..., ge=0)
+    purchase_price_parking: Optional[float] = Field(None, ge=0)
+    purchase_price_furniture: Optional[float] = Field(None, ge=0)
+    monthly_rent: float = Field(..., ge=0)
+    rent_parking_month: Optional[float] = Field(None, ge=0)
+    additional_costs: Optional[float] = Field(None, ge=0)
+    management_fee: Optional[float] = Field(None, ge=0)
     
     # Transaction Costs (as percentages)
-    transaction_broker_rate: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
-    transaction_tax_rate: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
-    transaction_notary_rate: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
-    transaction_register_rate: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    transaction_broker_rate: Optional[float] = Field(None, ge=0)
+    transaction_tax_rate: Optional[float] = Field(None, ge=0)
+    transaction_notary_rate: Optional[float] = Field(None, ge=0)
+    transaction_register_rate: Optional[float] = Field(None, ge=0)
     
     # Operating Costs
-    operation_cost_landlord: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
-    operation_cost_tenant: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
-    operation_cost_reserve: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    operation_cost_landlord: Optional[float] = Field(None, ge=0)
+    operation_cost_tenant: Optional[float] = Field(None, ge=0)
+    operation_cost_reserve: Optional[float] = Field(None, ge=0)
     
     # Additional Property Data
-    object_share_owner: Optional[float] = Field(None, ge=0, le=1)  # Decimal percentage (0.0 to 1.0)
-    share_land: Optional[float] = Field(None, ge=0, le=1)  # Decimal percentage (0.0 to 1.0)
+    object_share_owner: Optional[float] = Field(None, ge=0, le=1)  # float percentage (0.0 to 1.0)
+    share_land: Optional[float] = Field(None, ge=0, le=1)  # float percentage (0.0 to 1.0)
     property_usage: Optional[str] = Field(None, max_length=100)
-    initial_maintenance_expenses: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    initial_maintenance_expenses: Optional[float] = Field(None, ge=0)
     
     # Depreciation Settings
     degressive_depreciation_building_onoff: Optional[int] = Field(None, ge=-1, le=1)
@@ -254,10 +253,7 @@ class PropertyBase(BaseSchema):
     visibility: Optional[int] = Field(None, ge=-1, le=1)  # -1: deactivated, 0: in progress, 1: active
 
     model_config = ConfigDict(
-        from_attributes=True,
-        json_encoders={
-            Decimal: float
-        }
+        from_attributes=True
     )
 
 class PropertyCreate(PropertyBase):
@@ -290,30 +286,30 @@ class PropertyUpdate(BaseSchema):
     floor: Optional[str] = Field(None, max_length=50)
     balcony: Optional[bool] = None
     
-    purchase_price: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
-    purchase_price_parking: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
-    purchase_price_furniture: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
-    monthly_rent: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
-    rent_parking_month: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
-    additional_costs: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
-    management_fee: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    purchase_price: Optional[float] = Field(None, ge=0)
+    purchase_price_parking: Optional[float] = Field(None, ge=0)
+    purchase_price_furniture: Optional[float] = Field(None, ge=0)
+    monthly_rent: Optional[float] = Field(None, ge=0)
+    rent_parking_month: Optional[float] = Field(None, decimal_places=2, ge=0)
+    additional_costs: Optional[float] = Field(None, decimal_places=2, ge=0)
+    management_fee: Optional[float] = Field(None, decimal_places=2, ge=0)
     
     # Transaction Costs
-    transaction_broker_rate: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
-    transaction_tax_rate: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
-    transaction_notary_rate: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
-    transaction_register_rate: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    transaction_broker_rate: Optional[float] = Field(None, decimal_places=2, ge=0)
+    transaction_tax_rate: Optional[float] = Field(None, decimal_places=2, ge=0)
+    transaction_notary_rate: Optional[float] = Field(None, decimal_places=2, ge=0)
+    transaction_register_rate: Optional[float] = Field(None, decimal_places=2, ge=0)
     
     # Operating Costs
-    operation_cost_landlord: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
-    operation_cost_tenant: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
-    operation_cost_reserve: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    operation_cost_landlord: Optional[float] = Field(None, decimal_places=2, ge=0)
+    operation_cost_tenant: Optional[float] = Field(None, decimal_places=2, ge=0)
+    operation_cost_reserve: Optional[float] = Field(None, decimal_places=2, ge=0)
     
     # Additional Property Data
     object_share_owner: Optional[float] = Field(None, ge=0, le=1)
     share_land: Optional[float] = Field(None, ge=0)
     property_usage: Optional[str] = Field(None, max_length=100)
-    initial_maintenance_expenses: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    initial_maintenance_expenses: Optional[float] = Field(None, ge=0)
     
     # Depreciation Settings
     degressive_depreciation_building_onoff: Optional[int] = Field(None, ge=-1, le=1)
@@ -332,10 +328,7 @@ class PropertyUpdate(BaseSchema):
     visibility: Optional[int] = Field(None, ge=-1, le=1)  # -1: deactivated, 0: in progress, 1: active
 
     model_config = ConfigDict(
-        from_attributes=True,
-        json_encoders={
-            Decimal: float
-        }
+        from_attributes=True
     )
 
 class PropertyImageSchema(BaseResponseSchema):
@@ -363,17 +356,14 @@ class PropertyResponse(PropertyBase, BaseResponseSchema):
     city_ref: Optional["CityResponse"] = None
     
     # Computed fields
-    total_investment: Optional[Decimal] = None
+    total_investment: Optional[float] = None
     gross_rental_yield: Optional[float] = None
     net_rental_yield: Optional[float] = None
     all_images: List[GenericImageSchema] = []  # Combined project + property images
     
     model_config = ConfigDict(
         from_attributes=True,
-        arbitrary_types_allowed=True,
-        json_encoders={
-            Decimal: float
-        }
+        arbitrary_types_allowed=True
     )
     
     @model_validator(mode='before')
@@ -674,9 +664,9 @@ class ExposeLinkBase(BaseSchema):
     preset_equity_percentage: Optional[float] = Field(None, ge=0, le=100)
     preset_interest_rate: Optional[float] = Field(None, ge=0, le=20)
     preset_repayment_rate: Optional[float] = Field(None, ge=0, le=10)
-    preset_gross_income: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    preset_gross_income: Optional[float] = Field(None, decimal_places=2, ge=0)
     preset_is_married: Optional[bool] = None
-    preset_monthly_rent: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    preset_monthly_rent: Optional[float] = Field(None, decimal_places=2, ge=0)
     
     expiration_date: Optional[datetime] = None
     password_protected: bool = False
@@ -703,9 +693,9 @@ class ExposeLinkUpdate(BaseSchema):
     preset_equity_percentage: Optional[float] = Field(None, ge=0, le=100)
     preset_interest_rate: Optional[float] = Field(None, ge=0, le=20)
     preset_repayment_rate: Optional[float] = Field(None, ge=0, le=10)
-    preset_gross_income: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    preset_gross_income: Optional[float] = Field(None, decimal_places=2, ge=0)
     preset_is_married: Optional[bool] = None
-    preset_monthly_rent: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    preset_monthly_rent: Optional[float] = Field(None, decimal_places=2, ge=0)
     
     expiration_date: Optional[datetime] = None
     is_active: Optional[bool] = None
@@ -737,9 +727,9 @@ class ExposeLinkPublicResponse(BaseSchema):
     preset_equity_percentage: Optional[float] = None
     preset_interest_rate: Optional[float] = None
     preset_repayment_rate: Optional[float] = None
-    preset_gross_income: Optional[Decimal] = None
+    preset_gross_income: Optional[float] = None
     preset_is_married: Optional[bool] = None
-    preset_monthly_rent: Optional[Decimal] = None
+    preset_monthly_rent: Optional[float] = None
     
     visible_sections: Optional[Dict[str, bool]] = None
     custom_message: Optional[str] = None
@@ -825,8 +815,8 @@ class PropertyFilter(PaginationParams):
     city: Optional[str] = None
     state: Optional[str] = None
     property_type: Optional[str] = None
-    min_price: Optional[Decimal] = None
-    max_price: Optional[Decimal] = None
+    min_price: Optional[float] = None
+    max_price: Optional[float] = None
     min_size: Optional[float] = None
     max_size: Optional[float] = None
     min_rooms: Optional[float] = None
@@ -852,8 +842,8 @@ class PropertyOverview(BaseSchema):
     city: str
     state: str
     property_type: str
-    purchase_price: Decimal
-    monthly_rent: Decimal
+    purchase_price: float
+    monthly_rent: float
     size_sqm: float
     rooms: float
     floor: Optional[str] = None
@@ -871,10 +861,7 @@ class PropertyOverview(BaseSchema):
     thumbnail_url: Optional[str] = None
     
     model_config = ConfigDict(
-        from_attributes=True,
-        json_encoders={
-            Decimal: float
-        }
+        from_attributes=True
     )
 
 class PropertyListResponse(BaseSchema):
