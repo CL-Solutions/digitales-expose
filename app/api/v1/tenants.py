@@ -36,7 +36,13 @@ async def create_tenant(
     try:
         tenant = await TenantService.create_tenant_with_admin(db, tenant_data, super_admin)
         db.commit()
-        return TenantResponse.model_validate(tenant)
+        
+        # Add user count (1 for new tenant - the admin user)
+        tenant_dict = tenant.__dict__.copy()
+        tenant_dict['user_count'] = 1  # New tenant has 1 user (the admin)
+        tenant_dict.pop('_sa_instance_state', None)
+        
+        return TenantResponse.model_validate(tenant_dict)
     
     except AppException as e:
         db.rollback()
@@ -104,8 +110,13 @@ async def list_tenants(
         tenant_responses = []
         for tenant in tenants:
             user_count = db.query(User).filter(User.tenant_id == tenant.id).count()
-            tenant_response = TenantResponse.model_validate(tenant)
-            tenant_response.user_count = user_count
+            
+            # Convert to dict and add user_count before validation
+            tenant_dict = tenant.__dict__.copy()
+            tenant_dict['user_count'] = user_count
+            tenant_dict.pop('_sa_instance_state', None)
+            
+            tenant_response = TenantResponse.model_validate(tenant_dict)
             tenant_responses.append(tenant_response)
         
         return TenantListResponse(
@@ -137,15 +148,15 @@ async def get_tenant_by_id(
         # Add user count (only for super admins or if it's the user's own tenant)
         user_count = db.query(User).filter(User.tenant_id == tenant.id).count()
         
-        try:
-            tenant_response = TenantResponse.model_validate(tenant)
-            tenant_response.user_count = user_count
-            return tenant_response
-        except Exception as validation_error:
-            print(f"Validation error for tenant {tenant_id}: {str(validation_error)}")
-            print(f"Tenant data: id={tenant.id}, name={tenant.name}, created_at={tenant.created_at}")
-            print(f"Tenant type: {type(tenant)}")
-            raise
+        # Convert to dict and add user_count before validation
+        tenant_dict = tenant.__dict__.copy()
+        tenant_dict['user_count'] = user_count
+        
+        # Remove SQLAlchemy internal state
+        tenant_dict.pop('_sa_instance_state', None)
+        
+        tenant_response = TenantResponse.model_validate(tenant_dict)
+        return tenant_response
     
     except HTTPException:
         raise
@@ -182,9 +193,13 @@ async def update_tenant(
         
         # Add user count
         user_count = db.query(User).filter(User.tenant_id == tenant.id).count()
-        tenant_response = TenantResponse.model_validate(tenant)
-        tenant_response.user_count = user_count
         
+        # Convert to dict and add user_count before validation
+        tenant_dict = tenant.__dict__.copy()
+        tenant_dict['user_count'] = user_count
+        tenant_dict.pop('_sa_instance_state', None)
+        
+        tenant_response = TenantResponse.model_validate(tenant_dict)
         return tenant_response
     
     except HTTPException:
