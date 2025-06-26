@@ -358,6 +358,9 @@ class PropertyResponse(PropertyBase, BaseResponseSchema):
     # Computed fields - these fields are dynamically added in validator
     # We don't define them here to avoid them appearing in OpenAPI schema as nullable
     all_images: List[GenericImageSchema] = []  # Combined project + property images
+    total_investment: Optional[float] = None
+    gross_rental_yield: Optional[float] = None
+    net_rental_yield: Optional[float] = None
     
     model_config = ConfigDict(
         from_attributes=True,
