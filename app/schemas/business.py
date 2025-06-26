@@ -814,23 +814,23 @@ class ProjectListResponse(BaseSchema):
 
 class PropertyFilter(PaginationParams):
     """Schema for property filtering"""
-    project_id: Optional[UUID]  # Filter by project
-    city: Optional[str]
-    state: Optional[str]
-    property_type: Optional[str]
-    min_price: Optional[float]
-    max_price: Optional[float]
-    min_size: Optional[float]
-    max_size: Optional[float]
-    min_rooms: Optional[float]
-    max_rooms: Optional[float]
-    min_rental_yield: Optional[float]  # Filter by minimum Bruttomietrendite
-    max_rental_yield: Optional[float]  # Filter by maximum Bruttomietrendite
-    energy_class: Optional[str]
+    project_id: Optional[UUID] = None  # Filter by project
+    city: Optional[str] = None
+    state: Optional[str] = None
+    property_type: Optional[str] = None
+    min_price: Optional[float] = None
+    max_price: Optional[float] = None
+    min_size: Optional[float] = None
+    max_size: Optional[float] = None
+    min_rooms: Optional[float] = None
+    max_rooms: Optional[float] = None
+    min_rental_yield: Optional[float] = None  # Filter by minimum Bruttomietrendite
+    max_rental_yield: Optional[float] = None  # Filter by maximum Bruttomietrendite
+    energy_class: Optional[str] = None
     # Investagon status filters
     active: Optional[List[int]] = None  # Multiple statuses
-    pre_sale: Optional[int]
-    draft: Optional[int]
+    pre_sale: Optional[int] = None
+    draft: Optional[int] = None
     sort_by: str = Field(default="created_at", description="Field to sort by")
     sort_order: str = Field(default="desc", pattern="^(asc|desc)$", description="Sort order")
 
