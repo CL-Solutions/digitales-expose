@@ -154,7 +154,11 @@ def map_property_to_response(prop: Property) -> Dict[str, Any]:
     if prop.rent_parking_month:
         total_monthly_rent += float(prop.rent_parking_month)
     
-    # Add calculated fields
+    # Add calculated fields - always include them so they're in the schema
+    response_data["total_investment"] = None
+    response_data["gross_rental_yield"] = None
+    response_data["net_rental_yield"] = None
+    
     if total_purchase_price > 0 and total_monthly_rent > 0:
         annual_rent = total_monthly_rent * 12
         response_data["total_investment"] = total_purchase_price

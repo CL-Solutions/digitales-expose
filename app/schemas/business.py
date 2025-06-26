@@ -410,6 +410,11 @@ class PropertyResponse(PropertyBase, BaseResponseSchema):
             rent_parking_month = float(values.get('rent_parking_month') or 0)
             total_monthly_rent = monthly_rent + rent_parking_month
             
+            # Always include computed fields to ensure consistent schema
+            values['total_investment'] = None
+            values['gross_rental_yield'] = None
+            values['net_rental_yield'] = None
+            
             # Calculate yields based on totals
             if total_purchase_price > 0 and total_monthly_rent > 0:
                 try:
