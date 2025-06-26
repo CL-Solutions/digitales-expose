@@ -42,14 +42,14 @@ class RoleUpdate(BaseSchema):
 class RoleResponse(RoleBase, TimestampMixin):
     """Schema für Role-Responses"""
     id: UUID
-    tenant_id: Optional[UUID]
+    tenant_id: Optional[UUID] = None
     permissions: List[PermissionResponse] = Field(default_factory=list)
-    user_count: Optional[int] = Field(description="Number of users with this role")
+    user_count: Optional[int] = Field(None, description="Number of users with this role")
 
 class RoleDetailResponse(RoleBase, TimestampMixin):
     """Detailed Role Response with full information"""
     id: UUID
-    tenant_id: Optional[UUID]
+    tenant_id: Optional[UUID] = None
     permissions: List[PermissionResponse] = Field(default_factory=list, description="Permissions assigned to this role")
     user_count: int = Field(description="Number of users with this role")
     users: List[dict] = Field(default_factory=list, description="Users assigned to this role")
@@ -60,8 +60,8 @@ class RoleDetailResponse(RoleBase, TimestampMixin):
     recent_assignments: int = Field(default=0, description="Recent role assignments count")
     
     # Usage statistics
-    last_assigned: Optional[datetime] = Field(description="When this role was last assigned")
-    created_by_name: Optional[str] = Field(description="Name of user who created this role")
+    last_assigned: Optional[datetime] = Field(None, description="When this role was last assigned")
+    created_by_name: Optional[str] = Field(None, description="Name of user who created this role")
 
 class RoleListResponse(BaseSchema):
     """Schema for Role List Response"""
