@@ -712,14 +712,14 @@ class ExposeLinkResponse(ExposeLinkBase, BaseResponseSchema):
     link_id: str
     is_active: bool = True
     view_count: int = 0
-    first_viewed_at: Optional[datetime]
-    last_viewed_at: Optional[datetime]
+    first_viewed_at: Optional[datetime] = None
+    last_viewed_at: Optional[datetime] = None
     created_at: datetime
     created_by: UUID
     
     # Include property basic info - use forward reference to avoid circular imports
-    property: Optional["PropertyOverview"]
-    template: Optional[ExposeTemplateResponse]
+    property: Optional["PropertyOverview"] = None
+    template: Optional[ExposeTemplateResponse] = None
 
 class ExposeLinkPublicResponse(BaseSchema):
     """Schema for public ExposeLink response (for viewers)"""
