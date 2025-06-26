@@ -104,6 +104,7 @@ def map_property_to_response(prop: Property) -> Dict[str, Any]:
         "rooms": prop.rooms,
         "bathrooms": prop.bathrooms,
         "floor": prop.floor,
+        "balcony": prop.balcony,
         "purchase_price": prop.purchase_price,
         "purchase_price_parking": prop.purchase_price_parking,
         "purchase_price_furniture": prop.purchase_price_furniture,

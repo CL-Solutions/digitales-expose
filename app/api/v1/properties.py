@@ -108,15 +108,27 @@ async def get_property(
                 for img in property.project.images:
                     img_dict = img.__dict__.copy()
                     img_dict.pop('_sa_instance_state', None)
+                    # Add property_id as None for GenericImageSchema compatibility
+                    img_dict['property_id'] = None
                     project_images.append(img_dict)
                 project_dict['images'] = project_images
+            
+            # Add city_ref to project if it exists
+            if hasattr(property.project, 'city_ref') and property.project.city_ref:
+                city_dict = property.project.city_ref.__dict__.copy()
+                city_dict.pop('_sa_instance_state', None)
+                project_dict['city_ref'] = city_dict
             
             response_data['project'] = project_dict
             
         if property.images:
-            response_data['images'] = [img.__dict__.copy() for img in property.images]
-            for img_dict in response_data['images']:
+            response_data['images'] = []
+            for img in property.images:
+                img_dict = img.__dict__.copy()
                 img_dict.pop('_sa_instance_state', None)
+                # Add project_id as None for GenericImageSchema compatibility
+                img_dict['project_id'] = None
+                response_data['images'].append(img_dict)
                 
         if property.city_ref:
             response_data['city_ref'] = property.city_ref.__dict__.copy()
