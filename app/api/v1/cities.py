@@ -26,7 +26,7 @@ from app.config import settings
 
 router = APIRouter()
 
-@router.get("/", response_model=List[CityResponse])
+@router.get("/", response_model=List[CityResponse], response_model_exclude_none=True)
 async def list_cities(
     state: Optional[str] = Query(None, description="Filter by state"),
     search: Optional[str] = Query(None, description="Search by city name"),
@@ -44,7 +44,7 @@ async def list_cities(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/with-properties/", response_model=List[Dict[str, Any]])
+@router.get("/with-properties/", response_model=List[Dict[str, Any], response_model_exclude_none=True])
 async def get_cities_with_properties(
     current_user: User = Depends(get_current_active_user),
     tenant_id: Optional[UUID] = Depends(get_current_tenant_id),
@@ -61,7 +61,7 @@ async def get_cities_with_properties(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/", response_model=CityResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=CityResponse, response_model_exclude_none=True, status_code=status.HTTP_201_CREATED)
 async def create_city(
     city_data: CityCreate,
     current_user: User = Depends(get_current_active_user),
@@ -82,7 +82,7 @@ async def create_city(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/{city_id}", response_model=CityResponse)
+@router.get("/{city_id}", response_model=CityResponse, response_model_exclude_none=True)
 async def get_city(
     city_id: UUID = Path(..., description="City ID"),
     current_user: User = Depends(get_current_active_user),
@@ -99,7 +99,7 @@ async def get_city(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.put("/{city_id}", response_model=CityResponse)
+@router.put("/{city_id}", response_model=CityResponse, response_model_exclude_none=True)
 async def update_city(
     city_id: UUID = Path(..., description="City ID"),
     city_data: CityUpdate = ...,
@@ -142,7 +142,7 @@ async def delete_city(
 
 # City Images Endpoints
 
-@router.post("/{city_id}/images/upload", response_model=CityImageSchema, status_code=status.HTTP_201_CREATED)
+@router.post("/{city_id}/images/upload", response_model=CityImageSchema, response_model_exclude_none=True, status_code=status.HTTP_201_CREATED)
 async def upload_city_image(
     city_id: UUID = Path(..., description="City ID"),
     image: UploadFile = File(..., description="Image file to upload"),
@@ -217,7 +217,7 @@ async def upload_city_image(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/{city_id}/images", response_model=CityImageSchema, status_code=status.HTTP_201_CREATED)
+@router.post("/{city_id}/images", response_model=CityImageSchema, response_model_exclude_none=True, status_code=status.HTTP_201_CREATED)
 async def add_city_image(
     city_id: UUID = Path(..., description="City ID"),
     image_url: str = ...,
@@ -246,7 +246,7 @@ async def add_city_image(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.put("/{city_id}/images/{image_id}", response_model=CityImageSchema)
+@router.put("/{city_id}/images/{image_id}", response_model=CityImageSchema, response_model_exclude_none=True)
 async def update_city_image(
     city_id: UUID = Path(..., description="City ID"),
     image_id: UUID = Path(..., description="Image ID"),

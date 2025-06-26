@@ -25,7 +25,7 @@ router = APIRouter()
 # ROLE MANAGEMENT
 # ================================
 
-@router.post("/roles/", response_model=RoleResponse)
+@router.post("/roles/", response_model=RoleResponse, response_model_exclude_none=True)
 async def create_role(
     role_data: RoleCreate,
     request: Request,
@@ -60,7 +60,7 @@ async def create_role(
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to create role")
 
-@router.get("/roles/", response_model=RoleListResponse)
+@router.get("/roles/", response_model=RoleListResponse, response_model_exclude_none=True)
 async def list_roles(
     request: Request,
     page: int = Query(default=1, ge=1),
@@ -196,7 +196,7 @@ async def list_roles(
         logger.error(f"Full traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve roles: {str(e)}")
 
-@router.get("/roles/{role_id}", response_model=RoleDetailResponse)
+@router.get("/roles/{role_id}", response_model=RoleDetailResponse, response_model_exclude_none=True)
 async def get_role_details(
     request: Request,
     role_id: uuid.UUID = Path(..., description="Role ID"),
@@ -293,7 +293,7 @@ async def get_role_details(
         logger.error(f"Error in get_role_details: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get role details: {str(e)}")
 
-@router.put("/roles/{role_id}", response_model=RoleResponse)
+@router.put("/roles/{role_id}", response_model=RoleResponse, response_model_exclude_none=True)
 async def update_role(
     role_update: RoleUpdate,
     request: Request,
@@ -461,7 +461,7 @@ async def clone_role(
 # PERMISSION MANAGEMENT
 # ================================
 
-@router.get("/permissions/", response_model=List[PermissionResponse])
+@router.get("/permissions/", response_model=List[PermissionResponse], response_model_exclude_none=True)
 async def list_permissions(
     request: Request,
     current_user: User = Depends(get_current_user),
@@ -488,7 +488,7 @@ async def list_permissions(
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to retrieve permissions")
 
-@router.post("/permissions/", response_model=PermissionResponse)
+@router.post("/permissions/", response_model=PermissionResponse, response_model_exclude_none=True)
 async def create_permission(
     permission_data: PermissionCreate,
     request: Request,
@@ -636,7 +636,7 @@ async def check_user_permission(
 # RBAC STATISTICS & REPORTS
 # ================================
 
-@router.get("/stats/", response_model=RBACStatsResponse)
+@router.get("/stats/", response_model=RBACStatsResponse, response_model_exclude_none=True)
 async def get_rbac_statistics(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),

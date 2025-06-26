@@ -30,7 +30,7 @@ from app.mappers.property_mapper import map_property_to_response
 
 router = APIRouter()
 
-@router.get("/", response_model=PropertyListResponse)
+@router.get("/", response_model=PropertyListResponse, response_model_exclude_none=True)
 async def list_properties(
     filter_params: PropertyFilter = Depends(),
     active: Optional[List[int]] = Query(None),
@@ -62,7 +62,7 @@ async def list_properties(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/", response_model=PropertyResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=PropertyResponse, response_model_exclude_none=True, status_code=status.HTTP_201_CREATED)
 async def create_property(
     property_data: PropertyCreate,
     current_user: User = Depends(get_current_active_user),
@@ -83,7 +83,7 @@ async def create_property(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/{property_id}", response_model=PropertyResponse)
+@router.get("/{property_id}", response_model=PropertyResponse, response_model_exclude_none=True)
 async def get_property(
     property_id: UUID = Path(..., description="Property ID"),
     current_user: User = Depends(get_current_active_user),
@@ -130,7 +130,7 @@ async def get_property(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.put("/{property_id}", response_model=PropertyResponse)
+@router.put("/{property_id}", response_model=PropertyResponse, response_model_exclude_none=True)
 async def update_property(
     property_id: UUID = Path(..., description="Property ID"),
     property_data: PropertyUpdate = ...,
@@ -173,7 +173,7 @@ async def delete_property(
 
 # Property Images Endpoints
 
-@router.post("/{property_id}/images/upload", response_model=PropertyImageSchema, status_code=status.HTTP_201_CREATED)
+@router.post("/{property_id}/images/upload", response_model=PropertyImageSchema, response_model_exclude_none=True, status_code=status.HTTP_201_CREATED)
 async def upload_property_image(
     property_id: UUID = Path(..., description="Property ID"),
     image: UploadFile = File(..., description="Image file to upload"),
@@ -250,7 +250,7 @@ async def upload_property_image(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/{property_id}/images", response_model=PropertyImageSchema, status_code=status.HTTP_201_CREATED)
+@router.post("/{property_id}/images", response_model=PropertyImageSchema, response_model_exclude_none=True, status_code=status.HTTP_201_CREATED)
 async def add_property_image(
     property_id: UUID = Path(..., description="Property ID"),
     image_data: PropertyImageCreate = ...,
@@ -272,7 +272,7 @@ async def add_property_image(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.put("/{property_id}/images/{image_id}", response_model=PropertyImageSchema)
+@router.put("/{property_id}/images/{image_id}", response_model=PropertyImageSchema, response_model_exclude_none=True)
 async def update_property_image(
     property_id: UUID = Path(..., description="Property ID"),
     image_id: UUID = Path(..., description="Image ID"),
@@ -337,7 +337,7 @@ async def delete_property_image(
 
 # Property Statistics
 
-@router.get("/stats/overview/", response_model=dict)
+@router.get("/stats/overview/", response_model=dict, response_model_exclude_none=True)
 async def get_property_statistics(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),

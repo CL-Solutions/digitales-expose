@@ -26,7 +26,7 @@ router = APIRouter()
 # TENANT CRUD OPERATIONS
 # ================================
 
-@router.post("/", response_model=TenantResponse)
+@router.post("/", response_model=TenantResponse, response_model_exclude_none=True)
 async def create_tenant(
     tenant_data: TenantCreate,
     super_admin: User = Depends(get_super_admin_user),
@@ -45,7 +45,7 @@ async def create_tenant(
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to create tenant")
 
-@router.get("/", response_model=TenantListResponse)
+@router.get("/", response_model=TenantListResponse, response_model_exclude_none=True)
 async def list_tenants(
     filter_params: TenantFilterParams = Depends(),
     super_admin: User = Depends(get_super_admin_user),
@@ -118,7 +118,7 @@ async def list_tenants(
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to retrieve tenants")
 
-@router.get("/{tenant_id}", response_model=TenantResponse)
+@router.get("/{tenant_id}", response_model=TenantResponse, response_model_exclude_none=True)
 async def get_tenant_by_id(
     tenant_id: uuid.UUID = Path(..., description="Tenant ID"),
     current_user: User = Depends(get_current_user),
@@ -146,7 +146,7 @@ async def get_tenant_by_id(
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to get tenant")
 
-@router.patch("/{tenant_id}", response_model=TenantResponse)
+@router.patch("/{tenant_id}", response_model=TenantResponse, response_model_exclude_none=True)
 async def update_tenant(
     tenant_id: uuid.UUID = Path(..., description="Tenant ID"),
     tenant_update: TenantUpdate = ...,
@@ -214,7 +214,7 @@ async def delete_tenant(
 # TENANT IDENTITY PROVIDERS
 # ================================
 
-@router.post("/{tenant_id}/identity-providers/microsoft", response_model=IdentityProviderResponse)
+@router.post("/{tenant_id}/identity-providers/microsoft", response_model=IdentityProviderResponse, response_model_exclude_none=True)
 async def create_microsoft_identity_provider(
     tenant_id: uuid.UUID = Path(..., description="Tenant ID"),
     provider_data: MicrosoftIdentityProviderCreate = ...,
@@ -290,7 +290,7 @@ async def create_microsoft_identity_provider(
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to create Microsoft identity provider")
 
-@router.post("/{tenant_id}/identity-providers/google", response_model=IdentityProviderResponse)
+@router.post("/{tenant_id}/identity-providers/google", response_model=IdentityProviderResponse, response_model_exclude_none=True)
 async def create_google_identity_provider(
     tenant_id: uuid.UUID = Path(..., description="Tenant ID"),
     provider_data: GoogleIdentityProviderCreate = ...,
@@ -364,7 +364,7 @@ async def create_google_identity_provider(
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to create Google identity provider")
 
-@router.get("/{tenant_id}/identity-providers", response_model=IdentityProviderListResponse)
+@router.get("/{tenant_id}/identity-providers", response_model=IdentityProviderListResponse, response_model_exclude_none=True)
 async def list_tenant_identity_providers(
     tenant_id: uuid.UUID = Path(..., description="Tenant ID"),
     super_admin: User = Depends(get_super_admin_user),
@@ -391,7 +391,7 @@ async def list_tenant_identity_providers(
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to get identity providers")
 
-@router.put("/{tenant_id}/identity-providers/{provider_id}", response_model=IdentityProviderResponse)
+@router.put("/{tenant_id}/identity-providers/{provider_id}", response_model=IdentityProviderResponse, response_model_exclude_none=True)
 async def update_identity_provider(
     tenant_id: uuid.UUID = Path(..., description="Tenant ID"),
     provider_id: uuid.UUID = Path(..., description="Provider ID"),
@@ -504,7 +504,7 @@ async def delete_identity_provider(
 # TENANT STATISTICS & ANALYTICS
 # ================================
 
-@router.get("/stats/", response_model=TenantStatsResponse)
+@router.get("/stats/", response_model=TenantStatsResponse, response_model_exclude_none=True)
 async def get_tenant_statistics(
     super_admin: User = Depends(get_super_admin_user),
     db: Session = Depends(get_db)

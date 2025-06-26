@@ -32,7 +32,7 @@ router = APIRouter()
 # LOCAL AUTHENTICATION
 # ================================
 
-@router.post("/create-user/", response_model=dict)
+@router.post("/create-user/", response_model=dict, response_model_exclude_none=True)
 async def create_user_by_admin(
     user_data: CreateUserRequest,
     current_user: User = Depends(get_current_user),
@@ -60,7 +60,7 @@ async def create_user_by_admin(
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to create user")
 
-@router.post("/login/", response_model=TokenResponse)
+@router.post("/login/", response_model=TokenResponse, response_model_exclude_none=True)
 async def login_local_user(
     login_data: LoginRequest,
     request: Request,
@@ -266,7 +266,7 @@ async def oauth_callback(
 # SUPER ADMIN IMPERSONATION
 # ================================
 
-@router.post("/impersonate/", response_model=TokenResponse)
+@router.post("/impersonate/", response_model=TokenResponse, response_model_exclude_none=True)
 async def super_admin_impersonate(
     impersonate_data: ImpersonateRequest,
     request: Request,
@@ -313,7 +313,7 @@ async def end_impersonation(
 # AUTHENTICATION STATUS & HISTORY
 # ================================
 
-@router.get("/status/", response_model=AuthStatusResponse)
+@router.get("/status/", response_model=AuthStatusResponse, response_model_exclude_none=True)
 async def get_auth_status(
     request: Request,
     current_user: User = Depends(get_current_user),
@@ -358,7 +358,7 @@ async def get_auth_status(
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to get auth status")
 
-@router.get("/history/", response_model=List[LoginHistoryResponse])
+@router.get("/history/", response_model=List[LoginHistoryResponse], response_model_exclude_none=True)
 async def get_login_history(
     limit: int = Query(default=20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
@@ -393,7 +393,7 @@ async def get_login_history(
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to get login history")
 
-@router.get("/security-events/", response_model=List[SecurityEventResponse])
+@router.get("/security-events/", response_model=List[SecurityEventResponse], response_model_exclude_none=True)
 async def get_security_events(
     limit: int = Query(default=20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
@@ -439,7 +439,7 @@ async def get_security_events(
 # TOKEN REFRESH
 # ================================
 
-@router.post("/refresh/", response_model=TokenResponse)
+@router.post("/refresh/", response_model=TokenResponse, response_model_exclude_none=True)
 async def refresh_access_token(
     refresh_data: RefreshTokenRequest,
     db: Session = Depends(get_db)

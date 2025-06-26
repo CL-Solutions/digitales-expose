@@ -28,7 +28,7 @@ router = APIRouter()
 
 # Template Management Endpoints
 
-@router.get("/templates/", response_model=List[ExposeTemplateResponse])
+@router.get("/templates/", response_model=List[ExposeTemplateResponse], response_model_exclude_none=True)
 async def list_templates(
     property_type: Optional[str] = Query(None, description="Filter by property type"),
     is_active: Optional[bool] = Query(True, description="Filter by active status"),
@@ -46,7 +46,7 @@ async def list_templates(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/templates/", response_model=ExposeTemplateResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/templates/", response_model=ExposeTemplateResponse, response_model_exclude_none=True, status_code=status.HTTP_201_CREATED)
 async def create_template(
     template_data: ExposeTemplateCreate,
     current_user: User = Depends(get_current_active_user),
@@ -67,7 +67,7 @@ async def create_template(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/templates/{template_id}", response_model=ExposeTemplateResponse)
+@router.get("/templates/{template_id}", response_model=ExposeTemplateResponse, response_model_exclude_none=True)
 async def get_template(
     template_id: UUID = Path(..., description="Template ID"),
     current_user: User = Depends(get_current_active_user),
@@ -84,7 +84,7 @@ async def get_template(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.put("/templates/{template_id}", response_model=ExposeTemplateResponse)
+@router.put("/templates/{template_id}", response_model=ExposeTemplateResponse, response_model_exclude_none=True)
 async def update_template(
     template_id: UUID = Path(..., description="Template ID"),
     template_data: ExposeTemplateUpdate = ...,
@@ -127,7 +127,7 @@ async def delete_template(
 
 # Expose Link Management Endpoints
 
-@router.get("/links/", response_model=List[ExposeLinkResponse])
+@router.get("/links/", response_model=List[ExposeLinkResponse], response_model_exclude_none=True)
 async def list_expose_links(
     property_id: Optional[UUID] = Query(None, description="Filter by property ID"),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
@@ -147,7 +147,7 @@ async def list_expose_links(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/links/", response_model=ExposeLinkResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/links/", response_model=ExposeLinkResponse, response_model_exclude_none=True, status_code=status.HTTP_201_CREATED)
 async def create_expose_link(
     link_data: ExposeLinkCreate,
     current_user: User = Depends(get_current_active_user),
@@ -168,7 +168,7 @@ async def create_expose_link(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/links/{link_id}", response_model=ExposeLinkResponse)
+@router.get("/links/{link_id}", response_model=ExposeLinkResponse, response_model_exclude_none=True)
 async def get_expose_link_details(
     link_id: UUID = Path(..., description="Expose link UUID"),
     current_user: User = Depends(get_current_active_user),
@@ -193,7 +193,7 @@ async def get_expose_link_details(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.put("/links/{link_id}", response_model=ExposeLinkResponse)
+@router.put("/links/{link_id}", response_model=ExposeLinkResponse, response_model_exclude_none=True)
 async def update_expose_link(
     link_id: UUID = Path(..., description="Expose link UUID"),
     link_data: ExposeLinkUpdate = ...,
@@ -234,7 +234,7 @@ async def delete_expose_link(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/links/{link_id}/stats", response_model=dict)
+@router.get("/links/{link_id}/stats", response_model=dict, response_model_exclude_none=True)
 async def get_expose_link_stats(
     link_id: UUID = Path(..., description="Expose link UUID"),
     current_user: User = Depends(get_current_active_user),
@@ -253,7 +253,7 @@ async def get_expose_link_stats(
 
 # Public Expose Access (No authentication required)
 
-@router.get("/public/{link_id}", response_model=ExposeLinkPublicResponse)
+@router.get("/public/{link_id}", response_model=ExposeLinkPublicResponse, response_model_exclude_none=True)
 async def get_public_expose(
     link_id: str = Path(..., description="Public expose link ID"),
     password: Optional[str] = Query(None, description="Password if required"),

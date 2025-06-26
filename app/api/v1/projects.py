@@ -23,7 +23,7 @@ router = APIRouter()
 # Project CRUD Endpoints
 # ================================
 
-@router.post("/", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=ProjectResponse, response_model_exclude_none=True, status_code=status.HTTP_201_CREATED)
 async def create_project(
     project: ProjectCreate,
     db: Session = Depends(get_db),
@@ -43,7 +43,7 @@ async def create_project(
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
 
-@router.get("/", response_model=ProjectListResponse)
+@router.get("/", response_model=ProjectListResponse, response_model_exclude_none=True)
 async def list_projects(
     filters: ProjectFilter = Depends(),
     db: Session = Depends(get_db),
@@ -59,7 +59,7 @@ async def list_projects(
         current_user=current_user
     )
 
-@router.get("/{project_id}", response_model=ProjectResponse)
+@router.get("/{project_id}", response_model=ProjectResponse, response_model_exclude_none=True)
 async def get_project(
     project_id: UUID,
     db: Session = Depends(get_db),
@@ -102,7 +102,7 @@ async def get_project(
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
 
-@router.put("/{project_id}", response_model=ProjectResponse)
+@router.put("/{project_id}", response_model=ProjectResponse, response_model_exclude_none=True)
 async def update_project(
     project_id: UUID,
     project_update: ProjectUpdate,
@@ -147,7 +147,7 @@ async def delete_project(
 # Project Statistics
 # ================================
 
-@router.get("/{project_id}/statistics", response_model=Dict[str, Any])
+@router.get("/{project_id}/statistics", response_model=Dict[str, Any], response_model_exclude_none=True)
 async def get_project_statistics(
     project_id: UUID,
     db: Session = Depends(get_db),
@@ -173,7 +173,7 @@ async def get_project_statistics(
 # Project Image Management
 # ================================
 
-@router.post("/{project_id}/images/upload", response_model=ProjectImageSchema)
+@router.post("/{project_id}/images/upload", response_model=ProjectImageSchema, response_model_exclude_none=True)
 async def upload_project_image(
     project_id: UUID,
     file: UploadFile = File(...),
@@ -241,7 +241,7 @@ async def upload_project_image(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
-@router.put("/{project_id}/images/{image_id}", response_model=ProjectImageSchema)
+@router.put("/{project_id}/images/{image_id}", response_model=ProjectImageSchema, response_model_exclude_none=True)
 async def update_project_image(
     project_id: UUID,
     image_id: UUID,
@@ -290,7 +290,7 @@ async def delete_project_image(
 # Micro Location Management
 # ================================
 
-@router.post("/{project_id}/refresh-micro-location", response_model=ProjectResponse)
+@router.post("/{project_id}/refresh-micro-location", response_model=ProjectResponse, response_model_exclude_none=True)
 async def refresh_micro_location(
     project_id: UUID,
     db: Session = Depends(get_db),

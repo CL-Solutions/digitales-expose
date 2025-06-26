@@ -36,7 +36,7 @@ router = APIRouter()
 # USER PROFILE MANAGEMENT
 # ================================
 
-@router.get("/me/", response_model=UserProfileResponse)
+@router.get("/me/", response_model=UserProfileResponse, response_model_exclude_none=True)
 async def get_current_user_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -59,7 +59,7 @@ async def get_current_user_profile(
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to get user profile")
 
-@router.put("/me/", response_model=UserResponse)
+@router.put("/me/", response_model=UserResponse, response_model_exclude_none=True)
 async def update_current_user_profile(
     user_update: UserUpdate,
     current_user: User = Depends(get_current_user),
@@ -82,7 +82,7 @@ async def update_current_user_profile(
 # USER MANAGEMENT (ADMIN)
 # ================================
 
-@router.get("/", response_model=UserListResponse)
+@router.get("/", response_model=UserListResponse, response_model_exclude_none=True)
 async def list_users(
     request: Request,
     filter_params: UserFilterParams = Depends(),
@@ -205,7 +205,7 @@ async def list_users(
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to retrieve users")
 
-@router.get("/{user_id}", response_model=UserProfileResponse)
+@router.get("/{user_id}", response_model=UserProfileResponse, response_model_exclude_none=True)
 async def get_user_by_id(
     user_id: uuid.UUID = Path(..., description="User ID"),
     current_user: User = Depends(get_current_user),
@@ -235,7 +235,7 @@ async def get_user_by_id(
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to get user")
 
-@router.put("/{user_id}", response_model=UserResponse)
+@router.put("/{user_id}", response_model=UserResponse, response_model_exclude_none=True)
 async def update_user(
     user_update: UserUpdate,
     request: Request,
@@ -303,7 +303,7 @@ async def deactivate_user(
 # USER SESSIONS MANAGEMENT
 # ================================
 
-@router.get("/{user_id}/sessions", response_model=ActiveSessionsResponse)
+@router.get("/{user_id}/sessions", response_model=ActiveSessionsResponse, response_model_exclude_none=True)
 async def get_user_sessions(
     user_id: uuid.UUID = Path(..., description="User ID"),
     current_user: User = Depends(get_current_user),
@@ -383,7 +383,7 @@ async def terminate_user_sessions(
 # USER INVITATIONS
 # ================================
 
-@router.post("/invite/", response_model=UserInviteResponse)
+@router.post("/invite/", response_model=UserInviteResponse, response_model_exclude_none=True)
 async def invite_user(
     invite_data: UserInviteRequest,
     current_user: User = Depends(get_current_user),
@@ -418,7 +418,7 @@ async def invite_user(
 # BULK OPERATIONS
 # ================================
 
-@router.post("/bulk/create/", response_model=UserBulkCreateResponse)
+@router.post("/bulk/create/", response_model=UserBulkCreateResponse, response_model_exclude_none=True)
 async def bulk_create_users(
     bulk_data: UserBulkCreateRequest,
     current_user: User = Depends(get_current_user),
@@ -441,7 +441,7 @@ async def bulk_create_users(
         db.rollback()
         raise HTTPException(status_code=500, detail="Bulk user creation failed")
 
-@router.post("/bulk/action/", response_model=UserBulkActionResponse)
+@router.post("/bulk/action/", response_model=UserBulkActionResponse, response_model_exclude_none=True)
 async def bulk_user_action(
     action_data: UserBulkActionRequest,
     current_user: User = Depends(get_current_user),
@@ -469,7 +469,7 @@ async def bulk_user_action(
 # USER STATISTICS & ANALYTICS
 # ================================
 
-@router.get("/stats/", response_model=UserStatsResponse)
+@router.get("/stats/", response_model=UserStatsResponse, response_model_exclude_none=True)
 async def get_user_stats(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -495,7 +495,7 @@ async def get_user_stats(
 # USER SECURITY INFO
 # ================================
 
-@router.get("/{user_id}/security", response_model=UserSecurityInfo)
+@router.get("/{user_id}/security", response_model=UserSecurityInfo, response_model_exclude_none=True)
 async def get_user_security_info(
     user_id: uuid.UUID = Path(..., description="User ID"),
     current_user: User = Depends(get_current_user),
