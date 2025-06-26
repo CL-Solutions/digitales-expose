@@ -161,6 +161,9 @@ class ProjectResponse(ProjectBase, BaseResponseSchema, TimestampMixin):
                 if sorted_images:
                     first_image = sorted_images[0]
                     values['thumbnail_url'] = first_image.image_url if hasattr(first_image, 'image_url') else None
+            else:
+                # No images, set thumbnail_url to None
+                values['thumbnail_url'] = None
         
         return values
 
