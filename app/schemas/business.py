@@ -7,7 +7,7 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import UUID
 
-from app.schemas.base import BaseSchema, BaseResponseSchema, PaginationParams
+from app.schemas.base import BaseSchema, BaseResponseSchema, PaginationParams, TimestampMixin
 
 # ================================
 # Project Schemas
@@ -126,7 +126,7 @@ class ProjectImageSchema(BaseResponseSchema):
     width: Optional[int]
     height: Optional[int]
 
-class ProjectResponse(ProjectBase, BaseResponseSchema):
+class ProjectResponse(ProjectBase, BaseResponseSchema, TimestampMixin):
     """Schema for Project response"""
     city_id: Optional[UUID]
     investagon_id: Optional[str]
@@ -344,7 +344,7 @@ class PropertyImageSchema(BaseResponseSchema):
     width: Optional[int]
     height: Optional[int]
 
-class PropertyResponse(PropertyBase, BaseResponseSchema):
+class PropertyResponse(PropertyBase, BaseResponseSchema, TimestampMixin):
     """Schema for Property response"""
     city_id: Optional[UUID]
     investagon_id: Optional[str]
