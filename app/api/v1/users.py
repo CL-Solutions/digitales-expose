@@ -203,6 +203,9 @@ async def list_users(
         )
     
     except Exception as e:
+        import traceback
+        print(f"Error retrieving users: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail="Failed to retrieve users")
 
 @router.get("/{user_id}", response_model=UserProfileResponse, response_model_exclude_none=True)
