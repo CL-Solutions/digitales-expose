@@ -355,10 +355,8 @@ class PropertyResponse(PropertyBase, BaseResponseSchema):
     images: List[PropertyImageSchema] = []  # Property-specific images only
     city_ref: Optional["CityResponse"]
     
-    # Computed fields
-    total_investment: Optional[float]
-    gross_rental_yield: Optional[float]
-    net_rental_yield: Optional[float]
+    # Computed fields - these fields are dynamically added in validator
+    # We don't define them here to avoid them appearing in OpenAPI schema as nullable
     all_images: List[GenericImageSchema] = []  # Combined project + property images
     
     model_config = ConfigDict(

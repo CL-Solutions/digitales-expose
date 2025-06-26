@@ -136,14 +136,23 @@ async def get_tenant_by_id(
         
         # Add user count (only for super admins or if it's the user's own tenant)
         user_count = db.query(User).filter(User.tenant_id == tenant.id).count()
-        tenant_response = TenantResponse.model_validate(tenant)
-        tenant_response.user_count = user_count
         
-        return tenant_response
+        try:
+            tenant_response = TenantResponse.model_validate(tenant)
+            tenant_response.user_count = user_count
+            return tenant_response
+        except Exception as validation_error:
+            print(f"Validation error for tenant {tenant_id}: {str(validation_error)}")
+            print(f"Tenant data: id={tenant.id}, name={tenant.name}, created_at={tenant.created_at}")
+            print(f"Tenant type: {type(tenant)}")
+            raise
     
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        print(f"Error getting tenant {tenant_id}: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail="Failed to get tenant")
 
 @router.patch("/{tenant_id}", response_model=TenantResponse, response_model_exclude_none=True)
