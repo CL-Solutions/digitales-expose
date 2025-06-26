@@ -151,9 +151,9 @@ from app.schemas.base import PaginationParams, SortParams, SearchParams
 
 class TenantFilterParams(PaginationParams, SortParams, SearchParams):
     """Schema für Tenant-Filtering"""
-    subscription_plan: Optional[str]
-    is_active: Optional[bool]
-    has_domain: Optional[bool]
+    subscription_plan: Optional[str] = None
+    is_active: Optional[bool] = None
+    has_domain: Optional[bool] = None
 
 class TenantStatsResponse(BaseSchema):
     """Schema für Tenant-Statistiken"""

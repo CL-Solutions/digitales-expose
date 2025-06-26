@@ -52,7 +52,7 @@ class SortParams(BaseSchema):
 
 class SearchParams(BaseSchema):
     """Schema für Search Parameter"""
-    search: Optional[str] = Field(description="Search term")
+    search: Optional[str] = Field(None, description="Search term")
 
 # ================================
 # ERROR RESPONSE SCHEMAS (schemas/errors.py)

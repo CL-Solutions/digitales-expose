@@ -195,16 +195,16 @@ class AccessRequestResponse(BaseSchema, TimestampMixin):
 
 class RoleFilterParams(BaseSchema):
     """Schema für Role Filtering"""
-    search: Optional[str] = Field(description="Search in role name/description")
-    is_system_role: Optional[bool]
-    has_users: Optional[bool]
-    permission_id: Optional[UUID]
+    search: Optional[str] = Field(None, description="Search in role name/description")
+    is_system_role: Optional[bool] = None
+    has_users: Optional[bool] = None
+    permission_id: Optional[UUID] = None
 
 class PermissionFilterParams(BaseSchema):
     """Schema für Permission Filtering"""
-    search: Optional[str] = Field(description="Search in resource/action/description")
-    resource: Optional[str]
-    action: Optional[str]
+    search: Optional[str] = Field(None, description="Search in resource/action/description")
+    resource: Optional[str] = None
+    action: Optional[str] = None
 
 class RBACStatsResponse(BaseSchema):
     """Schema für RBAC Statistics"""

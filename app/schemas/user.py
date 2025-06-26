@@ -63,10 +63,10 @@ class UserProfileResponse(UserResponse):
 class UserFilterParams(PaginationParams, SortParams, SearchParams):
     """Schema für User-Filtering"""
     auth_method: Optional[Literal["local", "microsoft", "google"]] = None
-    is_active: Optional[bool]
-    is_verified: Optional[bool]
-    role_id: Optional[UUID]
-    tenant_id: Optional[UUID]  # Nur für Super-Admin
+    is_active: Optional[bool] = None
+    is_verified: Optional[bool] = None
+    role_id: Optional[UUID] = None
+    tenant_id: Optional[UUID] = None  # Nur für Super-Admin
 
 class UserStatsResponse(BaseSchema):
     """Schema für User-Statistiken"""
@@ -341,10 +341,10 @@ class UserActivityListResponse(BaseSchema):
 
 class UserActivityFilterParams(PaginationParams, SortParams):
     """Schema für User Activity Filtering"""
-    activity_type: Optional[str]
-    resource_type: Optional[str]
-    start_date: Optional[datetime]
-    end_date: Optional[datetime]
+    activity_type: Optional[str] = None
+    resource_type: Optional[str] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
 
 # ================================
 # COMPLIANCE & GDPR SCHEMAS

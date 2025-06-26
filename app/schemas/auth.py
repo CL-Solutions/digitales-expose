@@ -178,13 +178,13 @@ class AuthAuditResponse(BaseSchema):
 
 class AuthAuditFilterParams(BaseSchema):
     """Schema für Auth Audit Filtering"""
-    user_id: Optional[UUID]
-    tenant_id: Optional[UUID]
-    action: Optional[str]
-    success: Optional[bool]
-    start_date: Optional[str]
-    end_date: Optional[str]
-    ip_address: Optional[str]
+    user_id: Optional[UUID] = None
+    tenant_id: Optional[UUID] = None
+    action: Optional[str] = None
+    success: Optional[bool] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    ip_address: Optional[str] = None
 
 class AuthStatsResponse(BaseSchema):
     """Schema für Authentication Statistics"""

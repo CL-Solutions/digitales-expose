@@ -660,28 +660,29 @@ class ExposeTemplateResponse(ExposeTemplateBase, BaseResponseSchema):
 class ExposeLinkBase(BaseSchema):
     """Base schema for ExposeLink"""
     property_id: UUID
-    template_id: Optional[UUID]
-    name: Optional[str] = Field(max_length=255)
+    template_id: Optional[UUID] = None
+    name: Optional[str] = Field(None, max_length=255)
     
     # Financial presets
-    preset_equity_percentage: Optional[float] = Field(ge=0, le=100)
-    preset_interest_rate: Optional[float] = Field(ge=0, le=20)
-    preset_repayment_rate: Optional[float] = Field(ge=0, le=10)
-    preset_gross_income: Optional[float] = Field(ge=0)
-    preset_is_married: Optional[bool]
-    preset_monthly_rent: Optional[float] = Field(ge=0)
+    preset_equity_percentage: Optional[float] = Field(None, ge=0, le=100)
+    preset_interest_rate: Optional[float] = Field(None, ge=0, le=20)
+    preset_repayment_rate: Optional[float] = Field(None, ge=0, le=10)
+    preset_gross_income: Optional[float] = Field(None, ge=0)
+    preset_is_married: Optional[bool] = None
+    preset_monthly_rent: Optional[float] = Field(None, ge=0)
     
-    expiration_date: Optional[datetime]
+    expiration_date: Optional[datetime] = None
     password_protected: bool = False
-    password: Optional[str] = Field(exclude=True)  # Only for creation
     
     visible_sections: Optional[Dict[str, bool]] = None
-    custom_message: Optional[str]
+    custom_message: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
 class ExposeLinkCreate(ExposeLinkBase):
     """Schema for creating an ExposeLink"""
+    password: Optional[str] = None
+    
     @field_validator('password')
     def validate_password(cls, v, values):
         if values.data.get('password_protected') and not v:
@@ -767,14 +768,14 @@ class InvestagonSyncSchema(BaseResponseSchema):
 
 class ProjectFilter(PaginationParams):
     """Schema for project filtering"""
-    city: Optional[str]
-    state: Optional[str]
-    status: Optional[str]
-    building_type: Optional[str]
-    has_elevator: Optional[bool]
-    has_parking: Optional[bool]
-    min_construction_year: Optional[int] = Field(ge=1800, le=2100)
-    max_construction_year: Optional[int] = Field(ge=1800, le=2100)
+    city: Optional[str] = None
+    state: Optional[str] = None
+    status: Optional[str] = None
+    building_type: Optional[str] = None
+    has_elevator: Optional[bool] = None
+    has_parking: Optional[bool] = None
+    min_construction_year: Optional[int] = Field(None, ge=1800, le=2100)
+    max_construction_year: Optional[int] = Field(None, ge=1800, le=2100)
     sort_by: str = Field(default="created_at", description="Field to sort by")
     sort_order: str = Field(default="desc", pattern="^(asc|desc)$", description="Sort order")
 
