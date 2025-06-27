@@ -57,7 +57,7 @@ class ProjectBase(BaseSchema):
 
 class ProjectCreate(ProjectBase):
     """Schema for creating a Project"""
-    city_id: Optional[UUID]
+    city_id: Optional[UUID] = None
 
 class ProjectUpdate(BaseSchema):
     """Schema for updating a Project"""
