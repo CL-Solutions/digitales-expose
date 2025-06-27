@@ -318,7 +318,7 @@ class InvestagonSyncService:
             "house_number": house_number,
             "city": city_name,
             "city_id": city_id,
-            "state": normalize_state_name(state_name) or state_name,
+            "state": normalize_state_name(state_name) or state_name or "Unknown",
             "country": "Deutschland",
             "zip_code": zip_code,
             "status": "active",
@@ -1321,6 +1321,8 @@ class InvestagonSyncService:
                             "project_id": project_id,
                             "error": str(e)
                         })
+                        # Rollback the session to clear the failed transaction
+                        db.rollback()
                 
                 # Final flush
                 db.flush()
