@@ -74,7 +74,9 @@ async def create_property(
         property = PropertyService.create_property(db, property_data, current_user)
         db.commit()
         
-        return PropertyResponse.model_validate(property)
+        # Use mapper to get response data with calculated fields
+        response_data = map_property_to_response(property)
+        return PropertyResponse(**response_data)
     
     except AppException as e:
         db.rollback()
@@ -163,7 +165,9 @@ async def update_property(
         property = PropertyService.update_property(db, property_id, property_data, current_user)
         db.commit()
         
-        return PropertyResponse.model_validate(property)
+        # Use mapper to get response data with calculated fields
+        response_data = map_property_to_response(property)
+        return PropertyResponse(**response_data)
     
     except AppException as e:
         db.rollback()

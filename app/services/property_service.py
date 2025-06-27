@@ -105,6 +105,19 @@ class PropertyService:
                 tenant_id=current_user.tenant_id
             )
             
+            # Commit and refresh with relationships
+            db.commit()
+            db.refresh(property)
+            
+            # Load relationships for proper response
+            from sqlalchemy.orm import joinedload
+            property = db.query(Property).options(
+                joinedload(Property.images),
+                joinedload(Property.city_ref),
+                joinedload(Property.project).joinedload(Project.images),
+                joinedload(Property.project).joinedload(Project.city_ref)
+            ).filter(Property.id == property.id).first()
+            
             return property
             
         except AppException:
@@ -347,6 +360,18 @@ class PropertyService:
                     project_id=property.project_id,
                     tenant_id=current_user.tenant_id
                 )
+            
+            # Commit and reload with relationships
+            db.commit()
+            
+            # Load relationships for proper response
+            from sqlalchemy.orm import joinedload
+            property = db.query(Property).options(
+                joinedload(Property.images),
+                joinedload(Property.city_ref),
+                joinedload(Property.project).joinedload(Project.images),
+                joinedload(Property.project).joinedload(Project.city_ref)
+            ).filter(Property.id == property.id).first()
             
             return property
             
