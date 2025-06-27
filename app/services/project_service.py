@@ -273,10 +273,13 @@ class ProjectService:
                     else:
                         visibility_status = 'deactivated'  # All are deactivated
             
-            # Calculate rental yield range for the project
+            # Calculate rental yield range and price range for the project
             min_rental_yield = None
             max_rental_yield = None
+            min_price = None
+            max_price = None
             rental_yields = []
+            prices = []
             
             for prop in project.properties:
                 # Calculate total purchase price including parking and furniture
@@ -285,6 +288,10 @@ class ProjectService:
                     total_price += float(prop.purchase_price_parking)
                 if prop.purchase_price_furniture:
                     total_price += float(prop.purchase_price_furniture)
+                
+                # Track prices for min/max calculation
+                if total_price > 0:
+                    prices.append(total_price)
                 
                 # Calculate total monthly rent including parking
                 total_rent = float(prop.monthly_rent or 0)
@@ -300,6 +307,10 @@ class ProjectService:
             if rental_yields:
                 min_rental_yield = min(rental_yields)
                 max_rental_yield = max(rental_yields)
+            
+            if prices:
+                min_price = min(prices)
+                max_price = max(prices)
             
             overview = ProjectOverview(
                 id=project.id,
@@ -320,7 +331,9 @@ class ProjectService:
                 investagon_id=project.investagon_id,
                 visibility_status=visibility_status,
                 min_rental_yield=min_rental_yield,
-                max_rental_yield=max_rental_yield
+                max_rental_yield=max_rental_yield,
+                min_price=min_price,
+                max_price=max_price
             )
             items.append(overview)
         

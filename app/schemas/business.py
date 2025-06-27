@@ -832,6 +832,8 @@ class ProjectOverview(BaseSchema):
     visibility_status: Optional[str]  # 'active', 'in_progress', 'deactivated', 'mixed'
     min_rental_yield: Optional[float]  # Minimum Bruttomietrendite of properties
     max_rental_yield: Optional[float]  # Maximum Bruttomietrendite of properties
+    min_price: Optional[float]  # Minimum property price in the project
+    max_price: Optional[float]  # Maximum property price in the project
     
     model_config = ConfigDict(from_attributes=True)
 
