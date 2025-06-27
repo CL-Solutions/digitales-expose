@@ -238,7 +238,7 @@ class InvestagonSyncService:
         house_number = ""
         zip_code = ""
         city_name = "Unknown"
-        state_name = "Bayern"  # Default for Munich/Bavaria projects
+        state_name = "Unknown"  # Default for projects without state info
         
         # If property address is provided, use it (most reliable source)
         if property_address:
@@ -290,10 +290,12 @@ class InvestagonSyncService:
             else:
                 # Create new city
                 try:
+                    # Ensure state_name has a valid value
+                    final_state = normalize_state_name(state_name) if state_name else "Unknown"
                     new_city = City(
                         tenant_id=tenant_id,
                         name=city_name,
-                        state=normalize_state_name(state_name) or state_name,
+                        state=final_state,
                         country="Deutschland",
                         created_by=user_id
                     )
@@ -343,7 +345,12 @@ class InvestagonSyncService:
         # Handle city creation/lookup
         city_id = None
         city_name = investagon_data.get("object_city") or "Unknown"
-        state_name = normalize_state_name(investagon_data.get("province")) or investagon_data.get("province") or "Unknown"
+        # Get state with proper fallback - default to Unknown if no state provided
+        raw_state = investagon_data.get("province")
+        state_name = normalize_state_name(raw_state) if raw_state else None
+        if not state_name:
+            # Default to Unknown for properties without state info
+            state_name = "Unknown"
         
         if db and tenant_id and user_id and city_name != "Unknown":
             # Clean city and state names for better matching
