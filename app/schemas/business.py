@@ -22,32 +22,32 @@ class ProjectBase(BaseSchema):
     state: str = Field(..., max_length=255)
     country: Optional[str] = Field(default="Deutschland", max_length=100)
     zip_code: str = Field(..., max_length=20)
-    latitude: Optional[float] = Field(ge=-90, le=90)
-    longitude: Optional[float] = Field(ge=-180, le=180)
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
     
     # Building Details
-    construction_year: Optional[int] = Field(ge=1800, le=2100)
-    renovation_year: Optional[int] = Field(ge=1800, le=2100)
-    total_floors: Optional[int] = Field(gt=0)
-    total_units: Optional[int] = Field(gt=0)
-    building_type: Optional[str] = Field(max_length=100)
+    construction_year: Optional[int] = Field(None, ge=1800, le=2100)
+    renovation_year: Optional[int] = Field(None, ge=1800, le=2100)
+    total_floors: Optional[int] = Field(None, gt=0)
+    total_units: Optional[int] = Field(None, gt=0)
+    building_type: Optional[str] = Field(None, max_length=100)
     
     # Building Features
-    has_elevator: Optional[bool]
-    has_parking: Optional[bool]
-    has_basement: Optional[bool]
-    has_garden: Optional[bool]
+    has_elevator: Optional[bool] = None
+    has_parking: Optional[bool] = None
+    has_basement: Optional[bool] = None
+    has_garden: Optional[bool] = None
     
     # Energy Data
-    energy_certificate_type: Optional[str] = Field(max_length=50)
-    energy_consumption: Optional[float] = Field(ge=0)
-    energy_class: Optional[str] = Field(max_length=10)
-    heating_type: Optional[str] = Field(max_length=100)
-    primary_energy_consumption: Optional[float] = Field(ge=0)
-    heating_building_year: Optional[int] = Field(ge=1800, le=2100)
+    energy_certificate_type: Optional[str] = Field(None, max_length=50)
+    energy_consumption: Optional[float] = Field(None, ge=0)
+    energy_class: Optional[str] = Field(None, max_length=10)
+    heating_type: Optional[str] = Field(None, max_length=100)
+    primary_energy_consumption: Optional[float] = Field(None, ge=0)
+    heating_building_year: Optional[int] = Field(None, ge=1800, le=2100)
     
     # Additional Information
-    description: Optional[str]
+    description: Optional[str] = None
     amenities: Optional[List[str]] = None
     micro_location: Optional[Dict[str, Any]] = None  # Micro location data from ChatGPT
     

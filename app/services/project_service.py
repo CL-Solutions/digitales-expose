@@ -9,7 +9,7 @@ from sqlalchemy import and_, or_, func, select, desc
 from sqlalchemy.exc import IntegrityError
 import logging
 
-from app.models.business import Project, ProjectImage, Property
+from app.models.business import Project, ProjectImage, Property, City
 from app.models.user import User
 from app.schemas.business import (
     ProjectCreate, ProjectUpdate, ProjectResponse, ProjectOverview,
@@ -19,6 +19,7 @@ from app.schemas.business import (
 from app.core.exceptions import AppException
 from app.services.s3_service import get_s3_service
 from app.services.chatgpt_service import ChatGPTService
+from app.services.city_service import CityService
 from app.utils.audit import AuditLogger
 
 audit_logger = AuditLogger()
@@ -45,10 +46,29 @@ class ProjectService:
                     detail=f"Project with name '{project_data.name}' already exists"
                 )
             
+            # Try to find matching city if city_id not provided
+            city_id = project_data.city_id
+            if not city_id and project_data.city and project_data.state:
+                # Create a temporary user object with tenant_id for city lookup
+                temp_user = User()
+                temp_user.tenant_id = tenant_id
+                temp_user.is_super_admin = False
+                
+                # Try to find city by name and state
+                matching_city = CityService.get_city_by_name(
+                    db=db,
+                    city_name=project_data.city,
+                    state=project_data.state,
+                    current_user=temp_user
+                )
+                if matching_city:
+                    city_id = matching_city.id
+                    logger.info(f"Automatically matched city '{project_data.city}, {project_data.state}' to city_id {city_id}")
+            
             # Create project
             project = Project(
                 **project_data.model_dump(exclude={'city_id'}),
-                city_id=project_data.city_id,
+                city_id=city_id,
                 tenant_id=tenant_id,
                 created_by=created_by,
                 updated_by=created_by
