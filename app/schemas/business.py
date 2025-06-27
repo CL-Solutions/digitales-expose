@@ -138,7 +138,7 @@ class ProjectResponse(ProjectBase, BaseResponseSchema, TimestampMixin):
     
     # Computed fields
     property_count: int = 0
-    thumbnail_url: Optional[str]
+    thumbnail_url: Optional[str] = None
     
     model_config = ConfigDict(
         from_attributes=True,
@@ -149,7 +149,33 @@ class ProjectResponse(ProjectBase, BaseResponseSchema, TimestampMixin):
     @classmethod
     def calculate_counts(cls, values):
         """Calculate property count and thumbnail before validation"""
-        if isinstance(values, dict):
+        # Handle both dict and ORM object cases
+        if hasattr(values, '__dict__'):  # ORM object
+            # Convert to dict for processing
+            values_dict = values.__dict__.copy()
+            values_dict.pop('_sa_instance_state', None)
+            
+            # Calculate property count
+            if hasattr(values, 'properties'):
+                values_dict['property_count'] = len(values.properties) if values.properties else 0
+            else:
+                values_dict['property_count'] = 0
+            
+            # Set thumbnail_url from first image
+            if hasattr(values, 'images') and values.images:
+                # Sort images by display_order and get the first one
+                sorted_images = sorted(values.images, key=lambda x: x.display_order if hasattr(x, 'display_order') else 0)
+                if sorted_images:
+                    values_dict['thumbnail_url'] = sorted_images[0].image_url if hasattr(sorted_images[0], 'image_url') else None
+                else:
+                    values_dict['thumbnail_url'] = None
+            else:
+                # No images, set thumbnail_url to None
+                values_dict['thumbnail_url'] = None
+            
+            return values_dict
+            
+        elif isinstance(values, dict):
             # Calculate property count
             if 'properties' in values:
                 values['property_count'] = len(values['properties'])
