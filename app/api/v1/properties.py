@@ -102,6 +102,11 @@ async def get_property(
             project_dict = property.project.__dict__.copy()
             project_dict.pop('_sa_instance_state', None)
             
+            # Ensure all required fields are present
+            project_dict['properties'] = []  # We don't need to load all properties for the property detail view
+            if not project_dict.get('images'):
+                project_dict['images'] = []
+            
             # Convert project images if they exist
             if hasattr(property.project, 'images') and property.project.images:
                 project_images = []
@@ -118,6 +123,9 @@ async def get_property(
                 city_dict = property.project.city_ref.__dict__.copy()
                 city_dict.pop('_sa_instance_state', None)
                 project_dict['city_ref'] = city_dict
+            else:
+                # Make sure city_ref is included even if None
+                project_dict['city_ref'] = None
             
             response_data['project'] = project_dict
             

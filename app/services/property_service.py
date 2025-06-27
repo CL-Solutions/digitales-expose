@@ -126,7 +126,8 @@ class PropertyService:
             query = db.query(Property).options(
                 joinedload(Property.images),
                 joinedload(Property.city_ref),
-                joinedload(Property.project).joinedload(Project.images)
+                joinedload(Property.project).joinedload(Project.images),
+                joinedload(Property.project).joinedload(Project.city_ref)
             )
             
             # Apply tenant filter
