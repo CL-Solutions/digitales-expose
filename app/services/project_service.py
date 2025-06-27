@@ -48,7 +48,11 @@ class ProjectService:
             
             # Try to find matching city if city_id not provided
             city_id = project_data.city_id
+            logger.info(f"Creating project with city_id: {city_id}, city: {project_data.city}, state: {project_data.state}")
+            
             if not city_id and project_data.city and project_data.state:
+                logger.info(f"No city_id provided, attempting to match city '{project_data.city}' in state '{project_data.state}'")
+                
                 # Create a temporary user object with tenant_id for city lookup
                 temp_user = User()
                 temp_user.tenant_id = tenant_id
@@ -61,9 +65,15 @@ class ProjectService:
                     state=project_data.state,
                     current_user=temp_user
                 )
+                
                 if matching_city:
                     city_id = matching_city.id
-                    logger.info(f"Automatically matched city '{project_data.city}, {project_data.state}' to city_id {city_id}")
+                    logger.info(f"Successfully matched city '{project_data.city}, {project_data.state}' to city_id {city_id}")
+                else:
+                    logger.warning(f"Could not find city '{project_data.city}' in state '{project_data.state}' for tenant {tenant_id}")
+            else:
+                if not city_id:
+                    logger.warning(f"No city_id and missing city or state: city='{project_data.city}', state='{project_data.state}'")
             
             # Create project
             project = Project(
