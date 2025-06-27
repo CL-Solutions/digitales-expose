@@ -464,7 +464,9 @@ class AuditLogger:
         
         sanitized = {}
         for key, value in data.items():
-            key_lower = key.lower()
+            # Convert key to string to handle both string and numeric keys
+            key_str = str(key)
+            key_lower = key_str.lower()
             
             if any(sensitive_key in key_lower for sensitive_key in sensitive_keys):
                 sanitized[key] = "***REDACTED***"
