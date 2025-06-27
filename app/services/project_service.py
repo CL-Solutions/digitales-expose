@@ -120,6 +120,16 @@ class ProjectService:
                 new_values={"project_name": project.name}
             )
             
+            # Load relationships before returning
+            db.refresh(project)
+            # Explicitly load images and city_ref for the response
+            from sqlalchemy.orm import selectinload
+            project = db.query(Project).options(
+                selectinload(Project.images),
+                selectinload(Project.city_ref),
+                selectinload(Project.properties)
+            ).filter(Project.id == project.id).first()
+            
             return project
             
         except IntegrityError as e:
@@ -356,7 +366,8 @@ class ProjectService:
                 additional_context={"updated_fields": list(update_data.keys())}
             )
             
-            return project
+            # Reload with relationships for response
+            return ProjectService.get_project(db, project_id, tenant_id)
             
         except IntegrityError as e:
             db.rollback()

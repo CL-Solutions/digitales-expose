@@ -83,11 +83,11 @@ class ProjectUpdate(BaseSchema):
     has_basement: Optional[bool]
     has_garden: Optional[bool]
     
-    energy_certificate_type: Optional[str] = Field(max_length=50)
-    energy_consumption: Optional[float] = Field(ge=0)
-    energy_class: Optional[str] = Field(max_length=10)
-    heating_type: Optional[str] = Field(max_length=100)
-    primary_energy_consumption: Optional[float] = Field(ge=0)
+    energy_certificate_type: Optional[str] = Field(None, max_length=50)
+    energy_consumption: Optional[float] = Field(None, ge=0)
+    energy_class: Optional[str] = Field(None, max_length=10)
+    heating_type: Optional[str] = Field(None, max_length=100)
+    primary_energy_consumption: Optional[float] = Field(None, ge=0)
     heating_building_year: Optional[int] = Field(ge=1800, le=2100)
     
     description: Optional[str]
@@ -210,50 +210,50 @@ class PropertyBase(BaseSchema):
     # Property Details
     size_sqm: float = Field(..., ge=0)
     rooms: float = Field(..., ge=0)
-    bathrooms: Optional[int] = Field(ge=0)
-    floor: Optional[str] = Field(max_length=50)  # e.g., "1. OG", "2. OG Mitte", "EG"
-    balcony: Optional[bool]
+    bathrooms: Optional[int] = Field(None, ge=0)
+    floor: Optional[str] = Field(None, max_length=50)  # e.g., "1. OG", "2. OG Mitte", "EG"
+    balcony: Optional[bool] = None
     
     purchase_price: float = Field(..., ge=0)
-    purchase_price_parking: Optional[float] = Field(ge=0)
-    purchase_price_furniture: Optional[float] = Field(ge=0)
+    purchase_price_parking: Optional[float] = Field(None, ge=0)
+    purchase_price_furniture: Optional[float] = Field(None, ge=0)
     monthly_rent: float = Field(..., ge=0)
-    rent_parking_month: Optional[float] = Field(ge=0)
-    additional_costs: Optional[float] = Field(ge=0)
-    management_fee: Optional[float] = Field(ge=0)
+    rent_parking_month: Optional[float] = Field(None, ge=0)
+    additional_costs: Optional[float] = Field(None, ge=0)
+    management_fee: Optional[float] = Field(None, ge=0)
     
     # Transaction Costs (as percentages)
-    transaction_broker_rate: Optional[float] = Field(ge=0)
-    transaction_tax_rate: Optional[float] = Field(ge=0)
-    transaction_notary_rate: Optional[float] = Field(ge=0)
-    transaction_register_rate: Optional[float] = Field(ge=0)
+    transaction_broker_rate: Optional[float] = Field(None, ge=0)
+    transaction_tax_rate: Optional[float] = Field(None, ge=0)
+    transaction_notary_rate: Optional[float] = Field(None, ge=0)
+    transaction_register_rate: Optional[float] = Field(None, ge=0)
     
     # Operating Costs
-    operation_cost_landlord: Optional[float] = Field(ge=0)
-    operation_cost_tenant: Optional[float] = Field(ge=0)
-    operation_cost_reserve: Optional[float] = Field(ge=0)
+    operation_cost_landlord: Optional[float] = Field(None, ge=0)
+    operation_cost_tenant: Optional[float] = Field(None, ge=0)
+    operation_cost_reserve: Optional[float] = Field(None, ge=0)
     
     # Additional Property Data
-    object_share_owner: Optional[float] = Field(ge=0, le=1)  # float percentage (0.0 to 1.0)
-    share_land: Optional[float] = Field(ge=0, le=1)  # float percentage (0.0 to 1.0)
-    property_usage: Optional[str] = Field(max_length=100)
-    initial_maintenance_expenses: Optional[float] = Field(ge=0)
+    object_share_owner: Optional[float] = Field(None, ge=0, le=1)  # float percentage (0.0 to 1.0)
+    share_land: Optional[float] = Field(None, ge=0, le=1)  # float percentage (0.0 to 1.0)
+    property_usage: Optional[str] = Field(None, max_length=100)
+    initial_maintenance_expenses: Optional[float] = Field(None, ge=0)
     
     # Depreciation Settings
-    degressive_depreciation_building_onoff: Optional[int] = Field(ge=-1, le=1)
-    depreciation_rate_building_manual: Optional[float] = Field(ge=0, le=100)
+    degressive_depreciation_building_onoff: Optional[int] = Field(None, ge=-1, le=1)
+    depreciation_rate_building_manual: Optional[float] = Field(None, ge=0, le=100)
     
-    energy_certificate_type: Optional[str] = Field(max_length=50)
-    energy_consumption: Optional[float] = Field(ge=0)  # Endenergieverbrauch
-    primary_energy_consumption: Optional[float] = Field(ge=0)  # Primärenergieverbrauch
-    energy_class: Optional[str] = Field(max_length=10)
-    heating_type: Optional[str] = Field(max_length=100)
+    energy_certificate_type: Optional[str] = Field(None, max_length=50)
+    energy_consumption: Optional[float] = Field(None, ge=0)  # Endenergieverbrauch
+    primary_energy_consumption: Optional[float] = Field(None, ge=0)  # Primärenergieverbrauch
+    energy_class: Optional[str] = Field(None, max_length=10)
+    heating_type: Optional[str] = Field(None, max_length=100)
     
     # Investagon Status Flags
-    active: Optional[int] = Field(ge=0)
-    pre_sale: Optional[int] = Field(ge=0, le=1)
-    draft: Optional[int] = Field(ge=0, le=1)
-    visibility: Optional[int] = Field(ge=-1, le=1)  # -1: deactivated, 0: in progress, 1: active
+    active: Optional[int] = Field(None, ge=0)
+    pre_sale: Optional[int] = Field(None, ge=0, le=1)
+    draft: Optional[int] = Field(None, ge=0, le=1)
+    visibility: Optional[int] = Field(None, ge=-1, le=1)  # -1: deactivated, 0: in progress, 1: active
 
     model_config = ConfigDict(
         from_attributes=True
@@ -262,12 +262,12 @@ class PropertyBase(BaseSchema):
 class PropertyCreate(PropertyBase):
     """Schema for creating a Property"""
     # Override location fields to make them optional since they come from the project
-    city: Optional[str] = Field(max_length=255)
-    state: Optional[str] = Field(max_length=255)
-    zip_code: Optional[str] = Field(max_length=20)
+    city: Optional[str] = Field(None, max_length=255)
+    state: Optional[str] = Field(None, max_length=255)
+    zip_code: Optional[str] = Field(None, max_length=20)
     
-    city_id: Optional[UUID]
-    investagon_id: Optional[str]
+    city_id: Optional[UUID] = None
+    investagon_id: Optional[str] = None
 
 class PropertyUpdate(BaseSchema):
     """Schema for updating a Property"""
@@ -285,50 +285,50 @@ class PropertyUpdate(BaseSchema):
     # Property Details
     size_sqm: Optional[float] = Field(ge=0)
     rooms: Optional[float] = Field(ge=0)
-    bathrooms: Optional[int] = Field(ge=0)
-    floor: Optional[str] = Field(max_length=50)
-    balcony: Optional[bool]
+    bathrooms: Optional[int] = Field(None, ge=0)
+    floor: Optional[str] = Field(None, max_length=50)
+    balcony: Optional[bool] = None
     
     purchase_price: Optional[float] = Field(ge=0)
-    purchase_price_parking: Optional[float] = Field(ge=0)
-    purchase_price_furniture: Optional[float] = Field(ge=0)
+    purchase_price_parking: Optional[float] = Field(None, ge=0)
+    purchase_price_furniture: Optional[float] = Field(None, ge=0)
     monthly_rent: Optional[float] = Field(ge=0)
-    rent_parking_month: Optional[float] = Field(ge=0)
-    additional_costs: Optional[float] = Field(ge=0)
-    management_fee: Optional[float] = Field(ge=0)
+    rent_parking_month: Optional[float] = Field(None, ge=0)
+    additional_costs: Optional[float] = Field(None, ge=0)
+    management_fee: Optional[float] = Field(None, ge=0)
     
     # Transaction Costs
-    transaction_broker_rate: Optional[float] = Field(ge=0)
-    transaction_tax_rate: Optional[float] = Field(ge=0)
-    transaction_notary_rate: Optional[float] = Field(ge=0)
-    transaction_register_rate: Optional[float] = Field(ge=0)
+    transaction_broker_rate: Optional[float] = Field(None, ge=0)
+    transaction_tax_rate: Optional[float] = Field(None, ge=0)
+    transaction_notary_rate: Optional[float] = Field(None, ge=0)
+    transaction_register_rate: Optional[float] = Field(None, ge=0)
     
     # Operating Costs
-    operation_cost_landlord: Optional[float] = Field(ge=0)
-    operation_cost_tenant: Optional[float] = Field(ge=0)
-    operation_cost_reserve: Optional[float] = Field(ge=0)
+    operation_cost_landlord: Optional[float] = Field(None, ge=0)
+    operation_cost_tenant: Optional[float] = Field(None, ge=0)
+    operation_cost_reserve: Optional[float] = Field(None, ge=0)
     
     # Additional Property Data
-    object_share_owner: Optional[float] = Field(ge=0, le=1)
+    object_share_owner: Optional[float] = Field(None, ge=0, le=1)
     share_land: Optional[float] = Field(ge=0)
-    property_usage: Optional[str] = Field(max_length=100)
-    initial_maintenance_expenses: Optional[float] = Field(ge=0)
+    property_usage: Optional[str] = Field(None, max_length=100)
+    initial_maintenance_expenses: Optional[float] = Field(None, ge=0)
     
     # Depreciation Settings
-    degressive_depreciation_building_onoff: Optional[int] = Field(ge=-1, le=1)
-    depreciation_rate_building_manual: Optional[float] = Field(ge=0, le=100)
+    degressive_depreciation_building_onoff: Optional[int] = Field(None, ge=-1, le=1)
+    depreciation_rate_building_manual: Optional[float] = Field(None, ge=0, le=100)
     
-    energy_certificate_type: Optional[str] = Field(max_length=50)
-    energy_consumption: Optional[float] = Field(ge=0)
-    primary_energy_consumption: Optional[float] = Field(ge=0)
-    energy_class: Optional[str] = Field(max_length=10)
-    heating_type: Optional[str] = Field(max_length=100)
+    energy_certificate_type: Optional[str] = Field(None, max_length=50)
+    energy_consumption: Optional[float] = Field(None, ge=0)
+    primary_energy_consumption: Optional[float] = Field(None, ge=0)
+    energy_class: Optional[str] = Field(None, max_length=10)
+    heating_type: Optional[str] = Field(None, max_length=100)
     
     # Investagon Status Flags
-    active: Optional[int] = Field(ge=0)
-    pre_sale: Optional[int] = Field(ge=0, le=1)
-    draft: Optional[int] = Field(ge=0, le=1)
-    visibility: Optional[int] = Field(ge=-1, le=1)  # -1: deactivated, 0: in progress, 1: active
+    active: Optional[int] = Field(None, ge=0)
+    pre_sale: Optional[int] = Field(None, ge=0, le=1)
+    draft: Optional[int] = Field(None, ge=0, le=1)
+    visibility: Optional[int] = Field(None, ge=-1, le=1)  # -1: deactivated, 0: in progress, 1: active
 
     model_config = ConfigDict(
         from_attributes=True
