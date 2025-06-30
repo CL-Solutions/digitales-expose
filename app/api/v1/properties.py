@@ -19,7 +19,8 @@ from app.schemas.business import (
     PropertyListResponse,
     PropertyImageCreate,
     PropertyImageUpdate,
-    PropertyImageSchema
+    PropertyImageSchema,
+    PropertyAggregateStats
 )
 from app.schemas.base import SuccessResponse
 from app.services.property_service import PropertyService
@@ -377,7 +378,7 @@ async def get_property_statistics(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/aggregate-stats", response_model=Dict[str, Any])
+@router.get("/aggregate-stats", response_model=PropertyAggregateStats)
 async def get_property_aggregate_stats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),

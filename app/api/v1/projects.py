@@ -10,7 +10,8 @@ from sqlalchemy.orm import Session
 from app.dependencies import get_db, get_current_active_user, get_current_tenant_id, require_permission
 from app.schemas.business import (
     ProjectCreate, ProjectUpdate, ProjectResponse, ProjectListResponse,
-    ProjectFilter, ProjectImageCreate, ProjectImageUpdate, ProjectImageSchema
+    ProjectFilter, ProjectImageCreate, ProjectImageUpdate, ProjectImageSchema,
+    ProjectAggregateStats
 )
 from app.models.user import User
 from app.services.project_service import ProjectService
@@ -332,7 +333,7 @@ async def refresh_micro_location(
 # Aggregate Statistics Endpoint
 # ================================
 
-@router.get("/aggregate-stats", response_model=Dict[str, Any])
+@router.get("/aggregate-stats", response_model=ProjectAggregateStats)
 async def get_project_aggregate_stats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),

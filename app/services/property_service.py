@@ -12,7 +12,8 @@ from app.models.business import Property, PropertyImage, City, Project
 from app.models.user import User
 from app.schemas.business import (
     PropertyCreate, PropertyUpdate, PropertyFilter,
-    PropertyImageCreate, PropertyImageUpdate
+    PropertyImageCreate, PropertyImageUpdate,
+    PropertyAggregateStats, RangeStats
 )
 from app.core.exceptions import AppException
 from app.utils.audit import AuditLogger
@@ -678,7 +679,7 @@ class PropertyService:
         db: Session,
         tenant_id: UUID,
         current_user: User
-    ) -> Dict[str, Any]:
+    ) -> PropertyAggregateStats:
         """Get aggregate statistics for all properties in the tenant"""
         try:
             # Base query for properties
@@ -728,31 +729,31 @@ class PropertyService:
             ).first()
             
             # Convert to response format
-            return {
-                "price_range": {
-                    "min": float(stats.min_price) if stats.min_price else 0,
-                    "max": float(stats.max_price) if stats.max_price else 1000000
-                },
-                "size_range": {
-                    "min": float(stats.min_size) if stats.min_size else 0,
-                    "max": float(stats.max_size) if stats.max_size else 200
-                },
-                "rooms_range": {
-                    "min": float(stats.min_rooms) if stats.min_rooms else 1,
-                    "max": float(stats.max_rooms) if stats.max_rooms else 5
-                },
-                "rental_yield_range": {
-                    "min": float(yield_stats.min_yield) if yield_stats.min_yield else 0,
-                    "max": float(yield_stats.max_yield) if yield_stats.max_yield else 10
-                }
-            }
+            return PropertyAggregateStats(
+                price_range=RangeStats(
+                    min=float(stats.min_price) if stats.min_price else 0,
+                    max=float(stats.max_price) if stats.max_price else 1000000
+                ),
+                size_range=RangeStats(
+                    min=float(stats.min_size) if stats.min_size else 0,
+                    max=float(stats.max_size) if stats.max_size else 200
+                ),
+                rooms_range=RangeStats(
+                    min=float(stats.min_rooms) if stats.min_rooms else 1,
+                    max=float(stats.max_rooms) if stats.max_rooms else 5
+                ),
+                rental_yield_range=RangeStats(
+                    min=float(yield_stats.min_yield) if yield_stats.min_yield else 0,
+                    max=float(yield_stats.max_yield) if yield_stats.max_yield else 10
+                )
+            )
             
         except Exception as e:
             logger.error(f"Error getting property aggregate stats: {str(e)}")
             # Return default values on error
-            return {
-                "price_range": {"min": 0, "max": 1000000},
-                "size_range": {"min": 0, "max": 200},
-                "rooms_range": {"min": 1, "max": 5},
-                "rental_yield_range": {"min": 0, "max": 10}
-            }
+            return PropertyAggregateStats(
+                price_range=RangeStats(min=0, max=1000000),
+                size_range=RangeStats(min=0, max=200),
+                rooms_range=RangeStats(min=1, max=5),
+                rental_yield_range=RangeStats(min=0, max=10)
+            )

@@ -14,7 +14,8 @@ from app.models.user import User
 from app.schemas.business import (
     ProjectCreate, ProjectUpdate, ProjectResponse, ProjectOverview,
     ProjectFilter, ProjectListResponse,
-    ProjectImageCreate, ProjectImageUpdate
+    ProjectImageCreate, ProjectImageUpdate,
+    ProjectAggregateStats, RangeStats
 )
 from app.core.exceptions import AppException
 from app.services.s3_service import get_s3_service
@@ -782,7 +783,7 @@ class ProjectService:
         db: Session,
         tenant_id: UUID,
         current_user: User
-    ) -> Dict[str, Any]:
+    ) -> ProjectAggregateStats:
         """Get aggregate statistics for all projects in the tenant"""
         try:
             # Base query for projects
@@ -825,26 +826,26 @@ class ProjectService:
             ).first()
             
             # Convert to response format
-            return {
-                "price_range": {
-                    "min": float(stats.min_price) if stats.min_price else 0,
-                    "max": float(stats.max_price) if stats.max_price else 1000000
-                },
-                "rental_yield_range": {
-                    "min": float(stats.min_rental_yield) if stats.min_rental_yield else 0,
-                    "max": float(stats.max_rental_yield) if stats.max_rental_yield else 10
-                },
-                "construction_year_range": {
-                    "min": stats.min_construction_year if stats.min_construction_year else 1900,
-                    "max": stats.max_construction_year if stats.max_construction_year else 2024
-                }
-            }
+            return ProjectAggregateStats(
+                price_range=RangeStats(
+                    min=float(stats.min_price) if stats.min_price else 0,
+                    max=float(stats.max_price) if stats.max_price else 1000000
+                ),
+                rental_yield_range=RangeStats(
+                    min=float(stats.min_rental_yield) if stats.min_rental_yield else 0,
+                    max=float(stats.max_rental_yield) if stats.max_rental_yield else 10
+                ),
+                construction_year_range=RangeStats(
+                    min=float(stats.min_construction_year) if stats.min_construction_year else 1900,
+                    max=float(stats.max_construction_year) if stats.max_construction_year else 2024
+                )
+            )
             
         except Exception as e:
             logger.error(f"Error getting project aggregate stats: {str(e)}")
             # Return default values on error
-            return {
-                "price_range": {"min": 0, "max": 1000000},
-                "rental_yield_range": {"min": 0, "max": 10},
-                "construction_year_range": {"min": 1900, "max": 2024}
-            }
+            return ProjectAggregateStats(
+                price_range=RangeStats(min=0, max=1000000),
+                rental_yield_range=RangeStats(min=0, max=10),
+                construction_year_range=RangeStats(min=1900, max=2024)
+            )

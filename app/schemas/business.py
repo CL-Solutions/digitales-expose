@@ -795,6 +795,28 @@ class InvestagonSyncSchema(BaseResponseSchema):
     created_by: UUID
 
 # ================================
+# Aggregate Statistics Schemas
+# ================================
+
+class RangeStats(BaseSchema):
+    """Schema for min/max range statistics"""
+    min: float
+    max: float
+
+class ProjectAggregateStats(BaseSchema):
+    """Schema for project aggregate statistics"""
+    price_range: RangeStats
+    rental_yield_range: RangeStats
+    construction_year_range: RangeStats
+
+class PropertyAggregateStats(BaseSchema):
+    """Schema for property aggregate statistics"""
+    price_range: RangeStats
+    size_range: RangeStats
+    rooms_range: RangeStats
+    rental_yield_range: RangeStats
+
+# ================================
 # Search and Filter Schemas
 # ================================
 
