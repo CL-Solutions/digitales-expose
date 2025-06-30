@@ -19,7 +19,9 @@ from app.utils.audit import AuditLogger
 from app.services.rbac_service import RBACService
 from decimal import Decimal
 from app.mappers.property_mapper import map_property_to_overview
+import logging
 
+logger = logging.getLogger(__name__)
 audit_logger = AuditLogger()
 
 class PropertyService:
@@ -670,3 +672,87 @@ class PropertyService:
         ).group_by(Property.city).order_by(func.count(Property.id).desc()).limit(10).all()
         
         return [{"city": r[0], "count": r[1]} for r in results]
+    
+    @staticmethod
+    def get_aggregate_stats(
+        db: Session,
+        tenant_id: UUID,
+        current_user: User
+    ) -> Dict[str, Any]:
+        """Get aggregate statistics for all properties in the tenant"""
+        try:
+            # Base query for properties
+            query = db.query(Property).filter(Property.tenant_id == tenant_id)
+            
+            # Check user permissions
+            is_admin_or_manager = current_user.is_super_admin
+            if not is_admin_or_manager:
+                permissions = RBACService.get_user_permissions(
+                    db, current_user.id, current_user.tenant_id
+                )
+                permission_names = [p["name"] for p in permissions.get("permissions", [])]
+                is_admin_or_manager = "properties:update" in permission_names
+            
+            # Apply visibility filter for non-admin users
+            if not is_admin_or_manager:
+                query = query.filter(Property.visibility == 1)
+            
+            # Get aggregate statistics
+            stats = db.query(
+                func.min(Property.purchase_price).label('min_price'),
+                func.max(Property.purchase_price).label('max_price'),
+                func.min(Property.size_sqm).label('min_size'),
+                func.max(Property.size_sqm).label('max_size'),
+                func.min(Property.rooms).label('min_rooms'),
+                func.max(Property.rooms).label('max_rooms')
+            ).filter(
+                Property.id.in_(query.with_entities(Property.id))
+            ).first()
+            
+            # Get rental yield range from properties with valid data
+            yield_subquery = query.filter(
+                and_(
+                    Property.purchase_price > 0,
+                    Property.monthly_rent > 0
+                )
+            ).with_entities(
+                (
+                    ((Property.monthly_rent + func.coalesce(Property.rent_parking_month, 0)) * 12 * 100.0) / 
+                    (Property.purchase_price + func.coalesce(Property.purchase_price_parking, 0) + func.coalesce(Property.purchase_price_furniture, 0))
+                ).label('rental_yield')
+            ).subquery()
+            
+            yield_stats = db.query(
+                func.min(yield_subquery.c.rental_yield).label('min_yield'),
+                func.max(yield_subquery.c.rental_yield).label('max_yield')
+            ).first()
+            
+            # Convert to response format
+            return {
+                "price_range": {
+                    "min": float(stats.min_price) if stats.min_price else 0,
+                    "max": float(stats.max_price) if stats.max_price else 1000000
+                },
+                "size_range": {
+                    "min": float(stats.min_size) if stats.min_size else 0,
+                    "max": float(stats.max_size) if stats.max_size else 200
+                },
+                "rooms_range": {
+                    "min": float(stats.min_rooms) if stats.min_rooms else 1,
+                    "max": float(stats.max_rooms) if stats.max_rooms else 5
+                },
+                "rental_yield_range": {
+                    "min": float(yield_stats.min_yield) if yield_stats.min_yield else 0,
+                    "max": float(yield_stats.max_yield) if yield_stats.max_yield else 10
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting property aggregate stats: {str(e)}")
+            # Return default values on error
+            return {
+                "price_range": {"min": 0, "max": 1000000},
+                "size_range": {"min": 0, "max": 200},
+                "rooms_range": {"min": 1, "max": 5},
+                "rental_yield_range": {"min": 0, "max": 10}
+            }

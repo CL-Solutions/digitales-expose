@@ -189,6 +189,18 @@ class ProjectService:
         if filters.max_construction_year is not None:
             query = query.filter(Project.construction_year <= filters.max_construction_year)
         
+        # Price range filters
+        if filters.min_price is not None:
+            query = query.filter(Project.min_price >= filters.min_price)
+        if filters.max_price is not None:
+            query = query.filter(Project.max_price <= filters.max_price)
+        
+        # Rental yield filters
+        if filters.min_rental_yield is not None:
+            query = query.filter(Project.min_rental_yield >= filters.min_rental_yield)
+        if filters.max_rental_yield is not None:
+            query = query.filter(Project.max_rental_yield <= filters.max_rental_yield)
+        
         # Check user permissions for visibility filtering
         is_admin_or_manager = current_user.is_super_admin
         if not is_admin_or_manager:
@@ -764,3 +776,75 @@ class ProjectService:
         except Exception as e:
             logger.error(f"Error updating project aggregates: {str(e)}")
             db.rollback()
+    
+    @staticmethod
+    def get_aggregate_stats(
+        db: Session,
+        tenant_id: UUID,
+        current_user: User
+    ) -> Dict[str, Any]:
+        """Get aggregate statistics for all projects in the tenant"""
+        try:
+            # Base query for projects
+            query = db.query(Project).filter(Project.tenant_id == tenant_id)
+            
+            # Check user permissions for visibility filtering
+            is_admin_or_manager = current_user.is_super_admin
+            if not is_admin_or_manager:
+                from app.services.rbac_service import RBACService
+                permissions = RBACService.get_user_permissions(
+                    db, current_user.id, current_user.tenant_id
+                )
+                permission_names = [p["name"] for p in permissions.get("permissions", [])]
+                is_admin_or_manager = "properties:update" in permission_names
+            
+            # For non-admin users, filter projects to only those with visible properties
+            if not is_admin_or_manager:
+                from app.models.business import Property
+                # Use a subquery to get project IDs that have visible properties
+                visible_project_ids = db.query(Project.id).join(Project.properties).filter(
+                    and_(
+                        Project.tenant_id == tenant_id,
+                        Property.visibility == 1
+                    )
+                ).distinct().subquery()
+                
+                # Filter main query by these IDs
+                query = query.filter(Project.id.in_(select(visible_project_ids.c.id)))
+            
+            # Get aggregate statistics
+            stats = db.query(
+                func.min(Project.min_price).label('min_price'),
+                func.max(Project.max_price).label('max_price'),
+                func.min(Project.min_rental_yield).label('min_rental_yield'),
+                func.max(Project.max_rental_yield).label('max_rental_yield'),
+                func.min(Project.construction_year).label('min_construction_year'),
+                func.max(Project.construction_year).label('max_construction_year')
+            ).filter(
+                Project.id.in_(query.with_entities(Project.id))
+            ).first()
+            
+            # Convert to response format
+            return {
+                "price_range": {
+                    "min": float(stats.min_price) if stats.min_price else 0,
+                    "max": float(stats.max_price) if stats.max_price else 1000000
+                },
+                "rental_yield_range": {
+                    "min": float(stats.min_rental_yield) if stats.min_rental_yield else 0,
+                    "max": float(stats.max_rental_yield) if stats.max_rental_yield else 10
+                },
+                "construction_year_range": {
+                    "min": stats.min_construction_year if stats.min_construction_year else 1900,
+                    "max": stats.max_construction_year if stats.max_construction_year else 2024
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting project aggregate stats: {str(e)}")
+            # Return default values on error
+            return {
+                "price_range": {"min": 0, "max": 1000000},
+                "rental_yield_range": {"min": 0, "max": 10},
+                "construction_year_range": {"min": 1900, "max": 2024}
+            }

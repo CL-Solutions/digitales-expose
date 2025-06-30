@@ -808,6 +808,10 @@ class ProjectFilter(PaginationParams):
     has_parking: Optional[bool] = None
     min_construction_year: Optional[int] = Field(None, ge=1800, le=2100)
     max_construction_year: Optional[int] = Field(None, ge=1800, le=2100)
+    min_price: Optional[float] = Field(None, ge=0, description="Minimum price filter")
+    max_price: Optional[float] = Field(None, ge=0, description="Maximum price filter")
+    min_rental_yield: Optional[float] = Field(None, ge=0, le=100, description="Minimum rental yield percentage")
+    max_rental_yield: Optional[float] = Field(None, ge=0, le=100, description="Maximum rental yield percentage")
     sort_by: str = Field(default="created_at", description="Field to sort by")
     sort_order: str = Field(default="desc", pattern="^(asc|desc)$", description="Sort order")
 

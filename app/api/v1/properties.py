@@ -4,7 +4,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Path, UploadFile, File, Form
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from uuid import UUID
 import json
 
@@ -376,3 +376,19 @@ async def get_property_statistics(
         raise HTTPException(status_code=e.status_code, detail=e.detail)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/aggregate-stats", response_model=Dict[str, Any])
+async def get_property_aggregate_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: UUID = Depends(get_current_tenant_id)
+):
+    """Get aggregate statistics for all properties"""
+    try:
+        stats = PropertyService.get_aggregate_stats(db, tenant_id, current_user)
+        return stats
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get property aggregate stats: {str(e)}"
+        )
