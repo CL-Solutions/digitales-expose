@@ -2,7 +2,7 @@
 # DIGITALES EXPOSE MODELS (models/business.py)
 # ================================
 
-from sqlalchemy import Column, String, Text, Integer, Float, Boolean, DateTime, ForeignKey, JSON, Numeric, and_
+from sqlalchemy import Column, String, Text, Integer, Float, Boolean, DateTime, ForeignKey, JSON, Numeric, and_, Index
 from sqlalchemy.orm import relationship, foreign
 from sqlalchemy.dialects.postgresql import UUID
 from app.models.base import Base, TenantMixin, AuditMixin
@@ -54,6 +54,12 @@ class Project(Base, TenantMixin, AuditMixin):
     # Status
     status = Column(String(50), default="available", nullable=False)  # 'available', 'reserved', 'sold'
     
+    # Aggregated Property Data (for efficient sorting/filtering)
+    min_price = Column(Numeric(12, 2), nullable=True)  # Minimum property price in project
+    max_price = Column(Numeric(12, 2), nullable=True)  # Maximum property price in project
+    min_rental_yield = Column(Numeric(5, 2), nullable=True)  # Minimum rental yield in project
+    max_rental_yield = Column(Numeric(5, 2), nullable=True)  # Maximum rental yield in project
+    
     # External Reference
     investagon_id = Column(String(255), nullable=True, unique=True)  # Investagon project ID
     investagon_data = Column(JSON, nullable=True)  # Store full API response
@@ -65,6 +71,14 @@ class Project(Base, TenantMixin, AuditMixin):
     properties = relationship("Property", back_populates="project", cascade="all, delete-orphan")
     images = relationship("ProjectImage", back_populates="project", cascade="all, delete-orphan", order_by="ProjectImage.display_order")
     city_ref = relationship("City", foreign_keys="Project.city_id")
+
+    # Table indexes
+    __table_args__ = (
+        Index('idx_projects_city', 'city'),
+        Index('idx_projects_status', 'status'),
+        Index('idx_projects_min_price', 'min_price'),
+        Index('idx_projects_min_rental_yield', 'min_rental_yield'),
+    )
 
     def __repr__(self):
         return f"<Project(name='{self.name}', city='{self.city}', status='{self.status}')>"
@@ -178,6 +192,15 @@ class Property(Base, TenantMixin, AuditMixin):
     images = relationship("PropertyImage", back_populates="property", cascade="all, delete-orphan", order_by="PropertyImage.display_order")
     expose_links = relationship("ExposeLink", back_populates="property", cascade="all, delete-orphan")
     city_ref = relationship("City", foreign_keys="Property.city_id")
+
+    # Table indexes
+    __table_args__ = (
+        Index('idx_properties_active', 'active'),
+        Index('idx_properties_project_id', 'project_id'),
+        Index('idx_properties_city', 'city'),
+        Index('idx_properties_purchase_price', 'purchase_price'),
+        Index('idx_properties_visibility', 'visibility'),
+    )
 
     @property
     def thumbnail_url(self):
@@ -363,6 +386,11 @@ class ExposeLink(Base, TenantMixin, AuditMixin):
     creator = relationship("User", foreign_keys="ExposeLink.created_by", back_populates="created_expose_links")
     updater = relationship("User", foreign_keys="ExposeLink.updated_by")
     views = relationship("ExposeLinkView", back_populates="expose_link", cascade="all, delete-orphan")
+
+    # Table indexes
+    __table_args__ = (
+        Index('idx_expose_links_link_id', 'link_id'),
+    )
 
     def __repr__(self):
         return f"<ExposeLink(link_id='{self.link_id}', property='{self.property_id}')>"

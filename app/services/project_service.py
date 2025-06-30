@@ -713,3 +713,87 @@ class ProjectService:
                 new_values={"status": new_status},
                 additional_context={"property_active_counts": active_counts}
             )
+    
+    @staticmethod
+    def update_project_aggregates(
+        db: Session,
+        project_id: UUID,
+        tenant_id: UUID
+    ) -> None:
+        """Update project price and rental yield aggregates based on its properties"""
+        try:
+            # Get the project
+            project = db.query(Project).filter(
+                and_(
+                    Project.id == project_id,
+                    Project.tenant_id == tenant_id
+                )
+            ).first()
+            
+            if not project:
+                logger.warning(f"Project {project_id} not found for tenant {tenant_id}")
+                return
+            
+            # Calculate aggregates from properties
+            from sqlalchemy import case
+            
+            # Price aggregates query
+            price_aggregates = db.query(
+                func.min(
+                    Property.purchase_price + 
+                    func.coalesce(Property.purchase_price_parking, 0) + 
+                    func.coalesce(Property.purchase_price_furniture, 0)
+                ).label('min_price'),
+                func.max(
+                    Property.purchase_price + 
+                    func.coalesce(Property.purchase_price_parking, 0) + 
+                    func.coalesce(Property.purchase_price_furniture, 0)
+                ).label('max_price')
+            ).filter(
+                and_(
+                    Property.project_id == project_id,
+                    Property.tenant_id == tenant_id,
+                    Property.purchase_price.isnot(None)
+                )
+            ).first()
+            
+            # Rental yield aggregates query
+            yield_aggregates = db.query(
+                func.min(
+                    case(
+                        (Property.purchase_price > 0,
+                         ((Property.monthly_rent + func.coalesce(Property.rent_parking_month, 0)) * 12 * 100.0) / 
+                         (Property.purchase_price + func.coalesce(Property.purchase_price_parking, 0) + func.coalesce(Property.purchase_price_furniture, 0))
+                        ),
+                        else_=None
+                    )
+                ).label('min_rental_yield'),
+                func.max(
+                    case(
+                        (Property.purchase_price > 0,
+                         ((Property.monthly_rent + func.coalesce(Property.rent_parking_month, 0)) * 12 * 100.0) / 
+                         (Property.purchase_price + func.coalesce(Property.purchase_price_parking, 0) + func.coalesce(Property.purchase_price_furniture, 0))
+                        ),
+                        else_=None
+                    )
+                ).label('max_rental_yield')
+            ).filter(
+                and_(
+                    Property.project_id == project_id,
+                    Property.tenant_id == tenant_id
+                )
+            ).first()
+            
+            # Update project with new aggregates
+            project.min_price = price_aggregates.min_price if price_aggregates else None
+            project.max_price = price_aggregates.max_price if price_aggregates else None
+            project.min_rental_yield = yield_aggregates.min_rental_yield if yield_aggregates else None
+            project.max_rental_yield = yield_aggregates.max_rental_yield if yield_aggregates else None
+            
+            db.commit()
+            
+            logger.info(f"Updated aggregates for project {project_id}: price range={project.min_price}-{project.max_price}, yield range={project.min_rental_yield}-{project.max_rental_yield}")
+            
+        except Exception as e:
+            logger.error(f"Error updating project aggregates: {str(e)}")
+            db.rollback()

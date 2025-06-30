@@ -105,6 +105,13 @@ class PropertyService:
                 tenant_id=current_user.tenant_id
             )
             
+            # Update project aggregates (price and rental yield ranges)
+            ProjectService.update_project_aggregates(
+                db=db,
+                project_id=property.project_id,
+                tenant_id=current_user.tenant_id
+            )
+            
             # Commit and refresh with relationships
             db.commit()
             db.refresh(property)
@@ -361,6 +368,17 @@ class PropertyService:
                     tenant_id=current_user.tenant_id
                 )
             
+            # If price or rent fields were updated, update project aggregates
+            price_fields = {'purchase_price', 'purchase_price_parking', 'purchase_price_furniture', 
+                           'monthly_rent', 'rent_parking_month'}
+            if any(field in update_data for field in price_fields):
+                from app.services.project_service import ProjectService
+                ProjectService.update_project_aggregates(
+                    db=db,
+                    project_id=property.project_id,
+                    tenant_id=current_user.tenant_id
+                )
+            
             # Commit and reload with relationships
             db.commit()
             
@@ -428,6 +446,13 @@ class PropertyService:
             # Update project status after property deletion
             from app.services.project_service import ProjectService
             ProjectService.update_project_status_from_properties(
+                db=db,
+                project_id=project_id,
+                tenant_id=current_user.tenant_id
+            )
+            
+            # Update project aggregates after property deletion
+            ProjectService.update_project_aggregates(
                 db=db,
                 project_id=project_id,
                 tenant_id=current_user.tenant_id

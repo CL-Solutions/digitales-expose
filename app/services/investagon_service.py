@@ -701,6 +701,13 @@ class InvestagonSyncService:
                 tenant_id=current_user.tenant_id
             )
             
+            # Update project aggregates after syncing property
+            ProjectService.update_project_aggregates(
+                db=db,
+                project_id=property_obj.project_id,
+                tenant_id=current_user.tenant_id
+            )
+            
             # Refresh micro location for the project
             ProjectService.refresh_project_micro_location(
                 db=db,
@@ -1369,6 +1376,16 @@ class InvestagonSyncService:
                     )
                 except Exception as e:
                     logger.warning(f"Failed to update project status for {project_id}: {str(e)}")
+                
+                # Update project aggregates
+                try:
+                    ProjectService.update_project_aggregates(
+                        db=db,
+                        project_id=project_id,
+                        tenant_id=current_user.tenant_id
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to update project aggregates for {project_id}: {str(e)}")
                 
                 # Refresh micro location for the project
                 try:
