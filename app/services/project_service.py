@@ -273,44 +273,11 @@ class ProjectService:
                     else:
                         visibility_status = 'deactivated'  # All are deactivated
             
-            # Calculate rental yield range and price range for the project
-            min_rental_yield = None
-            max_rental_yield = None
-            min_price = None
-            max_price = None
-            rental_yields = []
-            prices = []
-            
-            for prop in project.properties:
-                # Calculate total purchase price including parking and furniture
-                total_price = float(prop.purchase_price or 0)
-                if prop.purchase_price_parking:
-                    total_price += float(prop.purchase_price_parking)
-                if prop.purchase_price_furniture:
-                    total_price += float(prop.purchase_price_furniture)
-                
-                # Track prices for min/max calculation
-                if total_price > 0:
-                    prices.append(total_price)
-                
-                # Calculate total monthly rent including parking
-                total_rent = float(prop.monthly_rent or 0)
-                if prop.rent_parking_month:
-                    total_rent += float(prop.rent_parking_month)
-                
-                # Calculate yield only if we have valid values
-                if total_price > 0 and total_rent > 0:
-                    annual_rent = total_rent * 12
-                    yield_value = (annual_rent / total_price) * 100
-                    rental_yields.append(yield_value)
-            
-            if rental_yields:
-                min_rental_yield = min(rental_yields)
-                max_rental_yield = max(rental_yields)
-            
-            if prices:
-                min_price = min(prices)
-                max_price = max(prices)
+            # Use pre-calculated values from database
+            min_rental_yield = float(project.min_rental_yield) if project.min_rental_yield else None
+            max_rental_yield = float(project.max_rental_yield) if project.max_rental_yield else None
+            min_price = float(project.min_price) if project.min_price else None
+            max_price = float(project.max_price) if project.max_price else None
             
             overview = ProjectOverview(
                 id=project.id,
