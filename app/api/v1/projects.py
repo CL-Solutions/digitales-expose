@@ -60,6 +60,26 @@ async def list_projects(
         current_user=current_user
     )
 
+# ================================
+# Aggregate Statistics Endpoint
+# ================================
+
+@router.get("/aggregate-stats", response_model=ProjectAggregateStats)
+async def get_project_aggregate_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: UUID = Depends(get_current_tenant_id)
+):
+    """Get aggregate statistics for all projects"""
+    try:
+        stats = ProjectService.get_aggregate_stats(db, tenant_id, current_user)
+        return stats
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get project aggregate stats: {str(e)}"
+        )
+
 @router.get("/{project_id}", response_model=ProjectResponse, response_model_exclude_none=True)
 async def get_project(
     project_id: UUID,
@@ -329,22 +349,3 @@ async def refresh_micro_location(
             detail=f"Failed to refresh micro location data: {str(e)}"
         )
 
-# ================================
-# Aggregate Statistics Endpoint
-# ================================
-
-@router.get("/aggregate-stats", response_model=ProjectAggregateStats)
-async def get_project_aggregate_stats(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
-    tenant_id: UUID = Depends(get_current_tenant_id)
-):
-    """Get aggregate statistics for all projects"""
-    try:
-        stats = ProjectService.get_aggregate_stats(db, tenant_id, current_user)
-        return stats
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get project aggregate stats: {str(e)}"
-        )

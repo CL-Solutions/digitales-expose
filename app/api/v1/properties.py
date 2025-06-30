@@ -63,6 +63,22 @@ async def list_properties(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/aggregate-stats", response_model=PropertyAggregateStats)
+async def get_property_aggregate_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: UUID = Depends(get_current_tenant_id)
+):
+    """Get aggregate statistics for all properties"""
+    try:
+        stats = PropertyService.get_aggregate_stats(db, tenant_id, current_user)
+        return stats
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get property aggregate stats: {str(e)}"
+        )
+
 @router.post("/", response_model=PropertyResponse, response_model_exclude_none=True, status_code=status.HTTP_201_CREATED)
 async def create_property(
     property_data: PropertyCreate,
@@ -378,18 +394,3 @@ async def get_property_statistics(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/aggregate-stats", response_model=PropertyAggregateStats)
-async def get_property_aggregate_stats(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
-    tenant_id: UUID = Depends(get_current_tenant_id)
-):
-    """Get aggregate statistics for all properties"""
-    try:
-        stats = PropertyService.get_aggregate_stats(db, tenant_id, current_user)
-        return stats
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get property aggregate stats: {str(e)}"
-        )
