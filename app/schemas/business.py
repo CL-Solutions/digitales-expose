@@ -822,6 +822,7 @@ class PropertyAggregateStats(BaseSchema):
 
 class ProjectFilter(PaginationParams):
     """Schema for project filtering"""
+    search: Optional[str] = Field(None, description="Search query for name, street, city")
     city: Optional[str] = None
     state: Optional[str] = None
     status: Optional[str] = None
@@ -875,6 +876,7 @@ class ProjectListResponse(BaseSchema):
 
 class PropertyFilter(PaginationParams):
     """Schema for property filtering"""
+    search: Optional[str] = Field(None, description="Search query for unit number, city, project name")
     project_id: Optional[UUID] = None  # Filter by project
     city: Optional[str] = None
     state: Optional[str] = None

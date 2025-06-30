@@ -217,6 +217,22 @@ class PropertyService:
                     query = query.filter(Property.visibility == 1)
                 # Tenant admins and property managers see all properties (no visibility filter)
             
+            # Apply search filter
+            if filter_params.search:
+                search_term = f"%{filter_params.search}%"
+                # Join with Project to search in project name
+                query = query.join(Property.project)
+                query = query.filter(
+                    or_(
+                        Property.unit_number.ilike(search_term),
+                        Property.city.ilike(search_term),
+                        Property.state.ilike(search_term),
+                        Property.zip_code.ilike(search_term),
+                        Project.name.ilike(search_term),
+                        Project.street.ilike(search_term)
+                    )
+                )
+            
             # Apply filters
             if filter_params.project_id:
                 query = query.filter(Property.project_id == filter_params.project_id)

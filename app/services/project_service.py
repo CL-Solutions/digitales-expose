@@ -172,6 +172,19 @@ class ProjectService:
         """List projects with filtering and pagination"""
         query = db.query(Project).filter(Project.tenant_id == tenant_id)
         
+        # Apply search filter
+        if filters.search:
+            search_term = f"%{filters.search}%"
+            query = query.filter(
+                or_(
+                    Project.name.ilike(search_term),
+                    Project.street.ilike(search_term),
+                    Project.city.ilike(search_term),
+                    Project.state.ilike(search_term),
+                    Project.zip_code.ilike(search_term)
+                )
+            )
+        
         # Apply filters
         if filters.city:
             query = query.filter(Project.city.ilike(f"%{filters.city}%"))
