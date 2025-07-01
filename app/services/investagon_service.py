@@ -1358,8 +1358,9 @@ class InvestagonSyncService:
                             "project_id": project_id,
                             "error": str(e)
                         })
-                        # Rollback the session to clear the failed transaction
-                        db.rollback()
+                        # Don't rollback here - let successfully processed properties remain
+                        # Individual property errors are already handled with savepoints
+                        # The final commit/rollback will be handled at the API endpoint level
                 
                 # Final flush
                 db.flush()
