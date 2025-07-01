@@ -23,7 +23,7 @@ from app.core.middleware import (
 )
 
 # API Routes - UPDATED TO INCLUDE RBAC
-from app.api.v1 import auth, users, tenants, projects, properties, cities, exposes, admin, rbac, investagon, user_preferences
+from app.api.v1 import auth, users, tenants, projects, properties, cities, exposes, admin, rbac, investagon, user_preferences, user_team
 
 import logging
 import uvicorn
@@ -487,6 +487,18 @@ app.include_router(
         401: {"description": "Authentication required"},
         403: {"description": "Insufficient permissions"},
         404: {"description": "Role or permission not found"}
+    }
+)
+
+# Team management routes
+app.include_router(
+    user_team.router, 
+    prefix="/api/v1/teams", 
+    tags=["Team Management"],
+    responses={
+        401: {"description": "Authentication required"},
+        403: {"description": "Insufficient permissions"},
+        404: {"description": "Resource not found"}
     }
 )
 
