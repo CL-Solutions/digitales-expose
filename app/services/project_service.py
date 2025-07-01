@@ -233,7 +233,7 @@ class ProjectService:
             visible_project_ids = db.query(Project.id).join(Project.properties).filter(
                 and_(
                     Project.tenant_id == tenant_id,
-                    Property.visibility == 1
+                    Property.visibility.is_(1)
                 )
             ).distinct().subquery()
             
@@ -819,7 +819,7 @@ class ProjectService:
                 visible_project_ids = db.query(Project.id).join(Project.properties).filter(
                     and_(
                         Project.tenant_id == tenant_id,
-                        Property.visibility == 1
+                        Property.visibility.is_(1)
                     )
                 ).distinct().subquery()
                 
