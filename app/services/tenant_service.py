@@ -133,7 +133,7 @@ class TenantService:
         db: Session,
         tenant_id: uuid.UUID,
         tenant_update: TenantUpdate,
-        super_admin: User
+        updating_user: User
     ) -> Tenant:
         """Update tenant information"""
         tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
@@ -219,7 +219,7 @@ class TenantService:
         
         # Audit log
         audit_logger.log_auth_event(
-            db, "TENANT_UPDATED", super_admin.id, tenant.id,
+            db, "TENANT_UPDATED", updating_user.id, tenant.id,
             {"old_values": old_values, "new_values": update_data}
         )
         

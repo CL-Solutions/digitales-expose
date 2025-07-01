@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from sqlalchemy.orm import Session
 from app.dependencies import get_db, get_super_admin_user, get_current_user
 from app.schemas.tenant import (
-    TenantCreate, TenantUpdate, TenantResponse, 
+    TenantCreate, TenantUpdate, TenantAdminUpdate, TenantResponse, 
     TenantListResponse, TenantFilterParams, TenantStatsResponse,
     MicrosoftIdentityProviderCreate, GoogleIdentityProviderCreate,
     IdentityProviderResponse, IdentityProviderUpdate,
@@ -187,6 +187,15 @@ async def update_tenant(
             permissions = RBACService.get_user_permissions(db, current_user.id, current_user.tenant_id)
             if "tenant:manage" not in [p["name"] for p in permissions.get("permissions", [])]:
                 raise HTTPException(status_code=403, detail="You don't have permission to manage tenant settings")
+            
+            # For non-super admins, ensure restricted fields are not updated
+            # This ensures they can't update subscription_plan, max_users, or is_active
+            if tenant_update.subscription_plan is not None:
+                raise HTTPException(status_code=403, detail="You don't have permission to update subscription plan")
+            if tenant_update.max_users is not None:
+                raise HTTPException(status_code=403, detail="You don't have permission to update max users")
+            if tenant_update.is_active is not None:
+                raise HTTPException(status_code=403, detail="You don't have permission to update tenant active status")
         
         tenant = TenantService.update_tenant(db, tenant_id, tenant_update, current_user)
         db.commit()

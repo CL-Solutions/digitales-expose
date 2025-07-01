@@ -41,14 +41,11 @@ class TenantCreate(TenantBase, SlugFieldMixin):
     admin_last_name: str = Field(..., min_length=1, max_length=100)
     admin_password: Optional[str] = Field(min_length=8, description="Admin password (optional, will generate if not provided)")
 
-class TenantUpdate(BaseSchema, DomainFieldMixin):
-    """Schema für Tenant-Updates"""
+class TenantAdminUpdate(BaseSchema, DomainFieldMixin):
+    """Schema für Tenant-Updates durch Tenant Admins (eingeschränkte Felder)"""
     name: Optional[str] = Field(min_length=2, max_length=255)
     domain: Optional[str] = Field(max_length=255)
     settings: Optional[Dict[str, Any]] = None
-    subscription_plan: Optional[str]
-    max_users: Optional[int] = Field(ge=1, le=10000)
-    is_active: Optional[bool]
     
     # Investagon Integration
     investagon_organization_id: Optional[str] = Field(max_length=255)
@@ -64,6 +61,13 @@ class TenantUpdate(BaseSchema, DomainFieldMixin):
     contact_state: Optional[str] = Field(max_length=100)
     contact_zip_code: Optional[str] = Field(max_length=20)
     contact_country: Optional[str] = Field(max_length=100)
+
+class TenantUpdate(TenantAdminUpdate):
+    """Schema für Tenant-Updates (vollständig, nur für Super-Admins)"""
+    # Zusätzliche Felder die nur Super-Admins ändern können
+    subscription_plan: Optional[str]
+    max_users: Optional[int] = Field(ge=1, le=10000)
+    is_active: Optional[bool]
 
 class TenantResponse(TenantBase, TimestampMixin):
     """Schema für Tenant-Responses"""
