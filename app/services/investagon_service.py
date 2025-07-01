@@ -504,7 +504,7 @@ class InvestagonSyncService:
             "active": safe_int(investagon_data.get("active", 0)),
             "pre_sale": safe_int(investagon_data.get("pre_sale", 0)),
             "draft": safe_int(investagon_data.get("draft", 0)),
-            "visibility": safe_int(investagon_data.get("visibility", None)),
+            "visibility": safe_int(investagon_data.get("visibility"), -1),  # Use -1 as default instead of None to avoid index issues
             
             # Investagon Integration
             "investagon_id": str(investagon_data.get("id", "")),
@@ -1103,17 +1103,30 @@ class InvestagonSyncService:
             
             # Get existing property mapping
             existing_properties = {}
-            properties_query = db.query(Property).filter(
-                Property.tenant_id == current_user.tenant_id
-            )
-            if modified_since:
-                properties_query = properties_query.filter(
-                    Property.investagon_id.is_not(None)
+            try:
+                logger.info("Building query for existing properties...")
+                properties_query = db.query(Property).filter(
+                    Property.tenant_id == current_user.tenant_id
                 )
-            
-            for prop in properties_query.all():
-                if prop.investagon_id:
-                    existing_properties[prop.investagon_id] = prop
+                if modified_since:
+                    properties_query = properties_query.filter(
+                        Property.investagon_id.is_not(None)
+                    )
+                
+                logger.info("Executing query for existing properties...")
+                all_properties = properties_query.all()
+                logger.info(f"Found {len(all_properties)} existing properties")
+                
+                for prop in all_properties:
+                    if prop.investagon_id:
+                        existing_properties[prop.investagon_id] = prop
+                logger.info(f"Mapped {len(existing_properties)} properties with investagon_id")
+            except Exception as e:
+                logger.error(f"Error querying existing properties: {str(e)}")
+                logger.error(f"Error type: {type(e).__name__}")
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                raise
             
             # First, get all projects
             try:
@@ -1254,9 +1267,12 @@ class InvestagonSyncService:
                                     continue
                                 
                                 # Get property details
+                                logger.debug(f"Fetching property details for ID: {property_id}")
                                 investagon_data = await self.api_client.get_property(property_id)
+                                logger.debug(f"Property data fields: {list(investagon_data.keys())}")
                                 
                                 # Map property data with project reference
+                                logger.debug(f"Mapping property data to model...")
                                 property_data = self._map_investagon_to_property(
                                     investagon_data, 
                                     db, 
@@ -1264,12 +1280,17 @@ class InvestagonSyncService:
                                     current_user.id,
                                     project_id=project_obj.id
                                 )
+                                logger.debug(f"Mapped property data successfully")
                                 
                                 # Use the investagon_id from the API response, not the URL property_id
                                 investagon_id = str(investagon_data.get("id", ""))
+                                logger.debug(f"Property investagon_id: {investagon_id}")
                                 
+                                # Check if property already exists
+                                logger.debug(f"Checking if property {investagon_id} exists in {len(existing_properties)} cached properties...")
                                 if investagon_id in existing_properties:
                                     # Update existing
+                                    logger.debug(f"Updating existing property {investagon_id}")
                                     prop = existing_properties[investagon_id]
                                     for key, value in property_data.items():
                                         if key != "investagon_data":  # Skip JSON field for now
@@ -1277,8 +1298,14 @@ class InvestagonSyncService:
                                     prop.updated_by = current_user.id
                                     prop.updated_at = datetime.now(timezone.utc)
                                     total_updated += 1
+                                    logger.debug(f"Property {investagon_id} updated successfully")
                                 else:
                                     # Create new
+                                    logger.debug(f"Creating new property {investagon_id}")
+                                    logger.debug(f"Property data keys: {list(property_data.keys())}")
+                                    logger.debug(f"Property data balcony: {property_data.get('balcony')}")
+                                    logger.debug(f"Property data active: {property_data.get('active')}")
+                                    logger.debug(f"Property data visibility: {property_data.get('visibility')}")
                                     prop = Property(
                                         **property_data,
                                         tenant_id=current_user.tenant_id,
@@ -1286,9 +1313,12 @@ class InvestagonSyncService:
                                     )
                                     db.add(prop)
                                     total_created += 1
+                                    logger.debug(f"Property {investagon_id} added to session")
                                 
                                 # Flush the property to get its ID
+                                logger.debug(f"Flushing property {investagon_id} to database...")
                                 db.flush()
+                                logger.debug(f"Property {investagon_id} flushed successfully")
                                 
                                 # Import images if available and property is new or we're doing a full sync
                                 photos = investagon_data.get('photos', [])
