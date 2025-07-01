@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.audit_logger import audit_logger
+from app.utils.audit import AuditLogger
 from app.core.exceptions import AppException
 from app.models.user import User
 from app.models.user_team import UserRequest, UserTeamAssignment
@@ -16,6 +16,8 @@ from app.schemas.user_team import (
     UserTeamAssignmentCreate,
 )
 from app.services.auth_service import AuthService
+
+audit_logger = AuditLogger()
 
 
 class UserTeamService:
