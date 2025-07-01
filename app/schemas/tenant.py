@@ -8,13 +8,10 @@ from uuid import UUID
 from app.schemas.base import BaseSchema, TimestampMixin, SlugFieldMixin, DomainFieldMixin
 
 class TenantBase(BaseSchema, DomainFieldMixin):
-    """Base Tenant Schema"""
+    """Base Tenant Schema - Common fields for all tenant operations"""
     name: str = Field(..., min_length=2, max_length=255, description="Organization name")
     domain: Optional[str] = Field(max_length=255, description="Organization domain")
     settings: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Tenant-specific settings")
-    subscription_plan: str = Field(default="basic", description="Subscription plan")
-    max_users: int = Field(default=10, ge=1, le=10000, description="Maximum number of users")
-    is_active: bool = Field(default=True, description="Tenant active status")
     
     # Investagon Integration
     investagon_organization_id: Optional[str] = Field(max_length=255, description="Investagon organization ID")
@@ -35,44 +32,40 @@ class TenantCreate(TenantBase, SlugFieldMixin):
     """Schema für Tenant-Erstellung (nur Super-Admin)"""
     slug: str = Field(..., min_length=2, max_length=100, description="URL-friendly identifier")
     
+    # Super-Admin only fields
+    subscription_plan: str = Field(default="basic", description="Subscription plan")
+    max_users: int = Field(default=10, ge=1, le=10000, description="Maximum number of users")
+    is_active: bool = Field(default=True, description="Tenant active status")
+    
     # Super-Admin der diesen Tenant erstellt
     admin_email: EmailStr = Field(..., description="Email of the first tenant admin")
     admin_first_name: str = Field(..., min_length=1, max_length=100)
     admin_last_name: str = Field(..., min_length=1, max_length=100)
     admin_password: Optional[str] = Field(min_length=8, description="Admin password (optional, will generate if not provided)")
 
-class TenantAdminUpdate(BaseSchema, DomainFieldMixin):
+class TenantAdminUpdate(TenantBase):
     """Schema für Tenant-Updates durch Tenant Admins (eingeschränkte Felder)"""
-    name: Optional[str] = Field(min_length=2, max_length=255)
-    domain: Optional[str] = Field(max_length=255)
-    settings: Optional[Dict[str, Any]] = None
-    
-    # Investagon Integration
-    investagon_organization_id: Optional[str] = Field(max_length=255)
-    investagon_api_key: Optional[str] = Field(max_length=255)
-    investagon_sync_enabled: Optional[bool]
-    
-    # Contact Information
-    contact_email: Optional[str] = Field(max_length=255)
-    contact_phone: Optional[str] = Field(max_length=100)
-    contact_street: Optional[str] = Field(max_length=255)
-    contact_house_number: Optional[str] = Field(max_length=50)
-    contact_city: Optional[str] = Field(max_length=100)
-    contact_state: Optional[str] = Field(max_length=100)
-    contact_zip_code: Optional[str] = Field(max_length=20)
-    contact_country: Optional[str] = Field(max_length=100)
+    # Override required fields from TenantBase to make them optional
+    name: Optional[str] = Field(None, min_length=2, max_length=255, description="Organization name")
+    investagon_sync_enabled: Optional[bool] = None
 
 class TenantUpdate(TenantAdminUpdate):
     """Schema für Tenant-Updates (vollständig, nur für Super-Admins)"""
     # Zusätzliche Felder die nur Super-Admins ändern können
-    subscription_plan: Optional[str]
-    max_users: Optional[int] = Field(ge=1, le=10000)
-    is_active: Optional[bool]
+    subscription_plan: Optional[str] = None
+    max_users: Optional[int] = Field(None, ge=1, le=10000)
+    is_active: Optional[bool] = None
 
 class TenantResponse(TenantBase, TimestampMixin):
     """Schema für Tenant-Responses"""
     id: UUID
     slug: str
+    
+    # Fields that are part of the response but not editable by tenant admins
+    subscription_plan: str = Field(default="basic", description="Subscription plan")
+    max_users: int = Field(default=10, description="Maximum number of users")
+    is_active: bool = Field(default=True, description="Tenant active status")
+    
     user_count: Optional[int] = Field(description="Current number of users")
 
 class TenantListResponse(BaseSchema):
