@@ -55,7 +55,7 @@ from fastapi import APIRouter, Depends
 from app.dependencies import get_db, get_current_user
 
 # Import all route modules
-from app.api.v1 import auth, users, tenants, properties, cities, exposes, admin, rbac
+from app.api.v1 import auth, users, tenants, properties, cities, exposes, admin, rbac, user_team
 
 # Create V1 router
 v1_router = APIRouter(prefix="/v1")
@@ -92,6 +92,18 @@ v1_router.include_router(
         401: {"description": "Authentication required"},
         403: {"description": "Insufficient permissions"},
         404: {"description": "Role or permission not found"}
+    }
+)
+
+v1_router.include_router(
+    user_team.router,
+    prefix="/teams",
+    tags=["Team Management"],
+    dependencies=[Depends(get_current_user)],
+    responses={
+        401: {"description": "Authentication required"},
+        403: {"description": "Insufficient permissions"},
+        404: {"description": "Resource not found"}
     }
 )
 

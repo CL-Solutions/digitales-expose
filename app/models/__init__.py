@@ -14,6 +14,7 @@ from app.models.base import Base
 from app.models.tenant import Tenant, TenantIdentityProvider
 from app.models.user import User, UserSession, OAuthToken, PasswordResetToken
 from app.models.user_preferences import UserFilterPreference
+from app.models.user_team import UserTeamAssignment, UserRequest
 from app.models.rbac import Permission, Role, RolePermission, UserRole
 from app.models.business import (
     Property, PropertyImage, 
@@ -33,6 +34,8 @@ __all__ = [
     "OAuthToken", 
     "PasswordResetToken",
     "UserFilterPreference",
+    "UserTeamAssignment",
+    "UserRequest",
     "Permission", 
     "Role", 
     "RolePermission", 

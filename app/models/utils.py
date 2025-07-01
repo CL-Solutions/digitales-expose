@@ -98,6 +98,8 @@ def create_default_permissions(db: Session) -> List[Permission]:
         ("users", "update", "Update user information"),
         ("users", "delete", "Delete users"),
         ("users", "invite", "Invite new users"),
+        ("users", "read_team", "Read team member data"),
+        ("users", "request_create", "Request user creation"),
         
         # Project Management
         ("projects", "create", "Create new projects"),
@@ -140,6 +142,9 @@ def create_default_permissions(db: Session) -> List[Permission]:
         ("roles", "update", "Update roles"),
         ("roles", "delete", "Delete roles"),
         ("roles", "assign", "Assign roles to users"),
+        
+        # Reports
+        ("reports", "team", "View team reports"),
     ]
     
     permissions = []
@@ -206,6 +211,18 @@ def create_default_roles_for_tenant(db: Session, tenant_id: uuid.UUID) -> List[R
                 "properties:read",
                 "expose:create", "expose:view",
                 "cities:read",
+                "roles:read"
+            ]
+        },
+        "location_manager": {
+            "description": "Sales manager with team oversight and reporting capabilities",
+            "permissions": [
+                "users:read", "users:read_team", "users:request_create",
+                "projects:read",
+                "properties:read",
+                "expose:create", "expose:read",
+                "cities:read",
+                "reports:team",
                 "roles:read"
             ]
         },

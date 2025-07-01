@@ -61,6 +61,26 @@ class User(Base):
     updated_properties = relationship("Property", foreign_keys="Property.updated_by", back_populates="updater")
     created_expose_links = relationship("ExposeLink", foreign_keys="ExposeLink.created_by", back_populates="creator")
     audit_logs = relationship("AuditLog", foreign_keys="AuditLog.user_id", back_populates="user")
+    
+    # Team relationships
+    managed_team_members = relationship(
+        "UserTeamAssignment", 
+        foreign_keys="UserTeamAssignment.manager_id", 
+        back_populates="manager",
+        cascade="all, delete-orphan"
+    )
+    team_managers = relationship(
+        "UserTeamAssignment", 
+        foreign_keys="UserTeamAssignment.member_id", 
+        back_populates="member",
+        cascade="all, delete-orphan"
+    )
+    user_requests_created = relationship(
+        "UserRequest",
+        foreign_keys="UserRequest.requested_by",
+        back_populates="requested_by_user",
+        cascade="all, delete-orphan"
+    )
 
     @property
     def full_name(self) -> str:
