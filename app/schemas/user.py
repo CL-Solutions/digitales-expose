@@ -26,11 +26,11 @@ class UserCreate(UserBase):
 
 class UserUpdate(BaseSchema):
     """Schema für User-Updates"""
-    first_name: Optional[str] = Field(min_length=1, max_length=100)
-    last_name: Optional[str] = Field(min_length=1, max_length=100)
-    is_active: Optional[bool]
-    avatar_url: Optional[str] = Field(description="Avatar image URL")
-    settings: Optional[dict] = Field(description="User settings")
+    first_name: Optional[str] = Field(None, min_length=1, max_length=100)
+    last_name: Optional[str] = Field(None, min_length=1, max_length=100)
+    is_active: Optional[bool] = None
+    avatar_url: Optional[str] = Field(None, description="Avatar image URL")
+    settings: Optional[dict] = Field(None, description="User settings")
 
 class UserResponse(UserBase, TimestampMixin):
     """Schema für User-Responses"""
