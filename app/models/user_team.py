@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 from uuid import UUID
+import uuid
 
 from sqlalchemy import DateTime, ForeignKey, Index, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
@@ -19,10 +20,6 @@ class UserTeamAssignment(Base, TenantMixin):
     """Represents a hierarchical relationship between users (manager-member)."""
     
     __tablename__ = "user_team_assignments"
-    
-    id: Mapped[UUID] = mapped_column(
-        PostgresUUID(as_uuid=True), primary_key=True, server_default=func.uuid_generate_v4()
-    )
     
     # Manager who leads the team
     manager_id: Mapped[UUID] = mapped_column(
@@ -67,10 +64,6 @@ class UserRequest(Base, TenantMixin):
     """Represents a request to create a new user, pending approval."""
     
     __tablename__ = "user_requests"
-    
-    id: Mapped[UUID] = mapped_column(
-        PostgresUUID(as_uuid=True), primary_key=True, server_default=func.uuid_generate_v4()
-    )
     
     # User details
     email: Mapped[str] = mapped_column(String(255), nullable=False)
