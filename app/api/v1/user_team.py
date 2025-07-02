@@ -336,3 +336,37 @@ async def update_user_request(
         created_at=request.created_at,
         updated_at=request.updated_at
     )
+
+
+@router.delete("/requests/{request_id}")
+async def delete_user_request(
+    request_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: UUID = Depends(get_current_tenant_id),
+    _: bool = Depends(require_permission("users", "request_create"))
+):
+    """Delete a user request (only by creator)"""
+    from app.models.user_team import UserRequest
+    
+    # Get the request first to check ownership
+    request = db.query(UserRequest).filter(
+        UserRequest.id == request_id,
+        UserRequest.tenant_id == tenant_id
+    ).first()
+    
+    if not request:
+        raise HTTPException(status_code=404, detail="User request not found")
+    
+    # Only the creator can delete their own request
+    if request.requested_by != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only delete your own requests")
+    
+    # Only allow deletion of pending requests
+    if request.status != "pending":
+        raise HTTPException(status_code=400, detail="Only pending requests can be deleted")
+    
+    db.delete(request)
+    db.commit()
+    
+    return {"message": "User request deleted successfully"}
