@@ -180,6 +180,7 @@ def create_default_roles_for_tenant(db: Session, tenant_id: uuid.UUID) -> List[R
             "description": "Full access to tenant administration",
             "permissions": [
                 "users:create", "users:read", "users:update", "users:delete", "users:invite",
+                "users:read_team", "users:request_create",
                 "projects:create", "projects:read", "projects:update", "projects:delete",
                 "properties:create", "properties:read", "properties:update", "properties:delete",
                 "expose:create", "expose:view", "expose:edit_content", "expose:manage_templates",
@@ -187,7 +188,8 @@ def create_default_roles_for_tenant(db: Session, tenant_id: uuid.UUID) -> List[R
                 "images:upload", "images:delete",
                 "investagon:sync",
                 "tenant:manage", "tenant:billing",
-                "roles:create", "roles:read", "roles:update", "roles:delete", "roles:assign"
+                "roles:create", "roles:read", "roles:update", "roles:delete", "roles:assign",
+                "reports:team"
             ]
         },
         "property_manager": {

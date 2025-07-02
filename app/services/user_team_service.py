@@ -181,6 +181,19 @@ class UserTeamService:
                 detail="User with this email already exists"
             )
             
+        # Check if there's already a pending request for this email
+        existing_request = db.query(UserRequest).filter(
+            UserRequest.email == request_data.email,
+            UserRequest.tenant_id == tenant_id,
+            UserRequest.status == "pending"
+        ).first()
+        
+        if existing_request:
+            raise AppException(
+                status_code=400,
+                detail="A pending request already exists for this email"
+            )
+            
         # Validate role if provided
         if request_data.role_id:
             role = db.query(Role).filter(
@@ -343,18 +356,12 @@ class UserTeamService:
         tenant_id: UUID,
         status: Optional[str] = None
     ) -> List[UserRequest]:
-        """Get user requests from team members"""
+        """Get user requests created by the manager"""
         
-        # Get team member IDs
-        team_members = UserTeamService.get_team_members(db, manager_id, tenant_id)
-        member_ids = [member.id for member in team_members]
-        
-        if not member_ids:
-            return []
-            
+        # Only show requests created by the manager themselves
         query = db.query(UserRequest).filter(
             UserRequest.tenant_id == tenant_id,
-            UserRequest.requested_by.in_(member_ids)
+            UserRequest.requested_by == manager_id
         )
         
         if status:
