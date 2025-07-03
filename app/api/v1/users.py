@@ -260,8 +260,7 @@ async def update_user(
     user_id: uuid.UUID = Path(..., description="User ID"),
     current_user: User = Depends(get_current_user),
     tenant_id: Optional[uuid.UUID] = Depends(get_current_tenant_id),
-    db: Session = Depends(get_db),
-    _: bool = Depends(require_permission("users", "update"))
+    db: Session = Depends(get_db)
 ):
     """Update user - Uses UserService"""
     try:
@@ -282,6 +281,31 @@ async def update_user(
             # Regular users can only update users in their own tenant
             if target_user.tenant_id != effective_tenant_id:
                 raise HTTPException(status_code=403, detail="Access denied: different tenant")
+        
+        # Check permissions
+        has_user_update_permission = await current_user.has_permission("users:update")
+        
+        # Check if current user is a location manager of the target user
+        from app.models.user_team import UserTeamAssignment
+        is_manager_of_target = db.query(UserTeamAssignment).filter(
+            UserTeamAssignment.manager_id == current_user.id,
+            UserTeamAssignment.member_id == user_id,
+            UserTeamAssignment.tenant_id == effective_tenant_id
+        ).first() is not None
+        
+        # Location managers can only update provision_percentage of their team members
+        if is_manager_of_target and not has_user_update_permission:
+            # Check if only provision_percentage is being updated
+            allowed_fields = {'provision_percentage'}
+            update_fields = {k for k, v in user_update.model_dump(exclude_unset=True).items() if v is not None}
+            
+            if not update_fields.issubset(allowed_fields):
+                raise HTTPException(
+                    status_code=403, 
+                    detail="Location managers can only update provision percentage of their team members"
+                )
+        elif not has_user_update_permission:
+            raise HTTPException(status_code=403, detail="Permission denied")
         
         user = UserService.update_user_profile(db, user_id, user_update, current_user)
         db.commit()
