@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import EmailStr, Field
 
-from app.schemas.base import BaseResponseSchema, BaseSchema
+from app.schemas.base import BaseResponseSchema, BaseSchema, TimestampMixin
 
 
 # User Team Assignment Schemas
@@ -66,7 +66,7 @@ class UserRequestUpdate(BaseSchema):
     notes: Optional[str] = None
 
 
-class UserRequestResponse(UserRequestBase, BaseResponseSchema):
+class UserRequestResponse(UserRequestBase, BaseResponseSchema, TimestampMixin):
     """Response schema for user requests"""
     tenant_id: UUID
     requested_by: UUID
@@ -92,7 +92,7 @@ class UserRequestListResponse(BaseSchema):
 
 
 # Team Member Schemas
-class TeamMemberResponse(BaseResponseSchema):
+class TeamMemberResponse(BaseResponseSchema, TimestampMixin):
     """Response schema for team member info"""
     id: UUID
     email: str
