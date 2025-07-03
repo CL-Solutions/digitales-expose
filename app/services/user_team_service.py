@@ -294,7 +294,9 @@ class UserTeamService:
                     last_name=last_name,
                     role_ids=[request.role_id] if request.role_id else [],
                     send_welcome_email=True,
-                    is_active=True
+                    is_active=True,
+                    password=None,  # Will be auto-generated
+                    tenant_id=tenant_id  # Use the tenant_id from the request
                 )
                 
                 # Get the user who is approving
