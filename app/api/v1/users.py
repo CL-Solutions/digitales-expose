@@ -363,7 +363,10 @@ async def update_user_provision(
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail="Failed to update provision percentage")
+        import traceback
+        print(f"Error updating provision: {str(e)}")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Failed to update provision percentage: {str(e)}")
 
 @router.delete("/{user_id}")
 async def deactivate_user(
