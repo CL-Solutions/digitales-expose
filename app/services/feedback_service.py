@@ -97,9 +97,19 @@ class FeedbackService:
             "translation": "Translation Issue"
         }.get(feedback.type, "Feedback")
 
-        user_role = user.role if user else "N/A"
-        tenant_name = user.tenant.name if user and user.tenant else "N/A"
-        user_permissions = ", ".join(user.permissions) if user and user.permissions else "N/A"
+        # Get user role names
+        user_roles = "N/A"
+        if user and hasattr(user, 'user_roles'):
+            role_names = [ur.role.name for ur in user.user_roles if ur.role]
+            user_roles = ", ".join(role_names) if role_names else "No roles assigned"
+        
+        # Get tenant name
+        tenant_name = "N/A"
+        if user and hasattr(user, 'tenant') and user.tenant:
+            tenant_name = user.tenant.name
+        
+        # Check if super admin
+        is_super_admin = user.is_super_admin if user and hasattr(user, 'is_super_admin') else False
 
         return f"""## {issue_type}
 
@@ -109,9 +119,9 @@ class FeedbackService:
 ### User Information
 - **Email**: {feedback.user_email}
 - **User ID**: {feedback.user_id or "N/A"}
-- **Role**: {user_role}
+- **Roles**: {user_roles}
 - **Tenant**: {tenant_name}
-- **Permissions**: {user_permissions}
+- **Super Admin**: {is_super_admin}
 
 ### Context
 - **Page**: {feedback.current_page}
