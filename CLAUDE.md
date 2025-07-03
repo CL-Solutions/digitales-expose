@@ -722,6 +722,173 @@ audit_logger.log_business_event(
 )
 ```
 
+## Audit Logger Usage Guide
+
+The audit logger (`app/utils/audit.py`) provides comprehensive activity tracking across the application. Here's how to use it:
+
+### Import and Instantiation
+```python
+from app.utils.audit import AuditLogger
+
+# Create an instance (typically at module level)
+audit_logger = AuditLogger()
+```
+
+### Available Methods
+
+#### 1. Business Event Logging
+For CRUD operations and business logic changes:
+```python
+audit_logger.log_business_event(
+    db=db,                          # Database session
+    action="RESOURCE_CREATED",      # Action type (e.g., USER_UPDATED, PROJECT_DELETED)
+    user_id=current_user.id,        # User performing the action
+    tenant_id=tenant_id,            # Current tenant context
+    resource_type="resource_name",  # Type of resource (e.g., "user", "project", "property")
+    resource_id=resource.id,        # ID of the affected resource
+    old_values={"field": "old"},    # Optional: Previous values for updates
+    new_values={"field": "new"}     # Optional: New values for creates/updates
+)
+```
+
+#### 2. Authentication Event Logging
+For login, logout, and authentication-related events:
+```python
+audit_logger.log_auth_event(
+    db=db,
+    action="LOGIN_SUCCESS",         # Action type (LOGIN_SUCCESS, LOGIN_FAILED, LOGOUT, etc.)
+    user_id=user.id,               # User ID (if available)
+    tenant_id=tenant_id,           # Tenant ID (if available)
+    details={                      # Additional details
+        "ip_address": "192.168.1.1",
+        "user_agent": "Mozilla/5.0...",
+        "reason": "Invalid password"
+    }
+)
+```
+
+#### 3. Security Event Logging
+For security-related incidents:
+```python
+audit_logger.log_security_event(
+    db=db,
+    action="UNAUTHORIZED_ACCESS",   # Security event type
+    user_id=user_id,               # User ID if known
+    tenant_id=tenant_id,           # Tenant ID if applicable
+    severity="HIGH",               # Severity level (LOW, MEDIUM, HIGH, CRITICAL)
+    details={                      # Event details
+        "endpoint": "/api/v1/admin",
+        "ip_address": request.client.host
+    }
+)
+```
+
+#### 4. Admin Action Logging
+For administrative operations:
+```python
+audit_logger.log_admin_action(
+    db=db,
+    action="TENANT_SETTINGS_UPDATED",  # Admin action type
+    admin_id=current_user.id,          # Admin user ID
+    tenant_id=tenant_id,               # Affected tenant
+    target_type="tenant_settings",     # Type of target
+    target_id=tenant.id,               # Target ID
+    details={                          # Action details
+        "settings_changed": ["max_users", "billing_plan"]
+    }
+)
+```
+
+#### 5. System Event Logging
+For system-level events and background tasks:
+```python
+audit_logger.log_system_event(
+    db=db,
+    action="SYNC_COMPLETED",        # System event type
+    component="InvestagonSync",     # System component
+    details={                       # Event details
+        "properties_synced": 150,
+        "duration_seconds": 45.3,
+        "errors": 0
+    }
+)
+```
+
+### Common Action Types
+
+**Business Events:**
+- `USER_CREATED`, `USER_UPDATED`, `USER_DELETED`, `USER_PROVISION_UPDATED`
+- `PROJECT_CREATED`, `PROJECT_UPDATED`, `PROJECT_DELETED`
+- `PROPERTY_CREATED`, `PROPERTY_UPDATED`, `PROPERTY_DELETED`
+- `EXPOSE_CREATED`, `EXPOSE_ACCESSED`, `EXPOSE_DELETED`
+- `IMAGE_UPLOADED`, `IMAGE_DELETED`
+
+**Authentication Events:**
+- `LOGIN_SUCCESS`, `LOGIN_FAILED`, `LOGOUT`
+- `PASSWORD_CHANGED`, `PASSWORD_RESET_REQUESTED`
+- `ACCOUNT_LOCKED`, `ACCOUNT_UNLOCKED`
+- `EMAIL_VERIFIED`, `USER_INVITED`
+
+**Security Events:**
+- `UNAUTHORIZED_ACCESS`, `PERMISSION_DENIED`
+- `SUSPICIOUS_ACTIVITY`, `RATE_LIMIT_EXCEEDED`
+- `INVALID_TOKEN`, `SESSION_HIJACK_ATTEMPT`
+
+**Admin Actions:**
+- `USER_ROLE_ASSIGNED`, `USER_ROLE_REMOVED`
+- `TENANT_CREATED`, `TENANT_UPDATED`
+- `PERMISSION_GRANTED`, `PERMISSION_REVOKED`
+- `BULK_USER_ACTION`, `SYSTEM_CONFIG_CHANGED`
+
+**System Events:**
+- `SYNC_STARTED`, `SYNC_COMPLETED`, `SYNC_FAILED`
+- `BACKUP_CREATED`, `MAINTENANCE_PERFORMED`
+- `ERROR_THRESHOLD_EXCEEDED`, `RESOURCE_CLEANUP`
+
+### Best Practices
+
+1. **Always log significant actions**: User modifications, resource changes, authentication events
+2. **Include relevant context**: User ID, tenant ID, resource IDs, and meaningful details
+3. **Use appropriate severity levels**: For security events, choose LOW, MEDIUM, HIGH, or CRITICAL
+4. **Avoid logging sensitive data**: Never log passwords, tokens, or personal information
+5. **Be consistent with action names**: Use RESOURCE_ACTION format (e.g., USER_UPDATED)
+6. **Log both success and failure**: Track failed attempts for security analysis
+
+### Example Usage in Context
+
+```python
+@router.put("/{user_id}/provision")
+async def update_user_provision(
+    user_id: uuid.UUID,
+    provision_percentage: int,
+    current_user: User = Depends(get_current_user),
+    tenant_id: Optional[uuid.UUID] = Depends(get_current_tenant_id),
+    db: Session = Depends(get_db)
+):
+    # ... validation logic ...
+    
+    # Store old value for audit
+    old_provision = target_user.provision_percentage
+    
+    # Update the value
+    target_user.provision_percentage = provision_percentage
+    
+    # Log the business event
+    audit_logger.log_business_event(
+        db=db,
+        action="USER_PROVISION_UPDATED",
+        user_id=current_user.id,
+        tenant_id=effective_tenant_id,
+        resource_type="user",
+        resource_id=user_id,
+        old_values={"provision_percentage": old_provision},
+        new_values={"provision_percentage": provision_percentage}
+    )
+    
+    db.commit()
+    return UserResponse.model_validate(target_user)
+```
+
 ### Common Schema Errors and Solutions
 
 **Error: `Field required` for 'id' in request schemas**

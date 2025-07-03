@@ -176,6 +176,7 @@ async def get_my_team_members(
             full_name=member.full_name,
             is_active=member.is_active,
             roles=[role.role.name for role in member.user_roles if role.tenant_id == tenant_id],
+            provision_percentage=member.provision_percentage,
             created_at=member.created_at,
             updated_at=member.updated_at
         ))
@@ -215,6 +216,7 @@ async def get_team_overview(
         full_name=current_user.full_name,
         is_active=current_user.is_active,
         roles=[role.role.name for role in current_user.user_roles if role.tenant_id == tenant_id],
+        provision_percentage=current_user.provision_percentage,
         created_at=current_user.created_at,
         updated_at=current_user.updated_at
     )
@@ -229,6 +231,7 @@ async def get_team_overview(
             full_name=member.full_name,
             is_active=member.is_active,
             roles=[role.role.name for role in member.user_roles if role.tenant_id == tenant_id],
+            provision_percentage=member.provision_percentage,
             created_at=member.created_at,
             updated_at=member.updated_at
         ))
