@@ -311,7 +311,7 @@ async def update_user_request(
     _: bool = Depends(require_permission("users", "create"))
 ):
     """Update user request (approve/reject) - admin only"""
-    request = UserTeamService.update_user_request(
+    request = await UserTeamService.update_user_request(
         db=db,
         request_id=request_id,
         update_data=update_data,

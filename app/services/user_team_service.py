@@ -238,7 +238,7 @@ class UserTeamService:
         return request
     
     @staticmethod
-    def update_user_request(
+    async def update_user_request(
         db: Session,
         request_id: UUID,
         update_data: UserRequestUpdate,
@@ -300,14 +300,12 @@ class UserTeamService:
                 # Get the user who is approving
                 reviewer = db.query(User).filter(User.id == reviewed_by).first()
                 
-                # Create the user synchronously
-                from app.services.user_service import UserService
-                
-                # Use UserService to create the user
-                new_user = UserService.create_user(
+                # Create the user using AuthService
+                new_user = await AuthService.create_user_by_admin(
                     db=db,
                     user_data=user_data,
-                    current_user=reviewer
+                    tenant_id=tenant_id,
+                    created_by_user=reviewer
                 )
                 
             except Exception as e:
