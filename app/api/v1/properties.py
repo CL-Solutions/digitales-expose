@@ -153,7 +153,7 @@ async def get_property(
             
             # Hide project provision percentage from non-admin users
             if not is_tenant_admin:
-                project_dict['provision_percentage'] = None
+                project_dict['provision_percentage'] = 0
             
             # Ensure all required fields are present
             project_dict['properties'] = []  # We don't need to load all properties for the property detail view
