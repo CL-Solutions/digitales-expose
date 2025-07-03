@@ -2,7 +2,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.dependencies import (
     get_current_active_user,
@@ -11,6 +11,8 @@ from app.dependencies import (
     require_permission,
 )
 from app.models.user import User
+from app.models.user_team import UserTeamAssignment
+from app.models.rbac import UserRole
 from app.schemas.user_team import (
     TeamMemberResponse,
     TeamOverviewResponse,
@@ -160,14 +162,17 @@ async def get_my_team_members(
     _: bool = Depends(require_permission("users", "read_team"))
 ):
     """Get team members for current user (location manager)"""
-    members = UserTeamService.get_team_members(
-        db=db,
-        manager_id=current_user.id,
-        tenant_id=tenant_id
-    )
+    # Get assignments to access team provision percentage
+    assignments = db.query(UserTeamAssignment).filter(
+        UserTeamAssignment.manager_id == current_user.id,
+        UserTeamAssignment.tenant_id == tenant_id
+    ).options(
+        joinedload(UserTeamAssignment.member).joinedload(User.user_roles).joinedload(UserRole.role)
+    ).all()
     
     response = []
-    for member in members:
+    for assignment in assignments:
+        member = assignment.member
         response.append(TeamMemberResponse(
             id=member.id,
             email=member.email,
@@ -176,7 +181,7 @@ async def get_my_team_members(
             full_name=member.full_name,
             is_active=member.is_active,
             roles=[role.role.name for role in member.user_roles if role.tenant_id == tenant_id],
-            provision_percentage=member.provision_percentage,
+            provision_percentage=assignment.provision_percentage,  # Use team assignment provision
             created_at=member.created_at,
             updated_at=member.updated_at
         ))
@@ -192,12 +197,15 @@ async def get_team_overview(
     _: bool = Depends(require_permission("users", "read_team"))
 ):
     """Get team overview for location manager"""
-    # Get team members
-    members = UserTeamService.get_team_members(
-        db=db,
-        manager_id=current_user.id,
-        tenant_id=tenant_id
-    )
+    # Get team members with their assignments
+    assignments = db.query(UserTeamAssignment).filter(
+        UserTeamAssignment.manager_id == current_user.id,
+        UserTeamAssignment.tenant_id == tenant_id
+    ).options(
+        joinedload(UserTeamAssignment.member).joinedload(User.user_roles).joinedload(UserRole.role)
+    ).all()
+    
+    members = [assignment.member for assignment in assignments]
     
     # Get pending requests from team
     pending_requests = UserTeamService.get_team_requests(
@@ -222,7 +230,8 @@ async def get_team_overview(
     )
     
     member_responses = []
-    for member in members:
+    for assignment in assignments:
+        member = assignment.member
         member_responses.append(TeamMemberResponse(
             id=member.id,
             email=member.email,
@@ -231,7 +240,7 @@ async def get_team_overview(
             full_name=member.full_name,
             is_active=member.is_active,
             roles=[role.role.name for role in member.user_roles if role.tenant_id == tenant_id],
-            provision_percentage=member.provision_percentage,
+            provision_percentage=assignment.provision_percentage,  # Use team assignment provision
             created_at=member.created_at,
             updated_at=member.updated_at
         ))

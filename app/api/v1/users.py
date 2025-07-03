@@ -340,25 +340,49 @@ async def update_user_provision(
                 detail="Only managers can update provision percentage of their team members"
             )
         
-        # Store old value for audit
-        old_provision = target_user.provision_percentage
+        # Check if this user is in a team managed by the current user
+        team_assignment = None
+        if is_manager_of_target:
+            team_assignment = db.query(UserTeamAssignment).filter(
+                UserTeamAssignment.manager_id == current_user.id,
+                UserTeamAssignment.member_id == user_id,
+                UserTeamAssignment.tenant_id == effective_tenant_id
+            ).first()
         
-        # Update only the provision percentage
-        target_user.provision_percentage = provision_percentage
-        
-        # Audit log
+        # Update provision based on context
         from app.utils.audit import AuditLogger
         audit_logger = AuditLogger()
-        audit_logger.log_business_event(
-            db=db,
-            action="USER_PROVISION_UPDATED",
-            user_id=current_user.id,
-            tenant_id=effective_tenant_id,
-            resource_type="user",
-            resource_id=user_id,
-            old_values={"provision_percentage": old_provision},
-            new_values={"provision_percentage": provision_percentage}
-        )
+        
+        if team_assignment:
+            # This is a team member - update team assignment provision
+            old_team_provision = team_assignment.provision_percentage
+            team_assignment.provision_percentage = provision_percentage
+            
+            audit_logger.log_business_event(
+                db=db,
+                action="TEAM_MEMBER_PROVISION_UPDATED",
+                user_id=current_user.id,
+                tenant_id=effective_tenant_id,
+                resource_type="team_assignment",
+                resource_id=team_assignment.id,
+                old_values={"provision_percentage": old_team_provision},
+                new_values={"provision_percentage": provision_percentage}
+            )
+        else:
+            # Update the user's base provision percentage (admin updating user)
+            old_provision = target_user.provision_percentage
+            target_user.provision_percentage = provision_percentage
+            
+            audit_logger.log_business_event(
+                db=db,
+                action="USER_PROVISION_UPDATED",
+                user_id=current_user.id,
+                tenant_id=effective_tenant_id,
+                resource_type="user",
+                resource_id=user_id,
+                old_values={"provision_percentage": old_provision},
+                new_values={"provision_percentage": provision_percentage}
+            )
         
         db.commit()
         db.refresh(target_user)
