@@ -2,7 +2,7 @@
 # USER MANAGEMENT API ROUTES (api/v1/users.py) - UPDATED TO USE SERVICES
 # ================================
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Path, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Path, Request, Body
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc
 from app.config import settings
@@ -260,7 +260,8 @@ async def update_user(
     user_id: uuid.UUID = Path(..., description="User ID"),
     current_user: User = Depends(get_current_user),
     tenant_id: Optional[uuid.UUID] = Depends(get_current_tenant_id),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_permission("users", "update"))
 ):
     """Update user - Uses UserService"""
     try:
@@ -282,31 +283,6 @@ async def update_user(
             if target_user.tenant_id != effective_tenant_id:
                 raise HTTPException(status_code=403, detail="Access denied: different tenant")
         
-        # Check permissions
-        has_user_update_permission = await current_user.has_permission("users:update")
-        
-        # Check if current user is a location manager of the target user
-        from app.models.user_team import UserTeamAssignment
-        is_manager_of_target = db.query(UserTeamAssignment).filter(
-            UserTeamAssignment.manager_id == current_user.id,
-            UserTeamAssignment.member_id == user_id,
-            UserTeamAssignment.tenant_id == effective_tenant_id
-        ).first() is not None
-        
-        # Location managers can only update provision_percentage of their team members
-        if is_manager_of_target and not has_user_update_permission:
-            # Check if only provision_percentage is being updated
-            allowed_fields = {'provision_percentage'}
-            update_fields = {k for k, v in user_update.model_dump(exclude_unset=True).items() if v is not None}
-            
-            if not update_fields.issubset(allowed_fields):
-                raise HTTPException(
-                    status_code=403, 
-                    detail="Location managers can only update provision percentage of their team members"
-                )
-        elif not has_user_update_permission:
-            raise HTTPException(status_code=403, detail="Permission denied")
-        
         user = UserService.update_user_profile(db, user_id, user_update, current_user)
         db.commit()
         return UserResponse.model_validate(user)
@@ -319,6 +295,75 @@ async def update_user(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="User update failed")
+
+@router.put("/{user_id}/provision", response_model=UserResponse, response_model_exclude_none=True)
+async def update_user_provision(
+    user_id: uuid.UUID = Path(..., description="User ID"),
+    provision_percentage: int = Body(..., ge=0, le=100, description="Provision percentage (0-100)"),
+    current_user: User = Depends(get_current_user),
+    tenant_id: Optional[uuid.UUID] = Depends(get_current_tenant_id),
+    db: Session = Depends(get_db)
+):
+    """Update user provision percentage - for location managers to update their team members"""
+    try:
+        # Get the target user
+        target_user = db.query(User).filter(User.id == user_id).first()
+        if not target_user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Use the tenant_id from dependency (which handles impersonation)
+        effective_tenant_id = tenant_id or current_user.tenant_id
+        
+        # Check tenant access
+        if target_user.tenant_id != effective_tenant_id:
+            raise HTTPException(status_code=403, detail="Access denied: user not in current tenant")
+        
+        # Check if current user has users:update permission
+        if current_user.has_permission("users:update"):
+            # User has full update permission, allow update
+            pass
+        else:
+            # Check if current user is a location manager of the target user
+            from app.models.user_team import UserTeamAssignment
+            is_manager_of_target = db.query(UserTeamAssignment).filter(
+                UserTeamAssignment.manager_id == current_user.id,
+                UserTeamAssignment.member_id == user_id,
+                UserTeamAssignment.tenant_id == effective_tenant_id
+            ).first() is not None
+            
+            if not is_manager_of_target:
+                raise HTTPException(
+                    status_code=403, 
+                    detail="Only managers can update provision percentage of their team members"
+                )
+        
+        # Store old value for audit
+        old_provision = target_user.provision_percentage
+        
+        # Update only the provision percentage
+        target_user.provision_percentage = provision_percentage
+        
+        # Audit log
+        from app.utils.audit import audit_logger
+        audit_logger.log_business_event(
+            db, "USER_PROVISION_UPDATED", current_user.id, effective_tenant_id,
+            {
+                "target_user_id": str(user_id), 
+                "old_provision": old_provision,
+                "new_provision": provision_percentage
+            }
+        )
+        
+        db.commit()
+        db.refresh(target_user)
+        
+        return UserResponse.model_validate(target_user)
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to update provision percentage")
 
 @router.delete("/{user_id}")
 async def deactivate_user(
