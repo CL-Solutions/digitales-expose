@@ -131,6 +131,13 @@ async def get_property(
             project_provision = property.project.provision_percentage or 0
             user_provision = current_user.provision_percentage or 0
             
+            # Add logging for debugging
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Calculating provision for user {current_user.email} (ID: {current_user.id})")
+            logger.info(f"Project provision: {project_provision}%")
+            logger.info(f"User provision: {user_provision}%")
+            
             # Check if user is in a team
             from app.models.user_team import UserTeamAssignment
             team_assignment = db.query(UserTeamAssignment).options(
@@ -144,10 +151,18 @@ async def get_property(
                 # User is in a team: project% * manager% * user_team%
                 manager_provision = team_assignment.manager.provision_percentage or 0
                 team_member_provision = team_assignment.provision_percentage or 0
+                
+                logger.info(f"User is in team - Manager: {team_assignment.manager.email}")
+                logger.info(f"Manager provision: {manager_provision}%")
+                logger.info(f"Team member provision: {team_member_provision}%")
+                
                 user_effective_provision = (project_provision * manager_provision / 100 * team_member_provision / 100)
+                logger.info(f"Calculated effective provision (team): {user_effective_provision}%")
             else:
                 # User is independent: project% * user%
+                logger.info(f"User is independent (no team assignment)")
                 user_effective_provision = (project_provision * user_provision / 100)
+                logger.info(f"Calculated effective provision (independent): {user_effective_provision}%")
             
             project_dict['user_effective_provision_percentage'] = user_effective_provision
             
