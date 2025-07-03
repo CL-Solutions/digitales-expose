@@ -6,7 +6,7 @@ from pydantic import Field, EmailStr
 from typing import Optional, List, Literal
 from datetime import datetime
 from uuid import UUID
-from app.schemas.base import BaseSchema, TimestampMixin, PaginationParams, SortParams, SearchParams
+from app.schemas.base import BaseSchema, BaseResponseSchema, TimestampMixin, PaginationParams, SortParams, SearchParams
 from app.schemas.rbac import RoleResponse
 
 class UserBase(BaseSchema):
@@ -32,6 +32,10 @@ class UserUpdate(BaseSchema):
     avatar_url: Optional[str] = Field(None, description="Avatar image URL")
     settings: Optional[dict] = Field(None, description="User settings")
 
+class UserBasicInfo(UserBase):
+    """Basic user info with ID - used for manager references"""
+    id: UUID
+
 class UserResponse(UserBase, TimestampMixin):
     """Schema für User-Responses"""
     id: UUID
@@ -47,7 +51,7 @@ class UserResponse(UserBase, TimestampMixin):
     roles: List['RoleResponse'] = Field(default_factory=list)
     
     # Team Information (optional - only included in list views)
-    manager: Optional[dict] = Field(None, description="The location manager this user belongs to")
+    manager: Optional['UserBasicInfo'] = Field(None, description="The location manager this user belongs to")
 
 class UserListResponse(BaseSchema):
     """Schema für User-Listen"""
