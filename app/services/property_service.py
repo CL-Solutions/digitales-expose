@@ -214,7 +214,7 @@ class PropertyService:
                 
                 if not is_admin_or_manager:
                     # Sales people and other roles only see fully visible properties (visibility = 1)
-                    query = query.filter(Property.visibility.is_(1))
+                    query = query.filter(Property.visibility == 1)
                 # Tenant admins and property managers see all properties (no visibility filter)
             
             # Apply search filter
@@ -272,10 +272,10 @@ class PropertyService:
                 query = query.filter(Property.active.in_(filter_params.active))
             
             if filter_params.pre_sale is not None:
-                query = query.filter(Property.pre_sale.is_(filter_params.pre_sale))
+                query = query.filter(Property.pre_sale == filter_params.pre_sale)
             
             if filter_params.draft is not None:
-                query = query.filter(Property.draft.is_(filter_params.draft))
+                query = query.filter(Property.draft == filter_params.draft)
             
             # Apply rental yield filters if specified
             # Note: We'll need to filter after fetching since yield is calculated
@@ -640,7 +640,7 @@ class PropertyService:
             
             total_properties = query.count()
             # Count by active status values - handle nullable active field
-            available_properties = query.filter(Property.active.is_(1)).count()  # Frei
+            available_properties = query.filter(Property.active == 1).count()  # Frei
             reserved_properties = query.filter(Property.active.in_([5, 6])).count()  # Angefragt + Reserviert
             sold_properties = query.filter(Property.active.in_([0, 7, 9])).count()  # Verkauft + Notartermin + Notarvorbereitung
             
@@ -712,7 +712,7 @@ class PropertyService:
             
             # Apply visibility filter for non-admin users
             if not is_admin_or_manager:
-                query = query.filter(Property.visibility.is_(1))
+                query = query.filter(Property.visibility == 1)
             
             # Get aggregate statistics
             stats = db.query(
