@@ -280,16 +280,34 @@ class UserTeamService:
         if request.status == "approved":
             try:
                 # Create user using AuthService
-                role_ids = [request.role_id] if request.role_id else []
+                from app.schemas.user import UserCreate
                 
-                AuthService.create_user_by_admin(
-                    db=db,
+                # Split name into first and last name
+                name_parts = request.name.split(' ', 1)
+                first_name = name_parts[0]
+                last_name = name_parts[1] if len(name_parts) > 1 else ''
+                
+                # Create UserCreate schema
+                user_data = UserCreate(
                     email=request.email,
-                    name=request.name,
-                    tenant_id=tenant_id,
-                    created_by=reviewed_by,
-                    role_ids=role_ids,
-                    send_invite=True
+                    first_name=first_name,
+                    last_name=last_name,
+                    role_ids=[request.role_id] if request.role_id else [],
+                    send_welcome_email=True,
+                    is_active=True
+                )
+                
+                # Get the user who is approving
+                reviewer = db.query(User).filter(User.id == reviewed_by).first()
+                
+                # Create the user synchronously
+                from app.services.user_service import UserService
+                
+                # Use UserService to create the user
+                new_user = UserService.create_user(
+                    db=db,
+                    user_data=user_data,
+                    current_user=reviewer
                 )
                 
             except Exception as e:
