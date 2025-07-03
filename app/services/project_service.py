@@ -326,7 +326,8 @@ class ProjectService:
                 min_rental_yield=min_rental_yield,
                 max_rental_yield=max_rental_yield,
                 min_price=min_price,
-                max_price=max_price
+                max_price=max_price,
+                provision_percentage=project.provision_percentage if hasattr(project, 'provision_percentage') else 0.0
             )
             items.append(overview)
         
