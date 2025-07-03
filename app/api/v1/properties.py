@@ -3,7 +3,7 @@
 # ================================
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Path, UploadFile, File, Form
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 import json
