@@ -350,12 +350,14 @@ async def update_user_provision(
         from app.utils.audit import AuditLogger
         audit_logger = AuditLogger()
         audit_logger.log_business_event(
-            db, "USER_PROVISION_UPDATED", current_user.id, effective_tenant_id,
-            {
-                "target_user_id": str(user_id), 
-                "old_provision": old_provision,
-                "new_provision": provision_percentage
-            }
+            db=db,
+            action="USER_PROVISION_UPDATED",
+            user_id=current_user.id,
+            tenant_id=effective_tenant_id,
+            resource_type="user",
+            resource_id=user_id,
+            old_values={"provision_percentage": old_provision},
+            new_values={"provision_percentage": provision_percentage}
         )
         
         db.commit()
