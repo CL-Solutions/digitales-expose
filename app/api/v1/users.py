@@ -347,7 +347,8 @@ async def update_user_provision(
         target_user.provision_percentage = provision_percentage
         
         # Audit log
-        from app.utils.audit import audit_logger
+        from app.utils.audit import AuditLogger
+        audit_logger = AuditLogger()
         audit_logger.log_business_event(
             db, "USER_PROVISION_UPDATED", current_user.id, effective_tenant_id,
             {
