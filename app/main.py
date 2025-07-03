@@ -23,7 +23,7 @@ from app.core.middleware import (
 )
 
 # API Routes - UPDATED TO INCLUDE RBAC
-from app.api.v1 import auth, users, tenants, projects, properties, cities, exposes, admin, rbac, investagon, user_preferences, user_team
+from app.api.v1 import auth, users, tenants, projects, properties, cities, exposes, admin, rbac, investagon, user_preferences, user_team, feedback
 
 import logging
 import uvicorn
@@ -596,6 +596,17 @@ app.include_router(
     }
 )
 
+# Feedback routes
+app.include_router(
+    feedback.router,
+    prefix="/api/v1",
+    tags=["Feedback"],
+    responses={
+        401: {"description": "Authentication required"},
+        502: {"description": "External API error"}
+    }
+)
+
 # ================================
 # ROOT ENDPOINT
 # ================================
@@ -617,7 +628,8 @@ async def root():
             "cities": "/api/v1/cities",
             "exposes": "/api/v1/exposes",
             "investagon": "/api/v1/investagon",
-            "admin": "/api/v1/admin"
+            "admin": "/api/v1/admin",
+            "feedback": "/api/v1/feedback"
         }
     }
 

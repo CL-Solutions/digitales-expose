@@ -52,6 +52,11 @@ class settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = None
     OPENAI_ASSISTANT_ID: Optional[str] = None
     
+    # GitHub API Settings (for feedback issue creation)
+    GITHUB_TOKEN: Optional[str] = None
+    GITHUB_OWNER: str = "CL-Solutions"
+    GITHUB_REPO: str = "digitales-expose-frontend"
+    
     # Fallback SMTP (falls SES nicht verfügbar)
     SMTP_HOST: Optional[str] = None
     SMTP_PORT: int = 587
