@@ -59,6 +59,7 @@ class UserResponse(UserBase, TimestampMixin):
     
     # Team Information (optional - only included in list views)
     manager: Optional['UserBasicInfo'] = Field(None, description="The location manager this user belongs to")
+    team_provision_percentage: Optional[int] = Field(None, description="Provision percentage from team assignment (0-100)")
 
 class UserListResponse(BaseSchema):
     """Schema für User-Listen"""

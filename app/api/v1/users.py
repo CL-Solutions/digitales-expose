@@ -179,25 +179,26 @@ async def list_users(
                     }
                     user_roles.append(role_data)
             
-            # Get manager for this user (only one manager per user)
-            managers = UserTeamService.get_user_managers(
-                db=db,
-                member_id=user.id,
-                tenant_id=effective_tenant_id
-            )
+            # Get manager and team assignment for this user
+            from app.models.user_team import UserTeamAssignment
+            team_assignment = db.query(UserTeamAssignment).filter(
+                UserTeamAssignment.member_id == user.id,
+                UserTeamAssignment.tenant_id == effective_tenant_id
+            ).options(joinedload(UserTeamAssignment.manager)).first()
             
-            # Format manager information (take first manager if exists)
+            # Format manager information and get team provision
             manager_info = None
-            if managers:
+            team_provision = None
+            if team_assignment and team_assignment.manager:
                 from app.schemas.user import UserBasicInfo
-                manager = managers[0]  # User can only have one manager
                 manager_info = UserBasicInfo(
-                    id=manager.id,
-                    email=manager.email,
-                    first_name=manager.first_name,
-                    last_name=manager.last_name,
-                    is_active=manager.is_active
+                    id=team_assignment.manager.id,
+                    email=team_assignment.manager.email,
+                    first_name=team_assignment.manager.first_name,
+                    last_name=team_assignment.manager.last_name,
+                    is_active=team_assignment.manager.is_active
                 ).model_dump()
+                team_provision = team_assignment.provision_percentage
             
             # Create user response using model_validate to get all fields
             user_response = UserResponse.model_validate(user)
@@ -205,8 +206,9 @@ async def list_users(
             # Override roles with filtered tenant-specific roles
             user_response.roles = user_roles
             
-            # Add manager information
+            # Add manager and team provision information
             user_response.manager = manager_info
+            user_response.team_provision_percentage = team_provision
             
             user_responses.append(user_response)
         
