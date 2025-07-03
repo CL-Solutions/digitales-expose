@@ -157,7 +157,10 @@ async def list_users(
             joinedload(User.user_roles).joinedload(UserRole.role)
         ).offset(offset).limit(filter_params.page_size).all()
         
-        # Build user responses with roles
+        # Get all managers for these users
+        from app.services.user_team_service import UserTeamService
+        
+        # Build user responses with roles and managers
         user_responses = []
         for user in users:
             # Get roles from user_roles relationship, filtered by effective tenant
@@ -176,6 +179,24 @@ async def list_users(
                     }
                     user_roles.append(role_data)
             
+            # Get managers for this user
+            managers = UserTeamService.get_user_managers(
+                db=db,
+                member_id=user.id,
+                tenant_id=effective_tenant_id
+            )
+            
+            # Format manager information
+            manager_list = []
+            for manager in managers:
+                manager_list.append({
+                    "id": str(manager.id),
+                    "email": manager.email,
+                    "first_name": manager.first_name,
+                    "last_name": manager.last_name,
+                    "full_name": f"{manager.first_name} {manager.last_name}".strip()
+                })
+            
             # Create user response dict and add roles
             user_dict = {
                 "id": str(user.id),
@@ -191,7 +212,8 @@ async def list_users(
                 "avatar_url": user.avatar_url,
                 "created_at": user.created_at,
                 "updated_at": user.updated_at,
-                "roles": user_roles
+                "roles": user_roles,
+                "managers": manager_list if manager_list else None
             }
             user_responses.append(UserResponse(**user_dict))
         

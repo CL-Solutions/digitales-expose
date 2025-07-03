@@ -272,11 +272,8 @@ class UserTeamService:
             
         if update_data.notes is not None:
             request.notes = update_data.notes
-            
-        db.commit()
-        db.refresh(request)
         
-        # If approved, create the user
+        # If approved, create the user BEFORE committing
         if request.status == "approved":
             try:
                 # Create user using AuthService
@@ -310,16 +307,40 @@ class UserTeamService:
                     created_by_user=reviewer
                 )
                 
+                # If we have a manager (location_manager created the request), assign the new user to the manager
+                if request.requested_by:
+                    requester = db.query(User).filter(User.id == request.requested_by).first()
+                    if requester:
+                        # Check if requester has location_manager role
+                        from app.models.rbac import UserRole, Role
+                        is_location_manager = db.query(UserRole).join(Role).filter(
+                            UserRole.user_id == request.requested_by,
+                            UserRole.tenant_id == tenant_id,
+                            Role.name == "location_manager"
+                        ).first()
+                        
+                        if is_location_manager:
+                            # Create team assignment
+                            from app.models.user_team import UserTeamAssignment
+                            assignment = UserTeamAssignment(
+                                manager_id=request.requested_by,
+                                member_id=new_user.id,
+                                tenant_id=tenant_id,
+                                assigned_by=reviewed_by,
+                                assigned_at=datetime.utcnow()
+                            )
+                            db.add(assignment)
+                
             except Exception as e:
-                # Revert status on error
-                request.status = "pending"
-                request.reviewed_by = None
-                request.reviewed_at = None
-                db.commit()
+                # Don't commit if there's an error
                 raise AppException(
                     status_code=400,
                     detail=f"Failed to create user: {str(e)}"
                 )
+        
+        # Commit the transaction after everything succeeds
+        db.commit()
+        db.refresh(request)
         
         audit_logger.log_business_event(
             db=db,

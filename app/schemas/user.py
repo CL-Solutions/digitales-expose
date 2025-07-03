@@ -45,6 +45,9 @@ class UserResponse(UserBase, TimestampMixin):
     
     # Role Information
     roles: List['RoleResponse'] = Field(default_factory=list)
+    
+    # Team Information (optional - only included in list views)
+    managers: Optional[List[dict]] = Field(None, description="List of managers this user belongs to")
 
 class UserListResponse(BaseSchema):
     """Schema für User-Listen"""
