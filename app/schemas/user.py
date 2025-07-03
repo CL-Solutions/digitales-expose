@@ -18,11 +18,11 @@ class UserBase(BaseSchema):
 
 class UserCreate(UserBase):
     """Schema für User-Erstellung durch Admin"""
-    password: Optional[str] = Field(min_length=8, description="User password (optional, will generate if not provided)")
+    password: Optional[str] = Field(default=None, min_length=8, description="User password (optional, will generate if not provided)")
     role_ids: List[UUID] = Field(default_factory=list, description="Role IDs to assign")
     send_welcome_email: bool = Field(default=True, description="Send welcome email to user")
     require_email_verification: bool = Field(default=False, description="Require email verification before login")
-    tenant_id: Optional[UUID] = Field(description="Tenant ID (only for super admin)")
+    tenant_id: UUID = Field(..., description="Tenant ID for the user")
 
 class UserUpdate(BaseSchema):
     """Schema für User-Updates"""
