@@ -222,7 +222,7 @@ def create_default_roles_for_tenant(db: Session, tenant_id: uuid.UUID) -> List[R
                 "users:read", "users:read_team", "users:request_create",
                 "projects:read",
                 "properties:read",
-                "expose:create", "expose:read",
+                "expose:create", "expose:view",
                 "cities:read",
                 "reports:team",
                 "roles:read"
