@@ -179,23 +179,24 @@ async def list_users(
                     }
                     user_roles.append(role_data)
             
-            # Get managers for this user
+            # Get manager for this user (only one manager per user)
             managers = UserTeamService.get_user_managers(
                 db=db,
                 member_id=user.id,
                 tenant_id=effective_tenant_id
             )
             
-            # Format manager information
-            manager_list = []
-            for manager in managers:
-                manager_list.append({
+            # Format manager information (take first manager if exists)
+            manager_info = None
+            if managers:
+                manager = managers[0]  # User can only have one manager
+                manager_info = {
                     "id": str(manager.id),
                     "email": manager.email,
                     "first_name": manager.first_name,
                     "last_name": manager.last_name,
                     "full_name": f"{manager.first_name} {manager.last_name}".strip()
-                })
+                }
             
             # Create user response dict and add roles
             user_dict = {
@@ -213,7 +214,7 @@ async def list_users(
                 "created_at": user.created_at,
                 "updated_at": user.updated_at,
                 "roles": user_roles,
-                "managers": manager_list if manager_list else None
+                "manager": manager_info
             }
             user_responses.append(UserResponse(**user_dict))
         
