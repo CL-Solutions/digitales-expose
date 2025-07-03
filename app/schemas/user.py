@@ -31,6 +31,7 @@ class UserUpdate(BaseSchema):
     is_active: Optional[bool] = None
     avatar_url: Optional[str] = Field(None, description="Avatar image URL")
     settings: Optional[dict] = Field(None, description="User settings")
+    provision_percentage: Optional[int] = Field(None, ge=0, le=100, description="User's provision percentage (0-100)")
 
 class UserBasicInfo(UserBase):
     """Basic user info with ID - used for manager references"""
@@ -46,6 +47,7 @@ class UserResponse(UserBase, TimestampMixin):
     last_login_at: Optional[datetime]
     avatar_url: Optional[str]
     settings: Optional[dict] = Field(default_factory=dict, description="User settings")
+    provision_percentage: int = Field(default=0, description="User's provision percentage (0-100)")
     
     # Role Information
     roles: List['RoleResponse'] = Field(default_factory=list)

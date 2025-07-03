@@ -54,6 +54,9 @@ class Project(Base, TenantMixin, AuditMixin):
     # Status
     status = Column(String(50), default="available", nullable=False)  # 'available', 'reserved', 'sold'
     
+    # Base provision percentage for this project (0.0 - 100.0)
+    provision_percentage = Column(Float, default=0.0, nullable=False)
+    
     # Aggregated Property Data (for efficient sorting/filtering)
     min_price = Column(Numeric(12, 2), nullable=True)  # Minimum property price in project
     max_price = Column(Numeric(12, 2), nullable=True)  # Maximum property price in project

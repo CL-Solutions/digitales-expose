@@ -48,6 +48,9 @@ class User(Base):
     # User Settings (JSON)
     settings = Column(JSONB, default={}, nullable=False)
     
+    # Provision percentage (0-100)
+    provision_percentage = Column(Integer, default=0, nullable=False)
+    
     # Relationships
     tenant = relationship("Tenant", back_populates="users")
     user_roles = relationship("UserRole", foreign_keys="UserRole.user_id", back_populates="user", cascade="all, delete-orphan")

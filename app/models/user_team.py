@@ -41,6 +41,11 @@ class UserTeamAssignment(Base, TenantMixin):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     
+    # Team member's provision percentage from manager's cut (0-100)
+    provision_percentage: Mapped[int] = mapped_column(
+        nullable=False, server_default="0"
+    )
+    
     # Relationships
     manager: Mapped["User"] = relationship(
         "User", foreign_keys=[manager_id], back_populates="managed_team_members"

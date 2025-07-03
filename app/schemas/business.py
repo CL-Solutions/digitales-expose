@@ -52,6 +52,7 @@ class ProjectBase(BaseSchema):
     micro_location: Optional[Dict[str, Any]] = None  # Micro location data from ChatGPT
     
     status: str = Field(default="available", pattern="^(available|reserved|sold)$")
+    provision_percentage: float = Field(default=0.0, ge=0, le=100, description="Base provision percentage for this project (0.0-100.0)")
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -95,6 +96,7 @@ class ProjectUpdate(BaseSchema):
     micro_location: Optional[Dict[str, Any]] = None  # Micro location data from ChatGPT
     
     status: Optional[str] = Field(pattern="^(available|reserved|sold)$")
+    provision_percentage: Optional[float] = Field(None, ge=0, le=100, description="Base provision percentage for this project (0.0-100.0)")
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -861,6 +863,7 @@ class ProjectOverview(BaseSchema):
     max_rental_yield: Optional[float]  # Maximum Bruttomietrendite of properties
     min_price: Optional[float]  # Minimum property price in the project
     max_price: Optional[float]  # Maximum property price in the project
+    provision_percentage: float  # Base provision percentage for this project
     
     model_config = ConfigDict(from_attributes=True)
 

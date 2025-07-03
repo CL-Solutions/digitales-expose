@@ -16,12 +16,13 @@ class UserTeamAssignmentBase(BaseSchema):
 
 class UserTeamAssignmentCreate(UserTeamAssignmentBase):
     """Schema for creating team assignments"""
-    pass
+    provision_percentage: int = Field(default=0, ge=0, le=100, description="Team member's provision percentage from manager's cut (0-100)")
 
 
 class UserTeamAssignmentUpdate(BaseSchema):
     """Schema for updating team assignments"""
     manager_id: Optional[UUID] = None
+    provision_percentage: Optional[int] = Field(None, ge=0, le=100, description="Team member's provision percentage from manager's cut (0-100)")
 
 
 class UserTeamAssignmentResponse(UserTeamAssignmentBase, BaseResponseSchema):
@@ -29,6 +30,7 @@ class UserTeamAssignmentResponse(UserTeamAssignmentBase, BaseResponseSchema):
     tenant_id: UUID
     assigned_by: Optional[UUID] = None
     assigned_at: datetime
+    provision_percentage: int = Field(default=0, description="Team member's provision percentage from manager's cut (0-100)")
     
     # Related user info
     manager_name: Optional[str] = None
@@ -101,6 +103,7 @@ class TeamMemberResponse(BaseResponseSchema, TimestampMixin):
     full_name: str
     is_active: bool
     roles: List[str] = Field(default_factory=list)
+    provision_percentage: int = Field(default=0, description="Team member's provision percentage from manager's cut (0-100)")
     
     # Performance metrics (to be extended)
     properties_created: int = 0
