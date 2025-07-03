@@ -77,7 +77,7 @@ async def delete_team_assignment(
     return {"detail": "Team assignment deleted successfully"}
 
 
-@router.put("/assignments/member/{member_id}", response_model=UserTeamAssignmentResponse)
+@router.put("/assignments/member/{member_id}")
 async def update_member_assignment(
     member_id: UUID,
     manager_id: Optional[UUID] = None,
@@ -144,7 +144,12 @@ async def update_member_assignment(
     else:
         # Just remove from team
         db.commit()
-        return {"detail": "Member removed from all teams"}
+        # Return a consistent structure
+        return {
+            "detail": "Member removed from all teams",
+            "member_id": str(member_id),
+            "manager_id": None
+        }
 
 
 @router.get("/members", response_model=List[TeamMemberResponse])
