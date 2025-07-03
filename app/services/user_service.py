@@ -36,7 +36,8 @@ class UserService:
             "last_name": user.last_name,
             "is_active": user.is_active,
             "avatar_url": user.avatar_url,
-            "settings": user.settings
+            "settings": user.settings,
+            "provision_percentage": user.provision_percentage
         }
         
         # Update fields
@@ -59,6 +60,9 @@ class UserService:
                 user.settings = {}
             user.settings = {**user.settings, **user_update.settings}
             update_data["settings"] = user.settings
+        if user_update.provision_percentage is not None:
+            user.provision_percentage = user_update.provision_percentage
+            update_data["provision_percentage"] = user_update.provision_percentage
         
         # Audit log
         audit_logger.log_auth_event(
