@@ -199,25 +199,16 @@ async def list_users(
                     is_active=manager.is_active
                 ).model_dump()
             
-            # Create user response dict and add roles
-            user_dict = {
-                "id": str(user.id),
-                "email": user.email,
-                "first_name": user.first_name,
-                "last_name": user.last_name,
-                "is_active": user.is_active,
-                "tenant_id": str(user.tenant_id) if user.tenant_id else None,
-                "auth_method": user.auth_method,
-                "is_super_admin": user.is_super_admin,
-                "is_verified": user.is_verified,
-                "last_login_at": user.last_login_at,
-                "avatar_url": user.avatar_url,
-                "created_at": user.created_at,
-                "updated_at": user.updated_at,
-                "roles": user_roles,
-                "manager": manager_info
-            }
-            user_responses.append(UserResponse(**user_dict))
+            # Create user response using model_validate to get all fields
+            user_response = UserResponse.model_validate(user)
+            
+            # Override roles with filtered tenant-specific roles
+            user_response.roles = user_roles
+            
+            # Add manager information
+            user_response.manager = manager_info
+            
+            user_responses.append(user_response)
         
         return UserListResponse(
             users=user_responses,
