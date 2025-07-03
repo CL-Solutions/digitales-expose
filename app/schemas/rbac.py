@@ -2,7 +2,7 @@
 # RBAC SCHEMAS (schemas/rbac.py)
 # ================================
 
-from pydantic import Field
+from pydantic import Field, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID

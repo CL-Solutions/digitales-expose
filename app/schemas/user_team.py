@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
-from pydantic import EmailStr, Field
+from pydantic import EmailStr, Field, ConfigDict
 
 from app.schemas.base import BaseResponseSchema, BaseSchema, TimestampMixin
 

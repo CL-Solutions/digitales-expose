@@ -2,7 +2,7 @@
 # TENANT SCHEMAS (schemas/tenant.py)
 # ================================
 
-from pydantic import Field, EmailStr
+from pydantic import Field, EmailStr, ConfigDict
 from typing import Optional, List, Dict, Any, Literal
 from uuid import UUID
 from app.schemas.base import BaseSchema, TimestampMixin, SlugFieldMixin, DomainFieldMixin

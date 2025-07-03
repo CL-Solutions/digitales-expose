@@ -2,7 +2,7 @@
 # USER SCHEMAS (schemas/user.py) - COMPLETED
 # ================================
 
-from pydantic import Field, EmailStr
+from pydantic import Field, EmailStr, ConfigDict
 from typing import Optional, List, Literal
 from datetime import datetime
 from uuid import UUID
