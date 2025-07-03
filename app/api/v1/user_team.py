@@ -77,6 +77,61 @@ async def delete_team_assignment(
     return {"detail": "Team assignment deleted successfully"}
 
 
+@router.put("/assignments/member/{member_id}", response_model=UserTeamAssignmentResponse)
+async def update_member_assignment(
+    member_id: UUID,
+    manager_id: Optional[UUID] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: UUID = Depends(get_current_tenant_id),
+    _: bool = Depends(require_permission("users", "update"))
+):
+    """Update team assignment for a member - reassign or remove from team"""
+    from app.models.user_team import UserTeamAssignment
+    
+    # First, remove any existing assignments for this member
+    existing_assignments = db.query(UserTeamAssignment).filter(
+        UserTeamAssignment.member_id == member_id,
+        UserTeamAssignment.tenant_id == tenant_id
+    ).all()
+    
+    for assignment in existing_assignments:
+        db.delete(assignment)
+    
+    # If manager_id provided, create new assignment
+    if manager_id:
+        assignment_data = UserTeamAssignmentCreate(
+            manager_id=manager_id,
+            member_id=member_id
+        )
+        
+        new_assignment = UserTeamService.create_team_assignment(
+            db=db,
+            assignment_data=assignment_data,
+            assigned_by=current_user.id,
+            tenant_id=tenant_id
+        )
+        
+        db.commit()
+        
+        return UserTeamAssignmentResponse(
+            id=new_assignment.id,
+            manager_id=new_assignment.manager_id,
+            member_id=new_assignment.member_id,
+            tenant_id=new_assignment.tenant_id,
+            assigned_by=new_assignment.assigned_by,
+            assigned_at=new_assignment.assigned_at,
+            created_at=new_assignment.created_at,
+            updated_at=new_assignment.updated_at,
+            manager_name=new_assignment.manager.full_name if new_assignment.manager else None,
+            member_name=new_assignment.member.full_name if new_assignment.member else None
+        )
+    else:
+        # Just remove from team
+        db.commit()
+        return {"detail": "Member removed from all teams"}
+
+
 @router.get("/members", response_model=List[TeamMemberResponse])
 async def get_my_team_members(
     db: Session = Depends(get_db),
