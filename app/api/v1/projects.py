@@ -134,6 +134,10 @@ async def update_project(
 ):
     """Update project"""
     try:
+        import re
+        from app.schemas.business import PropertyOverview
+        from app.mappers.property_mapper import map_property_to_overview
+        
         updated_project = ProjectService.update_project(
             db=db,
             project_id=project_id,
@@ -141,7 +145,31 @@ async def update_project(
             updated_by=current_user.id,
             tenant_id=tenant_id
         )
-        return ProjectResponse.model_validate(updated_project)
+        
+        # Convert properties to PropertyOverview using mapper
+        property_overviews = []
+        if updated_project.properties:
+            for prop in updated_project.properties:
+                # Use mapper to convert property to overview dict
+                overview_data = map_property_to_overview(prop)
+                # Create PropertyOverview from the mapped data
+                overview = PropertyOverview(**overview_data)
+                property_overviews.append(overview)
+            
+            # Sort properties by unit number
+            def get_unit_number_sort_key(prop):
+                # Extract all numbers from the unit_number
+                numbers = re.findall(r'\d+', prop.unit_number)
+                # Return the first number as an integer, or 0 if no numbers found
+                return int(numbers[0]) if numbers else 0
+            
+            property_overviews.sort(key=get_unit_number_sort_key)
+        
+        # Create response with property overviews
+        response_data = updated_project.__dict__.copy()
+        response_data['properties'] = property_overviews
+        
+        return ProjectResponse.model_validate(response_data)
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
 
