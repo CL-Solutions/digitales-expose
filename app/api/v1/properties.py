@@ -121,6 +121,40 @@ async def get_property(
             project_dict = property.project.__dict__.copy()
             project_dict.pop('_sa_instance_state', None)
             
+            # Check if user is tenant admin
+            from app.dependencies import check_user_has_role
+            is_tenant_admin = current_user.is_super_admin or check_user_has_role(
+                db, current_user.id, current_user.tenant_id, "tenant_admin"
+            )
+            
+            # Calculate user's effective provision percentage
+            project_provision = property.project.provision_percentage or 0
+            user_provision = current_user.provision_percentage or 0
+            
+            # Check if user is in a team
+            from app.models.user_team import UserTeamAssignment
+            team_assignment = db.query(UserTeamAssignment).options(
+                joinedload(UserTeamAssignment.manager)
+            ).filter(
+                UserTeamAssignment.member_id == current_user.id,
+                UserTeamAssignment.tenant_id == current_user.tenant_id
+            ).first()
+            
+            if team_assignment and team_assignment.manager:
+                # User is in a team: project% * manager% * user_team%
+                manager_provision = team_assignment.manager.provision_percentage or 0
+                team_member_provision = team_assignment.provision_percentage or 0
+                user_effective_provision = (project_provision * manager_provision / 100 * team_member_provision / 100)
+            else:
+                # User is independent: project% * user%
+                user_effective_provision = (project_provision * user_provision / 100)
+            
+            project_dict['user_effective_provision_percentage'] = user_effective_provision
+            
+            # Hide project provision percentage from non-admin users
+            if not is_tenant_admin:
+                project_dict['provision_percentage'] = None
+            
             # Ensure all required fields are present
             project_dict['properties'] = []  # We don't need to load all properties for the property detail view
             if not project_dict.get('images'):

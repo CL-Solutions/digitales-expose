@@ -144,6 +144,7 @@ class ProjectResponse(ProjectBase, BaseResponseSchema, TimestampMixin):
     # Computed fields
     property_count: int = 0
     thumbnail_url: Optional[str] = None
+    user_effective_provision_percentage: Optional[float] = None  # User's effective provision percentage for this project
     
     model_config = ConfigDict(
         from_attributes=True,
