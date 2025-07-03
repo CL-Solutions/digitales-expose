@@ -299,7 +299,7 @@ async def update_user(
 @router.put("/{user_id}/provision", response_model=UserResponse, response_model_exclude_none=True)
 async def update_user_provision(
     user_id: uuid.UUID = Path(..., description="User ID"),
-    provision_percentage: int = Body(..., ge=0, le=100, description="Provision percentage (0-100)"),
+    provision_percentage: int = Body(..., ge=0, le=100, description="Provision percentage (0-100)", embed=True),
     current_user: User = Depends(get_current_user),
     tenant_id: Optional[uuid.UUID] = Depends(get_current_tenant_id),
     db: Session = Depends(get_db)
