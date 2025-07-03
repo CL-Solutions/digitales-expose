@@ -88,6 +88,21 @@ async def update_member_assignment(
 ):
     """Update team assignment for a member - reassign or remove from team"""
     from app.models.user_team import UserTeamAssignment
+    from app.models.rbac import UserRole, Role
+    
+    # If manager_id provided, verify they have location_manager role
+    if manager_id:
+        has_manager_role = db.query(UserRole).join(Role).filter(
+            UserRole.user_id == manager_id,
+            UserRole.tenant_id == tenant_id,
+            Role.name == "location_manager"
+        ).first()
+        
+        if not has_manager_role:
+            raise HTTPException(
+                status_code=400,
+                detail="Selected user does not have location_manager role"
+            )
     
     # First, remove any existing assignments for this member
     existing_assignments = db.query(UserTeamAssignment).filter(
