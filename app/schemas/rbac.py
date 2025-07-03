@@ -35,9 +35,14 @@ class RoleCreate(RoleBase):
 
 class RoleUpdate(BaseSchema):
     """Schema für Role-Updates"""
-    name: Optional[str] = Field(min_length=1, max_length=100)
-    description: Optional[str]
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    description: Optional[str] = None
     permission_ids: Optional[List[UUID]] = None
+    
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra="ignore"  # Ignore extra fields not defined in the schema
+    )
 
 class RoleResponse(RoleBase, TimestampMixin):
     """Schema für Role-Responses"""

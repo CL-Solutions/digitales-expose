@@ -32,6 +32,11 @@ class UserUpdate(BaseSchema):
     avatar_url: Optional[str] = Field(None, description="Avatar image URL")
     settings: Optional[dict] = Field(None, description="User settings")
     provision_percentage: Optional[int] = Field(None, ge=0, le=100, description="User's provision percentage (0-100)")
+    
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra="ignore"  # Ignore extra fields not defined in the schema
+    )
 
 class UserBasicInfo(UserBase):
     """Basic user info with ID - used for manager references"""

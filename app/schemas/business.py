@@ -62,16 +62,16 @@ class ProjectCreate(ProjectBase):
 
 class ProjectUpdate(BaseSchema):
     """Schema for updating a Project"""
-    name: Optional[str] = Field(max_length=255)
-    street: Optional[str] = Field(max_length=255)
-    house_number: Optional[str] = Field(max_length=50)
-    city: Optional[str] = Field(max_length=255)
-    city_id: Optional[UUID]
-    state: Optional[str] = Field(max_length=255)
-    country: Optional[str] = Field(max_length=100)
-    zip_code: Optional[str] = Field(max_length=20)
-    latitude: Optional[float] = Field(ge=-90, le=90)
-    longitude: Optional[float] = Field(ge=-180, le=180)
+    name: Optional[str] = Field(None, max_length=255)
+    street: Optional[str] = Field(None, max_length=255)
+    house_number: Optional[str] = Field(None, max_length=50)
+    city: Optional[str] = Field(None, max_length=255)
+    city_id: Optional[UUID] = None
+    state: Optional[str] = Field(None, max_length=255)
+    country: Optional[str] = Field(None, max_length=100)
+    zip_code: Optional[str] = Field(None, max_length=20)
+    latitude: Optional[float] = Field(None, ge=-90, le=90)
+    longitude: Optional[float] = Field(None, ge=-180, le=180)
     
     construction_year: Optional[int] = Field(None, ge=1800, le=2100)
     renovation_year: Optional[int] = Field(None, ge=1800, le=2100)
@@ -79,23 +79,23 @@ class ProjectUpdate(BaseSchema):
     total_units: Optional[int] = Field(None, gt=0)
     building_type: Optional[str] = Field(None, max_length=100)
     
-    has_elevator: Optional[bool]
-    has_parking: Optional[bool]
-    has_basement: Optional[bool]
-    has_garden: Optional[bool]
+    has_elevator: Optional[bool] = None
+    has_parking: Optional[bool] = None
+    has_basement: Optional[bool] = None
+    has_garden: Optional[bool] = None
     
     energy_certificate_type: Optional[str] = Field(None, max_length=50)
     energy_consumption: Optional[float] = Field(None, ge=0)
     energy_class: Optional[str] = Field(None, max_length=10)
     heating_type: Optional[str] = Field(None, max_length=100)
     primary_energy_consumption: Optional[float] = Field(None, ge=0)
-    heating_building_year: Optional[int] = Field(ge=1800, le=2100)
+    heating_building_year: Optional[int] = Field(None, ge=1800, le=2100)
     
-    description: Optional[str]
+    description: Optional[str] = None
     amenities: Optional[List[str]] = None
     micro_location: Optional[Dict[str, Any]] = None  # Micro location data from ChatGPT
     
-    status: Optional[str] = Field(pattern="^(available|reserved|sold)$")
+    status: Optional[str] = Field(None, pattern="^(available|reserved|sold)$")
     provision_percentage: Optional[float] = Field(None, ge=0, le=100, description="Base provision percentage for this project (0.0-100.0)")
 
     model_config = ConfigDict(
@@ -307,28 +307,28 @@ class PropertyCreate(PropertyBase):
 
 class PropertyUpdate(BaseSchema):
     """Schema for updating a Property"""
-    project_id: Optional[UUID]  # Allow changing project
-    unit_number: Optional[str] = Field(max_length=100)
+    project_id: Optional[UUID] = None  # Allow changing project
+    unit_number: Optional[str] = Field(None, max_length=100)
     
     # Location updates (denormalized)
-    city: Optional[str] = Field(max_length=255)
-    city_id: Optional[UUID]
-    state: Optional[str] = Field(max_length=255)
-    zip_code: Optional[str] = Field(max_length=20)
+    city: Optional[str] = Field(None, max_length=255)
+    city_id: Optional[UUID] = None
+    state: Optional[str] = Field(None, max_length=255)
+    zip_code: Optional[str] = Field(None, max_length=20)
     
-    property_type: Optional[str] = Field(max_length=100)
+    property_type: Optional[str] = Field(None, max_length=100)
     
     # Property Details
-    size_sqm: Optional[float] = Field(ge=0)
-    rooms: Optional[float] = Field(ge=0)
+    size_sqm: Optional[float] = Field(None, ge=0)
+    rooms: Optional[float] = Field(None, ge=0)
     bathrooms: Optional[int] = Field(None, ge=0)
     floor: Optional[str] = Field(None, max_length=50)
     balcony: Optional[bool] = None
     
-    purchase_price: Optional[float] = Field(ge=0)
+    purchase_price: Optional[float] = Field(None, ge=0)
     purchase_price_parking: Optional[float] = Field(None, ge=0)
     purchase_price_furniture: Optional[float] = Field(None, ge=0)
-    monthly_rent: Optional[float] = Field(ge=0)
+    monthly_rent: Optional[float] = Field(None, ge=0)
     rent_parking_month: Optional[float] = Field(None, ge=0)
     additional_costs: Optional[float] = Field(None, ge=0)
     management_fee: Optional[float] = Field(None, ge=0)
@@ -346,7 +346,7 @@ class PropertyUpdate(BaseSchema):
     
     # Additional Property Data
     object_share_owner: Optional[float] = Field(None, ge=0, le=1)
-    share_land: Optional[float] = Field(ge=0)
+    share_land: Optional[float] = Field(None, ge=0)
     property_usage: Optional[str] = Field(None, max_length=100)
     initial_maintenance_expenses: Optional[float] = Field(None, ge=0)
     

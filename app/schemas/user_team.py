@@ -23,6 +23,11 @@ class UserTeamAssignmentUpdate(BaseSchema):
     """Schema for updating team assignments"""
     manager_id: Optional[UUID] = None
     provision_percentage: Optional[int] = Field(None, ge=0, le=100, description="Team member's provision percentage from manager's cut (0-100)")
+    
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra="ignore"  # Ignore extra fields not defined in the schema
+    )
 
 
 class UserTeamAssignmentResponse(UserTeamAssignmentBase, BaseResponseSchema):
@@ -66,6 +71,11 @@ class UserRequestUpdate(BaseSchema):
     """Schema for updating user requests (for admins)"""
     status: Optional[str] = Field(None, description="Request status: pending, approved, rejected")
     notes: Optional[str] = None
+    
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra="ignore"  # Ignore extra fields not defined in the schema
+    )
 
 
 class UserRequestResponse(UserRequestBase, BaseResponseSchema, TimestampMixin):

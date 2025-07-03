@@ -48,6 +48,11 @@ class TenantAdminUpdate(TenantBase):
     # Override required fields from TenantBase to make them optional
     name: Optional[str] = Field(None, min_length=2, max_length=255, description="Organization name")
     investagon_sync_enabled: Optional[bool] = None
+    
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra="ignore"  # Ignore extra fields not defined in the schema
+    )
 
 class TenantUpdate(TenantAdminUpdate):
     """Schema für Tenant-Updates (vollständig, nur für Super-Admins)"""
