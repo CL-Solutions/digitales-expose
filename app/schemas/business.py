@@ -98,7 +98,10 @@ class ProjectUpdate(BaseSchema):
     status: Optional[str] = Field(pattern="^(available|reserved|sold)$")
     provision_percentage: Optional[float] = Field(None, ge=0, le=100, description="Base provision percentage for this project (0.0-100.0)")
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra="ignore"  # Ignore extra fields not defined in the schema
+    )
 
 class GenericImageSchema(BaseResponseSchema):
     """Generic schema for images (can be used for both project and property images)"""
@@ -218,6 +221,11 @@ class ProjectImageUpdate(BaseSchema):
     title: Optional[str] = Field(max_length=255)
     description: Optional[str]
     display_order: Optional[int]
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra="ignore"  # Ignore extra fields not defined in the schema
+    )
 
 # ================================
 # Property Schemas
@@ -359,7 +367,8 @@ class PropertyUpdate(BaseSchema):
     visibility: Optional[int] = Field(None, ge=-1, le=1)  # -1: deactivated, 0: in progress, 1: active
 
     model_config = ConfigDict(
-        from_attributes=True
+        from_attributes=True,
+        extra="ignore"  # Ignore extra fields not defined in the schema
     )
 
 class PropertyImageSchema(BaseResponseSchema):
@@ -489,6 +498,11 @@ class PropertyImageUpdate(BaseSchema):
     description: Optional[str]
     display_order: Optional[int]
 
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra="ignore"  # Ignore extra fields not defined in the schema
+    )
+
 # ================================
 # City Schemas
 # ================================
@@ -568,6 +582,11 @@ class CityUpdate(BaseSchema):
             return cleaned if cleaned else None
         return v
 
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra="ignore"  # Ignore extra fields not defined in the schema
+    )
+
 # ================================
 # City Image Schemas
 # ================================
@@ -591,6 +610,11 @@ class CityImageUpdate(BaseSchema):
     title: Optional[str] = Field(max_length=255)
     description: Optional[str]
     display_order: Optional[int]
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra="ignore"  # Ignore extra fields not defined in the schema
+    )
 
 class CityImageSchema(BaseResponseSchema):
     """Schema for CityImage"""
@@ -683,6 +707,11 @@ class ExposeTemplateUpdate(BaseSchema):
     is_active: Optional[bool]
     is_default: Optional[bool]
 
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra="ignore"  # Ignore extra fields not defined in the schema
+    )
+
 class ExposeTemplateResponse(ExposeTemplateBase, BaseResponseSchema):
     """Schema for ExposeTemplate response"""
     pass
@@ -740,6 +769,11 @@ class ExposeLinkUpdate(BaseSchema):
     
     visible_sections: Optional[Dict[str, bool]] = None
     custom_message: Optional[str]
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra="ignore"  # Ignore extra fields not defined in the schema
+    )
 
 class ExposeLinkResponse(ExposeLinkBase, BaseResponseSchema):
     """Schema for ExposeLink response"""
