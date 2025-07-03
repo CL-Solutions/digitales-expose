@@ -189,14 +189,15 @@ async def list_users(
             # Format manager information (take first manager if exists)
             manager_info = None
             if managers:
+                from app.schemas.user import UserBasicInfo
                 manager = managers[0]  # User can only have one manager
-                manager_info = {
-                    "id": str(manager.id),
-                    "email": manager.email,
-                    "first_name": manager.first_name,
-                    "last_name": manager.last_name,
-                    "full_name": f"{manager.first_name} {manager.last_name}".strip()
-                }
+                manager_info = UserBasicInfo(
+                    id=manager.id,
+                    email=manager.email,
+                    first_name=manager.first_name,
+                    last_name=manager.last_name,
+                    is_active=manager.is_active
+                ).model_dump()
             
             # Create user response dict and add roles
             user_dict = {
