@@ -318,24 +318,27 @@ async def update_user_provision(
         if target_user.tenant_id != effective_tenant_id:
             raise HTTPException(status_code=403, detail="Access denied: user not in current tenant")
         
-        # Check if current user has users:update permission
-        if current_user.has_permission("users:update"):
-            # User has full update permission, allow update
-            pass
-        else:
-            # Check if current user is a location manager of the target user
-            from app.models.user_team import UserTeamAssignment
-            is_manager_of_target = db.query(UserTeamAssignment).filter(
-                UserTeamAssignment.manager_id == current_user.id,
-                UserTeamAssignment.member_id == user_id,
-                UserTeamAssignment.tenant_id == effective_tenant_id
-            ).first() is not None
-            
-            if not is_manager_of_target:
-                raise HTTPException(
-                    status_code=403, 
-                    detail="Only managers can update provision percentage of their team members"
-                )
+        # Check if current user is a location manager of the target user
+        from app.models.user_team import UserTeamAssignment
+        from app.dependencies import check_user_permission
+        
+        is_manager_of_target = db.query(UserTeamAssignment).filter(
+            UserTeamAssignment.manager_id == current_user.id,
+            UserTeamAssignment.member_id == user_id,
+            UserTeamAssignment.tenant_id == effective_tenant_id
+        ).first() is not None
+        
+        # Check if user has users:update permission
+        has_update_permission = check_user_permission(
+            db, current_user.id, effective_tenant_id, "users", "update"
+        )
+        
+        # Must be either a manager of the target user OR have users:update permission
+        if not is_manager_of_target and not has_update_permission:
+            raise HTTPException(
+                status_code=403, 
+                detail="Only managers can update provision percentage of their team members"
+            )
         
         # Store old value for audit
         old_provision = target_user.provision_percentage
