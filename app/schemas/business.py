@@ -73,11 +73,11 @@ class ProjectUpdate(BaseSchema):
     latitude: Optional[float] = Field(ge=-90, le=90)
     longitude: Optional[float] = Field(ge=-180, le=180)
     
-    construction_year: Optional[int] = Field(ge=1800, le=2100)
-    renovation_year: Optional[int] = Field(ge=1800, le=2100)
-    total_floors: Optional[int] = Field(gt=0)
-    total_units: Optional[int] = Field(gt=0)
-    building_type: Optional[str] = Field(max_length=100)
+    construction_year: Optional[int] = Field(None, ge=1800, le=2100)
+    renovation_year: Optional[int] = Field(None, ge=1800, le=2100)
+    total_floors: Optional[int] = Field(None, gt=0)
+    total_units: Optional[int] = Field(None, gt=0)
+    building_type: Optional[str] = Field(None, max_length=100)
     
     has_elevator: Optional[bool]
     has_parking: Optional[bool]
