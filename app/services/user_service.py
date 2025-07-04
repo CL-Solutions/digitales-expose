@@ -89,7 +89,7 @@ class UserService:
         
         # Soft delete (deactivate) instead of hard delete
         user.is_active = False
-        user.email = f"deleted_{user.id}@deleted.local"  # Prevent email conflicts
+        user.email = f"deleted_{user.id}@deleted.invalid"  # Prevent email conflicts
         
         # Invalidate all user sessions
         db.query(UserSession).filter(UserSession.user_id == user.id).delete()
