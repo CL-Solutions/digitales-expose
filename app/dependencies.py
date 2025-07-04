@@ -2,7 +2,7 @@
 # DEPENDENCIES (dependencies.py)
 # ================================
 
-from fastapi import Depends, HTTPException, status, Request
+from fastapi import Depends, HTTPException, status, Request, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from app.models.user import User
@@ -318,11 +318,15 @@ def require_own_resource_or_permission(resource: str, action: str):
     
     return resource_access_dependency
 
-def require_same_tenant_or_super_admin():
-    """Dependency für Same-Tenant Zugriff oder Super-Admin"""
+def require_same_tenant_or_super_admin(user_id_param: str = "user_id"):
+    """Dependency für Same-Tenant Zugriff oder Super-Admin
+    
+    Args:
+        user_id_param: Name of the path parameter containing the user ID (default: "user_id")
+    """
     
     def same_tenant_dependency(
-        target_user_id: uuid.UUID,
+        request: Request,
         current_user: User = Depends(get_current_active_user),
         tenant_id: Optional[uuid.UUID] = Depends(get_current_tenant_id),
         db: Session = Depends(get_db)
@@ -331,8 +335,21 @@ def require_same_tenant_or_super_admin():
         # If no tenant_id is available, use the user's tenant_id
         effective_tenant_id = tenant_id or current_user.tenant_id
         
+        # Get the user ID from path parameters
+        path_params = request.path_params
+        actual_user_id = path_params.get(user_id_param)
+        
+        if not actual_user_id:
+            raise HTTPException(status_code=400, detail=f"User ID required in path parameter '{user_id_param}'")
+        
+        # Convert to UUID
+        try:
+            actual_user_id = uuid.UUID(actual_user_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid user ID format")
+        
         # Prüfe ob Target-User im gleichen Tenant ist
-        target_user = db.query(User).filter(User.id == target_user_id).first()
+        target_user = db.query(User).filter(User.id == actual_user_id).first()
         if not target_user:
             raise HTTPException(status_code=404, detail="User not found")
         

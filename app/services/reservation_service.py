@@ -28,9 +28,9 @@ class ReservationService:
     VALID_TRANSITIONS = {
         1: [5],  # Frei → Angefragt
         5: [6, 1],  # Angefragt → Reserviert or back to Frei
-        6: [9, 1],  # Reserviert → Notarvorbereitung or back to Frei
-        9: [7, 1],  # Notarvorbereitung → Notartermin or back to Frei
-        7: [0, 1],  # Notartermin → Verkauft or back to Frei
+        6: [9, 5, 1],  # Reserviert → Notarvorbereitung, back to Angefragt, or back to Frei
+        9: [7, 6, 1],  # Notarvorbereitung → Notartermin, back to Reserviert, or back to Frei
+        7: [0, 9, 1],  # Notartermin → Verkauft, back to Notarvorbereitung, or back to Frei
         0: []  # Verkauft is final
     }
     
