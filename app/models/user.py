@@ -63,6 +63,7 @@ class User(Base):
     created_properties = relationship("Property", foreign_keys="Property.created_by", back_populates="creator")
     updated_properties = relationship("Property", foreign_keys="Property.updated_by", back_populates="updater")
     created_expose_links = relationship("ExposeLink", foreign_keys="ExposeLink.created_by", back_populates="creator")
+    created_reservations = relationship("Reservation", foreign_keys="Reservation.user_id", back_populates="user")
     audit_logs = relationship("AuditLog", foreign_keys="AuditLog.user_id", back_populates="user")
     
     # Team relationships

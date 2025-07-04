@@ -23,7 +23,7 @@ from app.core.middleware import (
 )
 
 # API Routes - UPDATED TO INCLUDE RBAC
-from app.api.v1 import auth, users, tenants, projects, properties, cities, exposes, admin, rbac, investagon, user_preferences, user_team, feedback
+from app.api.v1 import auth, users, tenants, projects, properties, cities, exposes, admin, rbac, investagon, user_preferences, user_team, feedback, reservations
 
 import logging
 import uvicorn
@@ -538,6 +538,17 @@ app.include_router(
     }
 )
 
+# Reservation management routes
+app.include_router(
+    reservations.router,
+    tags=["Reservations"],
+    responses={
+        401: {"description": "Authentication required"},
+        403: {"description": "Insufficient permissions"},
+        404: {"description": "Resource not found"}
+    }
+)
+
 # City management routes
 app.include_router(
     cities.router,
@@ -625,6 +636,7 @@ async def root():
             "rbac": "/api/v1/rbac",
             "tenants": "/api/v1/tenants",
             "properties": "/api/v1/properties",
+            "reservations": "/api/v1/reservations",
             "cities": "/api/v1/cities",
             "exposes": "/api/v1/exposes",
             "investagon": "/api/v1/investagon",

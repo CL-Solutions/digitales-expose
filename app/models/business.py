@@ -195,6 +195,7 @@ class Property(Base, TenantMixin, AuditMixin):
     images = relationship("PropertyImage", back_populates="property", cascade="all, delete-orphan", order_by="PropertyImage.display_order")
     expose_links = relationship("ExposeLink", back_populates="property", cascade="all, delete-orphan")
     city_ref = relationship("City", foreign_keys="Property.city_id")
+    reservations = relationship("Reservation", back_populates="property", cascade="all, delete-orphan")
 
     # Table indexes
     __table_args__ = (
@@ -442,3 +443,84 @@ class InvestagonSync(Base, TenantMixin, AuditMixin):
 
     def __repr__(self):
         return f"<InvestagonSync(type='{self.sync_type}', status='{self.status}')>"
+
+class Reservation(Base, TenantMixin, AuditMixin):
+    """Property reservation management"""
+    __tablename__ = "reservations"
+    
+    # Foreign Keys
+    property_id = Column(UUID(as_uuid=True), ForeignKey('properties.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)  # Sales person who created reservation
+    
+    # Customer Information
+    customer_name = Column(String(255), nullable=False)
+    customer_email = Column(String(255), nullable=True)
+    customer_phone = Column(String(50), nullable=True)
+    
+    # Financial Details
+    equity_amount = Column(Numeric(10, 2), nullable=True)  # Eigenkapital
+    equity_percentage = Column(Numeric(5, 2), nullable=True)  # Eigenkapital percentage
+    is_90_10_deal = Column(Boolean, default=False, nullable=False)  # 90/10 deal flag
+    adjusted_purchase_price = Column(Numeric(10, 2), nullable=True)  # Modified price for 90/10
+    external_commission = Column(Numeric(10, 2), nullable=True)  # Externe Maklercortage
+    internal_commission = Column(Numeric(10, 2), nullable=True)  # Interne Provision
+    reservation_fee_paid = Column(Boolean, default=False, nullable=False)  # Set when moving to Reserviert
+    reservation_fee_paid_date = Column(DateTime, nullable=True)  # Date when reservation fee was paid
+    
+    # Notary Details
+    preferred_notary = Column(String(255), nullable=True)  # Notarwunsch (can be empty)
+    notary_appointment_date = Column(DateTime, nullable=True)  # Date of notary appointment
+    notary_appointment_time = Column(DateTime, nullable=True)  # Time of notary appointment
+    notary_location = Column(String(500), nullable=True)  # Location/address of notary appointment
+    
+    # Status Tracking
+    status = Column(Integer, nullable=False, default=5)  # Current reservation status (matches property.active values)
+    is_active = Column(Boolean, default=True, nullable=False)  # Whether this is the active reservation or on waitlist
+    waitlist_position = Column(Integer, nullable=True)  # Position in waitlist (NULL if active)
+    
+    # Notes and Documentation
+    notes = Column(Text, nullable=True)
+    cancellation_reason = Column(Text, nullable=True)
+    
+    # Relationships
+    property = relationship("Property", back_populates="reservations")
+    user = relationship("User", back_populates="created_reservations")  # Sales person
+    tenant = relationship("Tenant", foreign_keys="Reservation.tenant_id")
+    creator = relationship("User", foreign_keys="Reservation.created_by")
+    updater = relationship("User", foreign_keys="Reservation.updated_by")
+    status_history = relationship("ReservationStatusHistory", back_populates="reservation", cascade="all, delete-orphan")
+    
+    # Table indexes
+    __table_args__ = (
+        Index('idx_reservations_property_id', 'property_id'),
+        Index('idx_reservations_user_id', 'user_id'),
+        Index('idx_reservations_status', 'status'),
+        Index('idx_reservations_is_active', 'is_active'),
+    )
+    
+    def __repr__(self):
+        return f"<Reservation(property='{self.property_id}', customer='{self.customer_name}', status='{self.status}')>"
+
+class ReservationStatusHistory(Base, TenantMixin):
+    """Track reservation status changes"""
+    __tablename__ = "reservation_status_history"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    
+    # Foreign Keys
+    reservation_id = Column(UUID(as_uuid=True), ForeignKey('reservations.id', ondelete='CASCADE'), nullable=False)
+    changed_by = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
+    
+    # Status Change Information
+    from_status = Column(Integer, nullable=True)
+    to_status = Column(Integer, nullable=False)
+    changed_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    notes = Column(Text, nullable=True)
+    
+    # Relationships
+    reservation = relationship("Reservation", back_populates="status_history")
+    changed_by_user = relationship("User")
+    tenant = relationship("Tenant", foreign_keys="ReservationStatusHistory.tenant_id")
+    
+    def __repr__(self):
+        return f"<ReservationStatusHistory(reservation='{self.reservation_id}', from='{self.from_status}', to='{self.to_status}')>"

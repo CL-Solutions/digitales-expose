@@ -145,6 +145,13 @@ def create_default_permissions(db: Session) -> List[Permission]:
         
         # Reports
         ("reports", "team", "View team reports"),
+        
+        # Reservation Management
+        ("reservations", "create", "Create new reservations"),
+        ("reservations", "read", "View reservations"),
+        ("reservations", "update", "Update reservation details"),
+        ("reservations", "delete", "Delete reservations"),
+        ("reservations", "manage", "Manage all reservations and status transitions"),
     ]
     
     permissions = []
@@ -189,7 +196,8 @@ def create_default_roles_for_tenant(db: Session, tenant_id: uuid.UUID) -> List[R
                 "investagon:sync",
                 "tenant:manage", "tenant:billing",
                 "roles:create", "roles:read", "roles:update", "roles:delete", "roles:assign",
-                "reports:team"
+                "reports:team",
+                "reservations:create", "reservations:read", "reservations:update", "reservations:delete", "reservations:manage"
             ]
         },
         "property_manager": {
@@ -202,7 +210,8 @@ def create_default_roles_for_tenant(db: Session, tenant_id: uuid.UUID) -> List[R
                 "cities:create", "cities:read", "cities:update", "cities:delete",
                 "images:upload", "images:delete",
                 "investagon:sync",
-                "roles:read"
+                "roles:read",
+                "reservations:create", "reservations:read", "reservations:update", "reservations:delete", "reservations:manage"
             ]
         },
         "sales_person": {
@@ -213,7 +222,8 @@ def create_default_roles_for_tenant(db: Session, tenant_id: uuid.UUID) -> List[R
                 "properties:read",
                 "expose:create", "expose:view",
                 "cities:read",
-                "roles:read"
+                "roles:read",
+                "reservations:create", "reservations:read", "reservations:delete"
             ]
         },
         "location_manager": {
@@ -225,7 +235,8 @@ def create_default_roles_for_tenant(db: Session, tenant_id: uuid.UUID) -> List[R
                 "expose:create", "expose:view",
                 "cities:read",
                 "reports:team",
-                "roles:read"
+                "roles:read",
+                "reservations:create", "reservations:read", "reservations:delete"
             ]
         },
         "viewer": {
