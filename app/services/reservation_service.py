@@ -88,6 +88,7 @@ class ReservationService:
             )
             
             db.add(reservation)
+            db.flush()  # Flush to get the reservation ID
             
             # Update property status if this is the active reservation
             if is_active:
