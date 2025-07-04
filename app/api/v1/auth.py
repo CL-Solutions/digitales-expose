@@ -79,10 +79,12 @@ async def login_local_user(
     
     except AppException as e:
         db.rollback()
+        logger.error(f"Login failed with AppException: {str(e)}")
         # All auth errors returned as 401 with generic message
         raise HTTPException(status_code=401, detail=str(e))
     except Exception as e:
         db.rollback()
+        logger.error(f"Login failed with unexpected error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=401, detail="Authentication failed")
 
 @router.post("/logout/")

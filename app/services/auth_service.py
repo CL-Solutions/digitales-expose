@@ -97,12 +97,20 @@ class AuthService:
     ) -> tuple[User, dict]:
         """Authentifiziert einen lokalen User - Einheitliche Fehlermeldung für Security"""
         
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.debug(f"Attempting login for email: {email}")
+        
         GENERIC_ERROR_MESSAGE = "Invalid email or password"
         
-        user = db.query(User).filter(
-            User.email == email,
-            User.auth_method == "local"
-        ).first()
+        try:
+            user = db.query(User).filter(
+                User.email == email,
+                User.auth_method == "local"
+            ).first()
+        except Exception as e:
+            logger.error(f"Database query error during login: {str(e)}", exc_info=True)
+            raise AuthenticationError(GENERIC_ERROR_MESSAGE)
         
         # User not found
         if not user:
