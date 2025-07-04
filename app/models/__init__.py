@@ -20,7 +20,8 @@ from app.models.business import (
     Property, PropertyImage, 
     City, CityImage,
     ExposeTemplate, ExposeLink, ExposeLinkView,
-    InvestagonSync, Project, ProjectImage
+    InvestagonSync, Project, ProjectImage,
+    Reservation, ReservationStatusHistory
 )
 from app.models.audit import AuditLog, SuperAdminSession
 
@@ -50,6 +51,8 @@ __all__ = [
     "InvestagonSync",
     "Project",
     "ProjectImage",
+    "Reservation",
+    "ReservationStatusHistory",
     "AuditLog", 
     "SuperAdminSession"
 ]
