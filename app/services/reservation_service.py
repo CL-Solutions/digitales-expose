@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.exc import IntegrityError
 import uuid
 
-from app.models.business import Reservation, ReservationStatusHistory, Property
+from app.models.business import Reservation, ReservationStatusHistory, Property, Project
 from app.models.user import User
 from app.schemas.reservation import (
     ReservationCreate, ReservationUpdate, ReservationStatusUpdate,
@@ -181,7 +181,7 @@ class ReservationService:
             Reservation.tenant_id == tenant_id
         ).options(
             selectinload(Reservation.user),
-            selectinload(Reservation.property)
+            selectinload(Reservation.property).selectinload(Property.project)
         )
         
         # Apply filters
@@ -229,7 +229,28 @@ class ReservationService:
         # Apply pagination
         reservations = query.offset(skip).limit(limit).all()
         
-        return reservations, total
+        # Convert to response format with property info
+        reservation_responses = []
+        for reservation in reservations:
+            response_data = {
+                'id': reservation.id,
+                'created_at': reservation.created_at,
+                'updated_at': reservation.updated_at,
+                'property_id': reservation.property_id,
+                'user_id': reservation.user_id,
+                'customer_name': reservation.customer_name,
+                'customer_email': reservation.customer_email,
+                'status': reservation.status,
+                'is_active': reservation.is_active,
+                'waitlist_position': reservation.waitlist_position,
+                'reservation_fee_paid': reservation.reservation_fee_paid,
+                'user': reservation.user,
+                'unit_number': reservation.property.unit_number if reservation.property else None,
+                'project_name': reservation.property.project.name if reservation.property and reservation.property.project else None
+            }
+            reservation_responses.append(ReservationListResponse(**response_data))
+        
+        return reservation_responses, total
     
     @staticmethod
     def update_reservation(

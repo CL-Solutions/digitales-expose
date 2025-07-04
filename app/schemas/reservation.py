@@ -127,6 +127,9 @@ class ReservationListResponse(BaseResponseSchema, TimestampMixin):
     waitlist_position: Optional[int] = None
     reservation_fee_paid: bool
     user: Optional[UserBasicInfo] = None
+    # Property and Project info
+    unit_number: Optional[str] = None
+    project_name: Optional[str] = None
     
     class Config:
         from_attributes = True
