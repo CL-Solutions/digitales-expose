@@ -484,7 +484,7 @@ class Reservation(Base, TenantMixin, AuditMixin):
     
     # Relationships
     property = relationship("Property", back_populates="reservations")
-    user = relationship("User", back_populates="created_reservations")  # Sales person
+    user = relationship("User", foreign_keys=[user_id], back_populates="created_reservations")  # Sales person
     tenant = relationship("Tenant", foreign_keys="Reservation.tenant_id")
     creator = relationship("User", foreign_keys="Reservation.created_by")
     updater = relationship("User", foreign_keys="Reservation.updated_by")
