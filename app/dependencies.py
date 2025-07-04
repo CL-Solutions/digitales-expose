@@ -38,16 +38,26 @@ async def get_current_user(
     db: Session = Depends(get_db)
 ) -> User:
     """Dependency für aktuellen User"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     payload = verify_token(credentials.credentials)
     if not payload:
+        logger.debug(f"Token verification failed for token: {credentials.credentials[:20]}...")
         raise AuthenticationError("Invalid authentication credentials")
     
     user_id = payload.get("sub")
     if not user_id:
+        logger.debug(f"No user_id in token payload: {payload}")
         raise AuthenticationError("Invalid token payload")
     
     user = db.query(User).filter(User.id == user_id).first()
-    if not user or not user.is_active:
+    if not user:
+        logger.debug(f"User not found with id: {user_id}")
+        raise AuthenticationError("User not found or inactive")
+    
+    if not user.is_active:
+        logger.debug(f"User {user_id} is not active")
         raise AuthenticationError("User not found or inactive")
     
     return user

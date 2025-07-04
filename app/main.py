@@ -336,6 +336,15 @@ async def app_exception_handler(request: Request, exc: AppException):
 @app.exception_handler(AuthenticationError)
 async def auth_exception_handler(request: Request, exc: AuthenticationError):
     """Handler für Authentication Errors"""
+    logger.error(
+        f"Authentication error: {exc.detail}",
+        extra={
+            "error_code": exc.error_code,
+            "request_id": getattr(request.state, "request_id", None),
+            "path": request.url.path,
+            "method": request.method
+        }
+    )
     return JSONResponse(
         status_code=401,
         content={
@@ -348,6 +357,15 @@ async def auth_exception_handler(request: Request, exc: AuthenticationError):
 @app.exception_handler(AuthorizationError)
 async def authz_exception_handler(request: Request, exc: AuthorizationError):
     """Handler für Authorization Errors"""
+    logger.error(
+        f"Authorization error: {exc.detail}",
+        extra={
+            "error_code": exc.error_code,
+            "request_id": getattr(request.state, "request_id", None),
+            "path": request.url.path,
+            "method": request.method
+        }
+    )
     return JSONResponse(
         status_code=403,
         content={

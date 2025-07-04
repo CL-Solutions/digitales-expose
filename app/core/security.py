@@ -44,9 +44,15 @@ def verify_token(token: str, expected_type: str = "access") -> Optional[Dict[str
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         if payload.get("type") != expected_type:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Token type mismatch: expected {expected_type}, got {payload.get('type')}")
             return None
         return payload
-    except JWTError:
+    except JWTError as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.debug(f"JWT verification error: {str(e)}")
         return None
 
 def generate_reset_token() -> str:
