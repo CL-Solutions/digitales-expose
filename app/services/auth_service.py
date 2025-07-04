@@ -97,8 +97,6 @@ class AuthService:
     ) -> tuple[User, dict]:
         """Authentifiziert einen lokalen User - Einheitliche Fehlermeldung für Security"""
         
-        import logging
-        logger = logging.getLogger(__name__)
         logger.debug(f"Attempting login for email: {email}")
         
         GENERIC_ERROR_MESSAGE = "Invalid email or password"

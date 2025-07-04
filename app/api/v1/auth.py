@@ -3,6 +3,7 @@
 # ================================
 
 import secrets
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Path, status, Request, Query
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
@@ -27,6 +28,7 @@ from typing import List
 import uuid
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # ================================
 # LOCAL AUTHENTICATION
