@@ -54,7 +54,7 @@ class ReservationService:
             raise AppException("Property not found", 404)
         
         # Check if property is available for reservation
-        if property.active not in [1, 5, 6, 7, 9]:  # Not Verkauft
+        if property.active in [1, 5, 6, 7, 9]:  # Not Verkauft (0)
             # Check for active reservations
             active_reservation = db.query(Reservation).filter(
                 Reservation.property_id == property_id,
