@@ -898,6 +898,8 @@ class ProjectOverview(BaseSchema):
     max_rental_yield: Optional[float]  # Maximum Bruttomietrendite of properties
     min_price: Optional[float]  # Minimum property price in the project
     max_price: Optional[float]  # Maximum property price in the project
+    min_initial_maintenance_expenses: Optional[float]  # Minimum initial maintenance expenses of properties
+    max_initial_maintenance_expenses: Optional[float]  # Maximum initial maintenance expenses of properties
     provision_percentage: float  # Base provision percentage for this project
     
     model_config = ConfigDict(from_attributes=True)
@@ -957,6 +959,9 @@ class PropertyOverview(BaseSchema):
     pre_sale: Optional[int]
     draft: Optional[int]
     visibility: Optional[int]
+    
+    # Financial fields
+    initial_maintenance_expenses: Optional[float]  # Erhaltungsaufwendungen
     
     # Calculated fields
     gross_rental_yield: Optional[float]  # Bruttomietrendite in percent

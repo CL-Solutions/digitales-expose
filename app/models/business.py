@@ -62,6 +62,8 @@ class Project(Base, TenantMixin, AuditMixin):
     max_price = Column(Numeric(12, 2), nullable=True)  # Maximum property price in project
     min_rental_yield = Column(Numeric(5, 2), nullable=True)  # Minimum rental yield in project
     max_rental_yield = Column(Numeric(5, 2), nullable=True)  # Maximum rental yield in project
+    min_initial_maintenance_expenses = Column(Numeric(12, 2), nullable=True)  # Minimum initial maintenance expenses
+    max_initial_maintenance_expenses = Column(Numeric(12, 2), nullable=True)  # Maximum initial maintenance expenses
     
     # External Reference
     investagon_id = Column(String(255), nullable=True, unique=True)  # Investagon project ID

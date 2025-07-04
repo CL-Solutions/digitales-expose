@@ -304,6 +304,8 @@ class ProjectService:
             max_rental_yield = float(project.max_rental_yield) if project.max_rental_yield else None
             min_price = float(project.min_price) if project.min_price else None
             max_price = float(project.max_price) if project.max_price else None
+            min_initial_maintenance_expenses = float(project.min_initial_maintenance_expenses) if hasattr(project, 'min_initial_maintenance_expenses') and project.min_initial_maintenance_expenses else None
+            max_initial_maintenance_expenses = float(project.max_initial_maintenance_expenses) if hasattr(project, 'max_initial_maintenance_expenses') and project.max_initial_maintenance_expenses else None
             
             overview = ProjectOverview(
                 id=project.id,
@@ -327,6 +329,8 @@ class ProjectService:
                 max_rental_yield=max_rental_yield,
                 min_price=min_price,
                 max_price=max_price,
+                min_initial_maintenance_expenses=min_initial_maintenance_expenses,
+                max_initial_maintenance_expenses=max_initial_maintenance_expenses,
                 provision_percentage=project.provision_percentage if hasattr(project, 'provision_percentage') else 0.0
             )
             items.append(overview)
@@ -778,15 +782,30 @@ class ProjectService:
                 )
             ).first()
             
+            # Initial maintenance expenses aggregates query
+            maintenance_aggregates = db.query(
+                func.min(Property.initial_maintenance_expenses).label('min_initial_maintenance_expenses'),
+                func.max(Property.initial_maintenance_expenses).label('max_initial_maintenance_expenses')
+            ).filter(
+                and_(
+                    Property.project_id == project_id,
+                    Property.tenant_id == tenant_id,
+                    Property.initial_maintenance_expenses.isnot(None),
+                    Property.initial_maintenance_expenses > 0
+                )
+            ).first()
+            
             # Update project with new aggregates
             project.min_price = price_aggregates.min_price if price_aggregates else None
             project.max_price = price_aggregates.max_price if price_aggregates else None
             project.min_rental_yield = yield_aggregates.min_rental_yield if yield_aggregates else None
             project.max_rental_yield = yield_aggregates.max_rental_yield if yield_aggregates else None
+            project.min_initial_maintenance_expenses = maintenance_aggregates.min_initial_maintenance_expenses if maintenance_aggregates else None
+            project.max_initial_maintenance_expenses = maintenance_aggregates.max_initial_maintenance_expenses if maintenance_aggregates else None
             
             db.commit()
             
-            logger.info(f"Updated aggregates for project {project_id}: price range={project.min_price}-{project.max_price}, yield range={project.min_rental_yield}-{project.max_rental_yield}")
+            logger.info(f"Updated aggregates for project {project_id}: price range={project.min_price}-{project.max_price}, yield range={project.min_rental_yield}-{project.max_rental_yield}, maintenance range={project.min_initial_maintenance_expenses}-{project.max_initial_maintenance_expenses}")
             
         except Exception as e:
             logger.error(f"Error updating project aggregates: {str(e)}")

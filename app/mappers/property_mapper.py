@@ -64,6 +64,7 @@ def map_property_to_overview(prop: Property) -> Dict[str, Any]:
         "pre_sale": prop.pre_sale,
         "draft": prop.draft,
         "visibility": prop.visibility,
+        "initial_maintenance_expenses": prop.initial_maintenance_expenses,
         "thumbnail_url": thumbnail_url,
         "gross_rental_yield": gross_rental_yield
     }
