@@ -51,7 +51,7 @@ class ReservationService:
         ).first()
         
         if not property:
-            raise AppException(404, "Property not found")
+            raise AppException("Property not found", 404)
         
         # Check if property is available for reservation
         if property.active not in [1, 5, 6, 7, 9]:  # Not Verkauft
@@ -125,7 +125,7 @@ class ReservationService:
             
             return reservation
         else:
-            raise AppException(400, "Property is already sold")
+            raise AppException("Property is already sold", 400)
     
     @staticmethod
     def get_reservation(
@@ -159,7 +159,7 @@ class ReservationService:
         reservation = query.first()
         
         if not reservation:
-            raise AppException(404, "Reservation not found")
+            raise AppException("Reservation not found", 404)
         
         return reservation
     
@@ -246,7 +246,7 @@ class ReservationService:
         ).first()
         
         if not reservation:
-            raise AppException(404, "Reservation not found")
+            raise AppException("Reservation not found", 404)
         
         # Store old values for audit
         old_values = {}
@@ -300,7 +300,7 @@ class ReservationService:
         
         # Validate transition
         if data.status not in ReservationService.VALID_TRANSITIONS.get(reservation.status, []):
-            raise AppException(400, f"Invalid status transition from {reservation.status} to {data.status}")
+            raise AppException(f"Invalid status transition from {reservation.status} to {data.status}", 400)
         
         # Store old status
         old_status = reservation.status
@@ -373,7 +373,7 @@ class ReservationService:
         ).first()
         
         if not reservation:
-            raise AppException(404, "Waitlist reservation not found")
+            raise AppException("Waitlist reservation not found", 404)
         
         # Get current active reservation
         active_reservation = db.query(Reservation).filter(
@@ -451,7 +451,7 @@ class ReservationService:
         ).first()
         
         if not reservation:
-            raise AppException(404, "Reservation not found")
+            raise AppException("Reservation not found", 404)
         
         # Check permissions
         user_permissions = {f"{rp.permission.resource}:{rp.permission.action}" 
@@ -460,11 +460,11 @@ class ReservationService:
         
         # Sales people can only cancel their own reservations
         if "reservations:manage" not in user_permissions and reservation.user_id != user.id:
-            raise AppException(403, "You can only cancel your own reservations")
+            raise AppException("You can only cancel your own reservations", 403)
         
         # Don't allow cancelling sold properties
         if reservation.status == 0:
-            raise AppException(400, "Cannot cancel a sold property")
+            raise AppException("Cannot cancel a sold property", 400)
         
         # Store cancellation reason
         reservation.cancellation_reason = data.cancellation_reason
@@ -555,7 +555,7 @@ class ReservationService:
         ).all()
         
         if len(reservations) != len(data.reservation_ids):
-            raise AppException(400, "Invalid reservation IDs")
+            raise AppException("Invalid reservation IDs", 400)
         
         # Update positions based on order in list
         for position, reservation_id in enumerate(data.reservation_ids, 1):
