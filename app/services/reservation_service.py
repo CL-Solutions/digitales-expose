@@ -311,14 +311,17 @@ class ReservationService:
         
         reservation = db.query(Reservation).filter(
             Reservation.id == reservation_id,
-            Reservation.tenant_id == tenant_id,
-            Reservation.is_active == True  # Only active reservations can change status
+            Reservation.tenant_id == tenant_id
         ).options(
             selectinload(Reservation.property)
         ).first()
         
         if not reservation:
-            raise AppException(404, "Active reservation not found")
+            raise AppException("Reservation not found", 404)
+        
+        # Check if trying to change status of waitlist reservation
+        if not reservation.is_active:
+            raise AppException("Cannot change status of waitlist reservation. Please promote to active first.", 400)
         
         # Validate transition
         if data.status not in ReservationService.VALID_TRANSITIONS.get(reservation.status, []):
