@@ -112,6 +112,9 @@ class ReservationResponse(ReservationBase, BaseResponseSchema, TimestampMixin):
     
     # Related data
     user: Optional[UserBasicInfo] = None
+    # Property and Project info
+    unit_number: Optional[str] = None
+    project_name: Optional[str] = None
     
     class Config:
         from_attributes = True

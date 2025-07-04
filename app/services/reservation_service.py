@@ -142,7 +142,7 @@ class ReservationService:
             Reservation.tenant_id == tenant_id
         ).options(
             selectinload(Reservation.user),
-            selectinload(Reservation.property),
+            selectinload(Reservation.property).selectinload(Property.project),
             selectinload(Reservation.status_history).selectinload(ReservationStatusHistory.changed_by_user)
         )
         

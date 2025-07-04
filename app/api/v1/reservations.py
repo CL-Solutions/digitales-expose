@@ -98,7 +98,15 @@ async def get_reservation(
             user=current_user,
             tenant_id=tenant_id
         )
-        return ReservationResponse.model_validate(reservation)
+        
+        # Map the response with additional fields
+        response_data = {
+            **reservation.__dict__,
+            "unit_number": reservation.property.unit_number if reservation.property else None,
+            "project_name": reservation.property.project.name if reservation.property and reservation.property.project else None,
+        }
+        
+        return ReservationResponse.model_validate(response_data)
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
 
