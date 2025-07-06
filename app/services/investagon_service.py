@@ -22,6 +22,7 @@ from app.utils.audit import AuditLogger
 from app.utils.location_utils import normalize_state_name
 from app.services.rbac_service import RBACService
 from app.services.s3_service import get_s3_service
+from app.services.geocoding_service import geocoding_service
 
 logger = logging.getLogger(__name__)
 audit_logger = AuditLogger()
@@ -898,6 +899,30 @@ class InvestagonSyncService:
                             local_project.updated_at = datetime.now(timezone.utc)
                             db.flush()
                             logger.info(f"Updated project {local_project_id} with data from properties")
+                            
+                            # Try to geocode the address to get district if not already set
+                            if not local_project.district and local_project.street and local_project.house_number:
+                                try:
+                                    geocoded_data = geocoding_service.geocode_address(
+                                        street=local_project.street,
+                                        house_number=local_project.house_number,
+                                        city=local_project.city,
+                                        state=local_project.state,
+                                        country=local_project.country or "Deutschland",
+                                        zip_code=local_project.zip_code
+                                    )
+                                    
+                                    if geocoded_data and geocoded_data.get("district"):
+                                        local_project.district = geocoded_data["district"]
+                                        # Also update lat/lng if not already set
+                                        if not local_project.latitude and geocoded_data.get("latitude"):
+                                            local_project.latitude = geocoded_data["latitude"]
+                                        if not local_project.longitude and geocoded_data.get("longitude"):
+                                            local_project.longitude = geocoded_data["longitude"]
+                                        db.flush()
+                                        logger.info(f"Updated project {local_project_id} with district: {local_project.district}")
+                                except Exception as e:
+                                    logger.error(f"Error geocoding project {local_project_id}: {str(e)}")
                 
                 # Import project images - fetch from /projects endpoint which includes photos
                 project_photos = []
@@ -1214,6 +1239,30 @@ class InvestagonSyncService:
                         # Add to existing_projects for tracking
                         if project_obj and project_id not in existing_projects:
                             existing_projects[project_id] = project_obj
+                        
+                        # Try to geocode the project address to get district
+                        if project_obj and not project_obj.district and project_obj.street and project_obj.house_number:
+                            try:
+                                geocoded_data = geocoding_service.geocode_address(
+                                    street=project_obj.street,
+                                    house_number=project_obj.house_number,
+                                    city=project_obj.city,
+                                    state=project_obj.state,
+                                    country=project_obj.country or "Deutschland",
+                                    zip_code=project_obj.zip_code
+                                )
+                                
+                                if geocoded_data and geocoded_data.get("district"):
+                                    project_obj.district = geocoded_data["district"]
+                                    # Also update lat/lng if not already set
+                                    if not project_obj.latitude and geocoded_data.get("latitude"):
+                                        project_obj.latitude = geocoded_data["latitude"]
+                                    if not project_obj.longitude and geocoded_data.get("longitude"):
+                                        project_obj.longitude = geocoded_data["longitude"]
+                                    db.flush()
+                                    logger.info(f"Geocoded project {project_obj.id} - District: {project_obj.district}")
+                            except Exception as e:
+                                logger.error(f"Error geocoding project {project_obj.id}: {str(e)}")
                         
                         # Import project images - fetch from /projects endpoint which includes photos
                         project_photos = []

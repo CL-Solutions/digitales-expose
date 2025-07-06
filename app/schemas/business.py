@@ -19,6 +19,7 @@ class ProjectBase(BaseSchema):
     street: str = Field(..., max_length=255)
     house_number: str = Field(..., max_length=50)
     city: str = Field(..., max_length=255)
+    district: Optional[str] = Field(None, max_length=255, description="City district/neighborhood")
     state: str = Field(..., max_length=255)
     country: Optional[str] = Field(default="Deutschland", max_length=100)
     zip_code: str = Field(..., max_length=20)
@@ -66,6 +67,7 @@ class ProjectUpdate(BaseSchema):
     street: Optional[str] = Field(None, max_length=255)
     house_number: Optional[str] = Field(None, max_length=50)
     city: Optional[str] = Field(None, max_length=255)
+    district: Optional[str] = Field(None, max_length=255, description="City district/neighborhood")
     city_id: Optional[UUID] = None
     state: Optional[str] = Field(None, max_length=255)
     country: Optional[str] = Field(None, max_length=100)
@@ -882,6 +884,7 @@ class ProjectOverview(BaseSchema):
     street: str
     house_number: str
     city: str
+    district: Optional[str]
     state: str
     zip_code: str
     status: str

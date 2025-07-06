@@ -18,6 +18,7 @@ class Project(Base, TenantMixin, AuditMixin):
     street = Column(String(255), nullable=False)
     house_number = Column(String(50), nullable=False)
     city = Column(String(255), nullable=False)
+    district = Column(String(255), nullable=True)  # City district/neighborhood
     city_id = Column(UUID(as_uuid=True), ForeignKey('cities.id'), nullable=True)
     state = Column(String(255), nullable=False)
     country = Column(String(100), nullable=True, default="Deutschland")

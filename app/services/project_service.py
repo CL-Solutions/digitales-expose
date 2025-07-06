@@ -21,6 +21,7 @@ from app.core.exceptions import AppException
 from app.services.s3_service import get_s3_service
 from app.services.chatgpt_service import ChatGPTService
 from app.services.city_service import CityService
+from app.services.geocoding_service import geocoding_service
 from app.utils.audit import AuditLogger
 
 audit_logger = AuditLogger()
@@ -88,6 +89,42 @@ class ProjectService:
             db.add(project)
             db.commit()
             db.refresh(project)
+            
+            # Try to geocode the address to get district and coordinates
+            try:
+                geocoded_data = geocoding_service.geocode_address(
+                    street=project.street,
+                    house_number=project.house_number,
+                    city=project.city,
+                    state=project.state,
+                    country=project.country or "Deutschland",
+                    zip_code=project.zip_code
+                )
+                
+                if geocoded_data:
+                    # Update project with geocoded data
+                    update_data = {}
+                    
+                    if geocoded_data.get("district") and not project.district:
+                        update_data["district"] = geocoded_data["district"]
+                        
+                    if geocoded_data.get("latitude") and not project.latitude:
+                        update_data["latitude"] = geocoded_data["latitude"]
+                        
+                    if geocoded_data.get("longitude") and not project.longitude:
+                        update_data["longitude"] = geocoded_data["longitude"]
+                    
+                    if update_data:
+                        for key, value in update_data.items():
+                            setattr(project, key, value)
+                        db.commit()
+                        db.refresh(project)
+                        logger.info(f"Updated project {project.id} with geocoded data: {update_data}")
+                else:
+                    logger.warning(f"Could not geocode address for project {project.id}")
+            except Exception as e:
+                logger.error(f"Error geocoding address for project {project.id}: {str(e)}")
+                # Continue without geocoding data
             
             # Try to fetch micro location data from ChatGPT
             try:
@@ -356,6 +393,11 @@ class ProjectService:
         
         # Update fields
         update_data = project_update.model_dump(exclude_unset=True)
+        
+        # Check if address fields are being updated
+        address_fields = {'street', 'house_number', 'city', 'state', 'country', 'zip_code'}
+        address_changed = any(field in update_data for field in address_fields)
+        
         for field, value in update_data.items():
             setattr(project, field, value)
         
@@ -364,6 +406,44 @@ class ProjectService:
         try:
             db.commit()
             db.refresh(project)
+            
+            # If address changed, try to re-geocode
+            if address_changed:
+                try:
+                    geocoded_data = geocoding_service.geocode_address(
+                        street=project.street,
+                        house_number=project.house_number,
+                        city=project.city,
+                        state=project.state,
+                        country=project.country or "Deutschland",
+                        zip_code=project.zip_code
+                    )
+                    
+                    if geocoded_data:
+                        # Update geocoded fields
+                        geocode_updates = {}
+                        
+                        if geocoded_data.get("district"):
+                            project.district = geocoded_data["district"]
+                            geocode_updates["district"] = geocoded_data["district"]
+                            
+                        if geocoded_data.get("latitude"):
+                            project.latitude = geocoded_data["latitude"]
+                            geocode_updates["latitude"] = geocoded_data["latitude"]
+                            
+                        if geocoded_data.get("longitude"):
+                            project.longitude = geocoded_data["longitude"]
+                            geocode_updates["longitude"] = geocoded_data["longitude"]
+                        
+                        if geocode_updates:
+                            db.commit()
+                            db.refresh(project)
+                            logger.info(f"Updated project {project.id} with new geocoded data: {geocode_updates}")
+                    else:
+                        logger.warning(f"Could not geocode new address for project {project.id}")
+                except Exception as e:
+                    logger.error(f"Error geocoding updated address for project {project.id}: {str(e)}")
+                    # Continue without geocoding data
             
             # Log activity
             audit_logger.log_business_event(
