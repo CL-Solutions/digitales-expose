@@ -3,7 +3,6 @@ Google Maps Service
 Handles all interactions with Google Maps APIs including geocoding, places search, and distance calculations
 """
 
-import os
 import hashlib
 import json
 import logging
@@ -13,6 +12,7 @@ import httpx
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
+from app.config import settings
 from app.models.google_maps_cache import (
     GoogleGeocodingCache,
     GooglePlacesCache,
@@ -27,7 +27,7 @@ class GoogleMapsService:
     """Service for Google Maps API interactions with caching"""
     
     def __init__(self):
-        self.api_key = os.getenv("GOOGLE_MAPS_API_KEY")
+        self.api_key = settings.GOOGLE_MAPS_API_KEY
         if not self.api_key:
             logger.warning("GOOGLE_MAPS_API_KEY not configured")
         
