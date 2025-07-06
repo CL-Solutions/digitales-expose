@@ -640,9 +640,15 @@ class PropertyService:
             
             total_properties = query.count()
             # Count by active status values - handle nullable active field
-            available_properties = query.filter(Property.active == 1).count()  # Frei
-            reserved_properties = query.filter(Property.active.in_([5, 6])).count()  # Angefragt + Reserviert
-            sold_properties = query.filter(Property.active.in_([0, 7, 9])).count()  # Verkauft + Notartermin + Notarvorbereitung
+            available_properties = query.filter(
+                and_(Property.active.is_not(None), Property.active == 1)
+            ).count()  # Frei
+            reserved_properties = query.filter(
+                and_(Property.active.is_not(None), Property.active.in_([5, 6]))
+            ).count()  # Angefragt + Reserviert
+            sold_properties = query.filter(
+                and_(Property.active.is_not(None), Property.active.in_([0, 7, 9]))
+            ).count()  # Verkauft + Notartermin + Notarvorbereitung
             
             # Get value statistics
             total_value = db.query(func.sum(Property.purchase_price)).filter(
