@@ -350,6 +350,7 @@ class ProjectService:
                 street=project.street,
                 house_number=project.house_number,
                 city=project.city,
+                district=project.district if hasattr(project, 'district') else None,
                 state=project.state,
                 zip_code=project.zip_code,
                 status=project.status,
