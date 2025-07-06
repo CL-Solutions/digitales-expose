@@ -19,9 +19,8 @@ from app.schemas.business import (
 )
 from app.core.exceptions import AppException
 from app.services.s3_service import get_s3_service
-from app.services.chatgpt_service import ChatGPTService
+from app.services.google_maps_service import GoogleMapsService
 from app.services.city_service import CityService
-from app.services.geocoding_service import geocoding_service
 from app.utils.audit import AuditLogger
 
 audit_logger = AuditLogger()
@@ -92,22 +91,34 @@ class ProjectService:
             
             # Try to geocode the address to get district and coordinates
             try:
-                geocoded_data = geocoding_service.geocode_address(
-                    street=project.street,
-                    house_number=project.house_number,
-                    city=project.city,
-                    state=project.state,
-                    country=project.country or "Deutschland",
-                    zip_code=project.zip_code
-                )
+                google_maps_service = GoogleMapsService()
+                address = f"{project.street} {project.house_number}, {project.zip_code} {project.city}, {project.state}"
+                
+                # Run async geocoding
+                import asyncio
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    geocode_result = loop.run_until_complete(
+                        google_maps_service.geocode_address(db, address)
+                    )
+                finally:
+                    loop.close()
+                
+                geocoded_data = None
+                if geocode_result:
+                    # We need to extract district from the Google Maps response
+                    # For now, use the formatted address
+                    geocoded_data = {
+                        "latitude": geocode_result["lat"],
+                        "longitude": geocode_result["lng"],
+                        "district": None  # Google Maps doesn't provide district directly in our current implementation
+                    }
                 
                 if geocoded_data:
-                    # Update project with geocoded data
+                    # Update project with geocoded coordinates only (not district)
                     update_data = {}
                     
-                    if geocoded_data.get("district") and not project.district:
-                        update_data["district"] = geocoded_data["district"]
-                        
                     if geocoded_data.get("latitude") and not project.latitude:
                         update_data["latitude"] = geocoded_data["latitude"]
                         
@@ -126,22 +137,31 @@ class ProjectService:
                 logger.error(f"Error geocoding address for project {project.id}: {str(e)}")
                 # Continue without geocoding data
             
-            # Try to fetch micro location data from ChatGPT
+            # Try to fetch micro location data from Google Maps
             try:
-                chatgpt_service = ChatGPTService()
-                micro_location_data = chatgpt_service.generate_micro_location_data(
-                    db=db,
-                    project=project,
-                    user_id=str(created_by),
-                    tenant_id=str(tenant_id)
-                )
+                google_maps_service = GoogleMapsService()
+                address = f"{project.street} {project.house_number}, {project.zip_code} {project.city}, {project.state}"
+                
+                # Run async function in sync context
+                import asyncio
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    micro_location_data = loop.run_until_complete(
+                        google_maps_service.get_micro_location_data(db, address)
+                    )
+                finally:
+                    loop.close()
                 
                 # Update project with micro location data
-                project.micro_location = micro_location_data
-                db.commit()
-                db.refresh(project)
-                
-                logger.info(f"Successfully fetched micro location data for project {project.id}")
+                if micro_location_data:
+                    project.micro_location_v2 = micro_location_data
+                    db.commit()
+                    db.refresh(project)
+                    logger.info(f"Successfully fetched micro location data for project {project.id}")
+                else:
+                    logger.warning(f"No micro location data returned for project {project.id}")
+                    
             except Exception as e:
                 # Log error but don't fail the project creation
                 logger.error(f"Failed to fetch micro location data for project {project.id}: {str(e)}")
@@ -411,23 +431,34 @@ class ProjectService:
             # If address changed, try to re-geocode
             if address_changed:
                 try:
-                    geocoded_data = geocoding_service.geocode_address(
-                        street=project.street,
-                        house_number=project.house_number,
-                        city=project.city,
-                        state=project.state,
-                        country=project.country or "Deutschland",
-                        zip_code=project.zip_code
-                    )
+                    google_maps_service = GoogleMapsService()
+                    address = f"{project.street} {project.house_number}, {project.zip_code} {project.city}, {project.state}"
+                    
+                    # Run async geocoding
+                    import asyncio
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        geocode_result = loop.run_until_complete(
+                            google_maps_service.geocode_address(db, address)
+                        )
+                    finally:
+                        loop.close()
+                    
+                    geocoded_data = None
+                    if geocode_result:
+                        geocoded_data = {
+                            "latitude": geocode_result["lat"],
+                            "longitude": geocode_result["lng"],
+                            "district": None  # Google Maps doesn't provide district directly yet
+                        }
                     
                     if geocoded_data:
-                        # Update geocoded fields
+                        # Update geocoded coordinates only (not district)
                         geocode_updates = {}
                         
-                        if geocoded_data.get("district"):
-                            project.district = geocoded_data["district"]
-                            geocode_updates["district"] = geocoded_data["district"]
-                            
+                        # Don't auto-generate district - user should control this field
+                        
                         if geocoded_data.get("latitude"):
                             project.latitude = geocoded_data["latitude"]
                             geocode_updates["latitude"] = geocoded_data["latitude"]
@@ -685,7 +716,7 @@ class ProjectService:
                 return False
             
             # Check if micro location already exists (unless force refresh)
-            if project.micro_location and not force_refresh:
+            if project.micro_location_v2 and not force_refresh:
                 logger.info(f"Project {project_id} already has micro location data, skipping refresh")
                 return False
             
@@ -696,20 +727,29 @@ class ProjectService:
             
             # Try to generate micro location data
             try:
-                chatgpt_service = ChatGPTService()
-                micro_location_data = chatgpt_service.generate_micro_location_data(
-                    db=db,
-                    project=project,
-                    user_id=str(user_id or project.updated_by or project.created_by),
-                    tenant_id=str(tenant_id)
-                )
+                google_maps_service = GoogleMapsService()
+                address = f"{project.street} {project.house_number}, {project.zip_code} {project.city}, {project.state}"
+                
+                # Run async function in sync context
+                import asyncio
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    micro_location_data = loop.run_until_complete(
+                        google_maps_service.get_micro_location_data(db, address, force_refresh=force_refresh)
+                    )
+                finally:
+                    loop.close()
                 
                 # Update project with micro location data
-                project.micro_location = micro_location_data
-                db.commit()
-                
-                logger.info(f"Successfully refreshed micro location data for project {project_id}")
-                return True
+                if micro_location_data:
+                    project.micro_location_v2 = micro_location_data
+                    db.commit()
+                    logger.info(f"Successfully refreshed micro location data for project {project_id}")
+                    return True
+                else:
+                    logger.warning(f"No micro location data returned for project {project_id}")
+                    return False
                 
             except Exception as e:
                 logger.error(f"Failed to refresh micro location for project {project_id}: {str(e)}")

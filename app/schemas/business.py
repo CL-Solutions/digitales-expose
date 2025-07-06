@@ -50,7 +50,7 @@ class ProjectBase(BaseSchema):
     # Additional Information
     description: Optional[str] = None
     amenities: Optional[List[str]] = None
-    micro_location: Optional[Dict[str, Any]] = None  # Micro location data from ChatGPT
+    micro_location_v2: Optional[Dict[str, Any]] = None  # Enhanced micro location data from Google Maps API
     
     status: str = Field(default="available", pattern="^(available|reserved|sold)$")
     provision_percentage: float = Field(default=0.0, ge=0, le=100, description="Base provision percentage for this project (0.0-100.0)")
@@ -95,7 +95,7 @@ class ProjectUpdate(BaseSchema):
     
     description: Optional[str] = None
     amenities: Optional[List[str]] = None
-    micro_location: Optional[Dict[str, Any]] = None  # Micro location data from ChatGPT
+    micro_location_v2: Optional[Dict[str, Any]] = None  # Enhanced micro location data from Google Maps API
     
     status: Optional[str] = Field(None, pattern="^(available|reserved|sold)$")
     provision_percentage: Optional[float] = Field(None, ge=0, le=100, description="Base provision percentage for this project (0.0-100.0)")

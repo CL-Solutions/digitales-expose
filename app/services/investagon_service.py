@@ -22,7 +22,7 @@ from app.utils.audit import AuditLogger
 from app.utils.location_utils import normalize_state_name
 from app.services.rbac_service import RBACService
 from app.services.s3_service import get_s3_service
-from app.services.geocoding_service import geocoding_service
+from app.services.google_maps_service import GoogleMapsService
 
 logger = logging.getLogger(__name__)
 audit_logger = AuditLogger()
@@ -903,24 +903,24 @@ class InvestagonSyncService:
                             # Try to geocode the address to get district if not already set
                             if not local_project.district and local_project.street and local_project.house_number:
                                 try:
-                                    geocoded_data = geocoding_service.geocode_address(
-                                        street=local_project.street,
-                                        house_number=local_project.house_number,
-                                        city=local_project.city,
-                                        state=local_project.state,
-                                        country=local_project.country or "Deutschland",
-                                        zip_code=local_project.zip_code
-                                    )
+                                    google_maps_service = GoogleMapsService()
+                                    address = f"{local_project.street} {local_project.house_number}, {local_project.zip_code} {local_project.city}, {local_project.state}"
                                     
-                                    if geocoded_data and geocoded_data.get("district"):
-                                        local_project.district = geocoded_data["district"]
-                                        # Also update lat/lng if not already set
-                                        if not local_project.latitude and geocoded_data.get("latitude"):
-                                            local_project.latitude = geocoded_data["latitude"]
-                                        if not local_project.longitude and geocoded_data.get("longitude"):
-                                            local_project.longitude = geocoded_data["longitude"]
+                                    geocode_result = await google_maps_service.geocode_address(db, address)
+                                    
+                                    if geocode_result:
+                                        # Update district if found
+                                        if geocode_result.get("district") and not local_project.district:
+                                            local_project.district = geocode_result["district"]
+                                        
+                                        # Update lat/lng if not already set
+                                        if not local_project.latitude:
+                                            local_project.latitude = geocode_result["lat"]
+                                        if not local_project.longitude:
+                                            local_project.longitude = geocode_result["lng"]
+                                        
                                         db.flush()
-                                        logger.info(f"Updated project {local_project_id} with district: {local_project.district}")
+                                        logger.info(f"Updated project {local_project_id} with geocoded data - District: {local_project.district}, Coords: {local_project.latitude}, {local_project.longitude}")
                                 except Exception as e:
                                     logger.error(f"Error geocoding project {local_project_id}: {str(e)}")
                 
@@ -1243,24 +1243,24 @@ class InvestagonSyncService:
                         # Try to geocode the project address to get district
                         if project_obj and not project_obj.district and project_obj.street and project_obj.house_number:
                             try:
-                                geocoded_data = geocoding_service.geocode_address(
-                                    street=project_obj.street,
-                                    house_number=project_obj.house_number,
-                                    city=project_obj.city,
-                                    state=project_obj.state,
-                                    country=project_obj.country or "Deutschland",
-                                    zip_code=project_obj.zip_code
-                                )
+                                google_maps_service = GoogleMapsService()
+                                address = f"{project_obj.street} {project_obj.house_number}, {project_obj.zip_code} {project_obj.city}, {project_obj.state}"
                                 
-                                if geocoded_data and geocoded_data.get("district"):
-                                    project_obj.district = geocoded_data["district"]
+                                geocode_result = await google_maps_service.geocode_address(db, address)
+                                
+                                if geocode_result:
+                                    # Update district if found
+                                    if geocode_result.get("district") and not project_obj.district:
+                                        project_obj.district = geocode_result["district"]
+                                    
                                     # Also update lat/lng if not already set
-                                    if not project_obj.latitude and geocoded_data.get("latitude"):
-                                        project_obj.latitude = geocoded_data["latitude"]
-                                    if not project_obj.longitude and geocoded_data.get("longitude"):
-                                        project_obj.longitude = geocoded_data["longitude"]
+                                    if not project_obj.latitude:
+                                        project_obj.latitude = geocode_result["lat"]
+                                    if not project_obj.longitude:
+                                        project_obj.longitude = geocode_result["lng"]
+                                    
                                     db.flush()
-                                    logger.info(f"Geocoded project {project_obj.id} - District: {project_obj.district}")
+                                    logger.info(f"Geocoded project {project_obj.id} - District: {project_obj.district}, Coords: {project_obj.latitude}, {project_obj.longitude}")
                             except Exception as e:
                                 logger.error(f"Error geocoding project {project_obj.id}: {str(e)}")
                         

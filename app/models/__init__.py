@@ -24,6 +24,7 @@ from app.models.business import (
     Reservation, ReservationStatusHistory
 )
 from app.models.audit import AuditLog, SuperAdminSession
+from app.models.google_maps_cache import GoogleGeocodingCache, GooglePlacesCache, GoogleDistanceCache
 
 # Export all models
 __all__ = [
@@ -54,6 +55,9 @@ __all__ = [
     "Reservation",
     "ReservationStatusHistory",
     "AuditLog", 
-    "SuperAdminSession"
+    "SuperAdminSession",
+    "GoogleGeocodingCache",
+    "GooglePlacesCache", 
+    "GoogleDistanceCache"
 ]
 

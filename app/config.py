@@ -48,9 +48,8 @@ class settings(BaseSettings):
     INVESTAGON_API_KEY: Optional[str] = None
     ENABLE_AUTO_SYNC: bool = True  # Enable automatic hourly sync
     
-    # OpenAI API Settings
-    OPENAI_API_KEY: Optional[str] = None
-    OPENAI_ASSISTANT_ID: Optional[str] = None
+    # Google Maps API Settings
+    GOOGLE_MAPS_API_KEY: Optional[str] = None
     
     # GitHub API Settings (for feedback issue creation)
     GITHUB_TOKEN: Optional[str] = None
