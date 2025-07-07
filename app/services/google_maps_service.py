@@ -249,7 +249,7 @@ class GoogleMapsService:
                                 "lng": place["geometry"]["location"]["lng"],
                                 "place_id": place["place_id"],
                                 "types": place.get("types", []),
-                                "rating": place.get("rating"),
+                                "rating": place.get("rating", 0),
                                 "user_ratings_total": place.get("user_ratings_total", 0)
                             })
                             
@@ -259,7 +259,7 @@ class GoogleMapsService:
         
         # Sort by rating and number of reviews
         all_places.sort(
-            key=lambda x: (x.get("rating", 0) * x.get("user_ratings_total", 0)),
+            key=lambda x: ((x.get("rating") or 0) * (x.get("user_ratings_total") or 0)),
             reverse=True
         )
         
