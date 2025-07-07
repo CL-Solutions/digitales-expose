@@ -50,18 +50,27 @@ class ExposeService:
                         detail="You don't have permission to manage templates"
                     )
             
-            # If this is set as default, unset other defaults
-            if template_data.is_default:
-                db.query(ExposeTemplate).filter(
-                    and_(
-                        ExposeTemplate.tenant_id == current_user.tenant_id,
-                        ExposeTemplate.is_default == True
-                    )
-                ).update({"is_default": False})
+            # Check if tenant already has a template
+            existing_template = db.query(ExposeTemplate).filter(
+                ExposeTemplate.tenant_id == current_user.tenant_id
+            ).first()
+            
+            if existing_template:
+                raise AppException(
+                    status_code=400,
+                    detail="Tenant already has a template. Please update the existing template instead."
+                )
             
             # Create template
+            template_dict = template_data.model_dump()
+            
+            # Ensure enabled_sections has defaults if not provided
+            if "enabled_sections" not in template_dict or template_dict["enabled_sections"] is None:
+                from app.schemas.expose_template_types import EnabledSections
+                template_dict["enabled_sections"] = EnabledSections().model_dump()
+            
             template = ExposeTemplate(
-                **template_data.model_dump(),
+                **template_dict,
                 tenant_id=current_user.tenant_id,
                 created_by=current_user.id
             )
@@ -126,7 +135,6 @@ class ExposeService:
     def list_templates(
         db: Session,
         current_user: User,
-        property_type: Optional[str] = None,
         is_active: Optional[bool] = True
     ) -> List[ExposeTemplate]:
         """List expose templates"""
@@ -137,20 +145,11 @@ class ExposeService:
             if not current_user.is_super_admin:
                 query = query.filter(ExposeTemplate.tenant_id == current_user.tenant_id)
             
-            if property_type:
-                query = query.filter(
-                    or_(
-                        ExposeTemplate.property_type == property_type,
-                        ExposeTemplate.property_type.is_(None)
-                    )
-                )
-            
             if is_active is not None:
                 query = query.filter(ExposeTemplate.is_active == is_active)
             
-            # Order by default first, then by name
+            # Order by name
             templates = query.order_by(
-                ExposeTemplate.is_default.desc(),
                 ExposeTemplate.name
             ).all()
             
@@ -183,16 +182,6 @@ class ExposeService:
                         status_code=403,
                         detail="You don't have permission to manage templates"
                     )
-            
-            # If setting as default, unset other defaults
-            if template_data.is_default and not template.is_default:
-                db.query(ExposeTemplate).filter(
-                    and_(
-                        ExposeTemplate.tenant_id == current_user.tenant_id,
-                        ExposeTemplate.is_default == True,
-                        ExposeTemplate.id != template_id
-                    )
-                ).update({"is_default": False})
             
             # Update fields
             update_data = template_data.model_dump(exclude_unset=True)
@@ -246,30 +235,11 @@ class ExposeService:
                         detail="You don't have permission to manage templates"
                     )
             
-            # Don't delete if it's the only template
-            template_count = db.query(ExposeTemplate).filter(
-                ExposeTemplate.tenant_id == template.tenant_id
-            ).count()
-            
-            if template_count <= 1:
-                raise AppException(
-                    status_code=400,
-                    detail="Cannot delete the last template"
-                )
-            
-            # Log activity before deletion
-            audit_logger.log_business_event(
-                db=db,
-                action="TEMPLATE_DELETED",
-                user_id=current_user.id,
-                tenant_id=current_user.tenant_id,
-                resource_type="template",
-                resource_id=template.id,
-                old_values={"name": template.name}
+            # Cannot delete a tenant's only template
+            raise AppException(
+                status_code=400,
+                detail="Cannot delete the tenant's template. Each tenant must have exactly one template."
             )
-            
-            db.delete(template)
-            db.flush()
             
         except AppException:
             raise
@@ -277,6 +247,45 @@ class ExposeService:
             raise AppException(
                 status_code=500,
                 detail=f"Failed to delete template: {str(e)}"
+            )
+    
+    @staticmethod
+    def get_or_create_tenant_template(
+        db: Session,
+        tenant_id: UUID,
+        created_by: UUID
+    ) -> ExposeTemplate:
+        """Get the tenant's template or create a default one if none exists"""
+        try:
+            # Check if tenant has a template
+            template = db.query(ExposeTemplate).filter(
+                ExposeTemplate.tenant_id == tenant_id
+            ).first()
+            
+            if template:
+                return template
+            
+            # Create default template with all sections enabled
+            from app.schemas.expose_template_types import EnabledSections
+            
+            default_template = ExposeTemplate(
+                name="Standard Template",
+                tenant_id=tenant_id,
+                created_by=created_by,
+                enabled_sections=EnabledSections().model_dump(),  # All sections enabled by default
+                content={},  # Empty content
+                is_active=True
+            )
+            
+            db.add(default_template)
+            db.flush()
+            
+            return default_template
+            
+        except Exception as e:
+            raise AppException(
+                status_code=500,
+                detail=f"Failed to get or create tenant template: {str(e)}"
             )
     
     @staticmethod

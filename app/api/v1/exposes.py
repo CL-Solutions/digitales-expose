@@ -277,6 +277,14 @@ async def get_public_expose(
         )
         db.commit()
         
+        # Get tenant's template if link doesn't have one
+        template = link.template
+        if not template:
+            from app.models.business import ExposeTemplate
+            template = db.query(ExposeTemplate).filter(
+                ExposeTemplate.tenant_id == link.tenant_id
+            ).first()
+        
         # Get city information if available
         city_info = None
         if link.property and link.property.city:
@@ -310,7 +318,7 @@ async def get_public_expose(
         response = ExposeLinkPublicResponse(
             link_id=link.link_id,
             property=link.property,
-            template=link.template,
+            template=template,  # Use the tenant's template
             preset_equity_percentage=link.preset_equity_percentage,
             preset_interest_rate=link.preset_interest_rate,
             preset_repayment_rate=link.preset_repayment_rate,

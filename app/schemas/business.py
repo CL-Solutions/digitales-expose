@@ -8,6 +8,10 @@ from datetime import datetime
 from uuid import UUID
 
 from app.schemas.base import BaseSchema, BaseResponseSchema, PaginationParams, TimestampMixin
+from app.schemas.expose_template_types import (
+    ModernizationItem, InsurancePlan, ProcessStep, 
+    OpportunityItem, RiskItem, EnabledSections
+)
 
 # ================================
 # Project Schemas
@@ -662,25 +666,16 @@ class CityResponse(CityBase, BaseResponseSchema):
 
 class ExposeTemplateBase(BaseSchema):
     """Base schema for ExposeTemplate"""
-    name: str = Field(..., max_length=255)
-    property_type: Optional[str] = Field(max_length=100)
+    # Section visibility controls
+    enabled_sections: EnabledSections = Field(default_factory=EnabledSections)
     
-    investment_benefits: Optional[str]
-    location_description: Optional[str]
-    property_description: Optional[str]
-    financing_info: Optional[str]
-    tax_benefits: Optional[str]
-    risks_disclaimer: Optional[str]
-    company_info: Optional[str]
-    process_steps: Optional[str]
-    
-    default_equity_percentage: float = Field(default=20.0, ge=0, le=100)
-    default_interest_rate: float = Field(default=3.5, ge=0, le=20)
-    default_loan_term_years: int = Field(default=20, ge=1, le=50)
-    default_tax_rate: float = Field(default=42.0, ge=0, le=100)
-    
-    is_active: bool = True
-    is_default: bool = False
+    # Customizable content sections
+    floor_plan_content: Optional[str] = Field(None, description="Content for floor plan section")
+    modernization_items: Optional[List[ModernizationItem]] = Field(None, description="List of modernization items")
+    insurance_plans: Optional[List[InsurancePlan]] = Field(None, description="Insurance plan options")
+    process_steps_list: Optional[List[ProcessStep]] = Field(None, description="Process steps")
+    opportunities_list: Optional[List[OpportunityItem]] = Field(None, description="Opportunity items")
+    risks_list: Optional[List[RiskItem]] = Field(None, description="Risk items")
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -690,25 +685,16 @@ class ExposeTemplateCreate(ExposeTemplateBase):
 
 class ExposeTemplateUpdate(BaseSchema):
     """Schema for updating an ExposeTemplate"""
-    name: Optional[str] = Field(max_length=255)
-    property_type: Optional[str] = Field(max_length=100)
+    # Section visibility controls
+    enabled_sections: Optional[EnabledSections] = None
     
-    investment_benefits: Optional[str]
-    location_description: Optional[str]
-    property_description: Optional[str]
-    financing_info: Optional[str]
-    tax_benefits: Optional[str]
-    risks_disclaimer: Optional[str]
-    company_info: Optional[str]
-    process_steps: Optional[str]
-    
-    default_equity_percentage: Optional[float] = Field(ge=0, le=100)
-    default_interest_rate: Optional[float] = Field(ge=0, le=20)
-    default_loan_term_years: Optional[int] = Field(ge=1, le=50)
-    default_tax_rate: Optional[float] = Field(ge=0, le=100)
-    
-    is_active: Optional[bool]
-    is_default: Optional[bool]
+    # Customizable content sections
+    floor_plan_content: Optional[str] = None
+    modernization_items: Optional[List[ModernizationItem]] = None
+    insurance_plans: Optional[List[InsurancePlan]] = None
+    process_steps_list: Optional[List[ProcessStep]] = None
+    opportunities_list: Optional[List[OpportunityItem]] = None
+    risks_list: Optional[List[RiskItem]] = None
 
     model_config = ConfigDict(
         from_attributes=True,

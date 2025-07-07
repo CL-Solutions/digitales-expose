@@ -319,29 +319,16 @@ class ExposeTemplate(Base, TenantMixin, AuditMixin):
     """Template for expose content sections"""
     __tablename__ = "expose_templates"
     
-    # Template Information
-    name = Column(String(255), nullable=False)
-    property_type = Column(String(100), nullable=True)  # Optional: specific to property type
+    # Section visibility controls
+    enabled_sections = Column(JSON, nullable=False, default={})  # {section_key: boolean}
     
-    # Content Sections (customizable text)
-    investment_benefits = Column(Text, nullable=True)
-    location_description = Column(Text, nullable=True)
-    property_description = Column(Text, nullable=True)
-    financing_info = Column(Text, nullable=True)
-    tax_benefits = Column(Text, nullable=True)
-    risks_disclaimer = Column(Text, nullable=True)
-    company_info = Column(Text, nullable=True)
-    process_steps = Column(Text, nullable=True)
-    
-    # Default Calculation Parameters
-    default_equity_percentage = Column(Float, default=20.0)
-    default_interest_rate = Column(Float, default=3.5)
-    default_loan_term_years = Column(Integer, default=20)
-    default_tax_rate = Column(Float, default=42.0)
-    
-    # Status
-    is_active = Column(Boolean, default=True, nullable=False)
-    is_default = Column(Boolean, default=False, nullable=False)
+    # JSON fields for customizable content sections
+    floor_plan_content = Column(Text, nullable=True)  # Content for Grundriss section
+    modernization_items = Column(JSON, nullable=True)  # List of modernization items [{title, description?}]
+    insurance_plans = Column(JSON, nullable=True)  # Insurance plan data [{name, price, period, features, recommended}]
+    process_steps_list = Column(JSON, nullable=True)  # Process steps [{number, title, description, color_scheme}]
+    opportunities_list = Column(JSON, nullable=True)  # List of opportunity items
+    risks_list = Column(JSON, nullable=True)  # List of risk items
     
     # Relationships
     tenant = relationship("Tenant", foreign_keys="ExposeTemplate.tenant_id")
@@ -349,7 +336,7 @@ class ExposeTemplate(Base, TenantMixin, AuditMixin):
     updater = relationship("User", foreign_keys="ExposeTemplate.updated_by")
 
     def __repr__(self):
-        return f"<ExposeTemplate(name='{self.name}', is_default='{self.is_default}')>"
+        return f"<ExposeTemplate(tenant_id='{self.tenant_id}')>"
 
 class ExposeLink(Base, TenantMixin, AuditMixin):
     """Shareable expose links with tracking"""
