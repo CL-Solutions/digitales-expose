@@ -94,7 +94,7 @@ class ExposeService:
                 tenant_id=current_user.tenant_id,
                 resource_type="template",
                 resource_id=template.id,
-                new_values={"name": template.name}
+                new_values={"tenant_id": str(template.tenant_id)}
             )
             
             return template
