@@ -142,8 +142,7 @@ class ExposeService:
     @staticmethod
     def list_templates(
         db: Session,
-        current_user: User,
-        is_active: Optional[bool] = True
+        current_user: User
     ) -> List[ExposeTemplate]:
         """List expose templates"""
         try:
@@ -153,13 +152,8 @@ class ExposeService:
             if not current_user.is_super_admin:
                 query = query.filter(ExposeTemplate.tenant_id == current_user.tenant_id)
             
-            if is_active is not None:
-                query = query.filter(ExposeTemplate.is_active == is_active)
-            
-            # Order by name
-            templates = query.order_by(
-                ExposeTemplate.name
-            ).all()
+            # Get all templates (each tenant has only one)
+            templates = query.all()
             
             return templates
             

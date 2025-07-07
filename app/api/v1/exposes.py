@@ -30,15 +30,13 @@ router = APIRouter()
 
 @router.get("/templates/", response_model=List[ExposeTemplateResponse], response_model_exclude_none=True)
 async def list_templates(
-    property_type: Optional[str] = Query(None, description="Filter by property type"),
-    is_active: Optional[bool] = Query(True, description="Filter by active status"),
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("expose", "view"))
 ):
     """List all expose templates"""
     try:
-        templates = ExposeService.list_templates(db, current_user, property_type, is_active)
+        templates = ExposeService.list_templates(db, current_user)
         return [ExposeTemplateResponse.model_validate(t) for t in templates]
     
     except AppException as e:
