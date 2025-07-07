@@ -6,6 +6,7 @@ Handles all interactions with Google Maps APIs including geocoding, places searc
 import hashlib
 import json
 import logging
+import math
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 import httpx
@@ -450,7 +451,12 @@ class GoogleMapsService:
                 "lng": lng,
                 "formatted_address": geocode_result["formatted_address"]
             },
-            "categories": {}
+            "categories": {},
+            "street_view": {
+                "lat": lat,
+                "lng": lng,
+                "heading": 0
+            }
         }
         
         for category in self.category_types.keys():
@@ -477,5 +483,43 @@ class GoogleMapsService:
                     enhanced_places.append(enhanced_place)
                 
                 micro_location_data["categories"][self.category_translations[category]] = enhanced_places
+        
+        # Step 4: Calculate optimal street view position
+        # Find the nearest place (likely on a street) to use as reference
+        all_nearby_places = []
+        for places_list in micro_location_data["categories"].values():
+            all_nearby_places.extend(places_list)
+        
+        if all_nearby_places:
+            # Sort by walking distance to find nearest
+            nearest_places = sorted(
+                all_nearby_places,
+                key=lambda p: p["distances"]["walking"]["distance_meters"] or float('inf')
+            )[:3]  # Take top 3 nearest
+            
+            if nearest_places:
+                # Calculate average direction to nearest places
+                # This gives us a good indication of where the street is
+                avg_lat = sum(p["lat"] for p in nearest_places) / len(nearest_places)
+                avg_lng = sum(p["lng"] for p in nearest_places) / len(nearest_places)
+                
+                # Calculate heading from street position to building
+                dlng = lng - avg_lng
+                dlat = lat - avg_lat
+                heading = math.degrees(math.atan2(dlng, dlat))
+                if heading < 0:
+                    heading += 360
+                
+                # Position street view slightly toward the nearest places
+                # This puts us on the street looking at the building
+                offset_factor = 0.0002  # Roughly 20-30 meters
+                street_lat = lat + (avg_lat - lat) * offset_factor / abs(avg_lat - lat + 0.0001)
+                street_lng = lng + (avg_lng - lng) * offset_factor / abs(avg_lng - lng + 0.0001)
+                
+                micro_location_data["street_view"] = {
+                    "lat": street_lat,
+                    "lng": street_lng,
+                    "heading": int(heading)
+                }
         
         return micro_location_data
