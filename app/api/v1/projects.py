@@ -350,7 +350,7 @@ async def refresh_micro_location(
     """Manually refresh micro location data for a project"""
     try:
         # Use the service method with force_refresh=True for manual refresh
-        success = ProjectService.refresh_project_micro_location(
+        success = await ProjectService.refresh_project_micro_location(
             db=db,
             project_id=project_id,
             tenant_id=tenant_id,
@@ -365,9 +365,36 @@ async def refresh_micro_location(
             )
         
         # Get the updated project
+        import re
+        from app.schemas.business import PropertyOverview
+        from app.mappers.property_mapper import map_property_to_overview
+        
         project = ProjectService.get_project(db, project_id, tenant_id)
         
-        return ProjectResponse.model_validate(project)
+        # Convert properties to PropertyOverview using mapper
+        property_overviews = []
+        if project.properties:
+            for prop in project.properties:
+                # Use mapper to convert property to overview dict
+                overview_data = map_property_to_overview(prop)
+                # Create PropertyOverview from the mapped data
+                overview = PropertyOverview(**overview_data)
+                property_overviews.append(overview)
+            
+            # Sort properties by unit number
+            def get_unit_number_sort_key(prop):
+                # Extract all numbers from the unit_number
+                numbers = re.findall(r'\d+', prop.unit_number)
+                # Return the first number as an integer, or 0 if no numbers found
+                return int(numbers[0]) if numbers else 0
+            
+            property_overviews.sort(key=get_unit_number_sort_key)
+        
+        # Create response with property overviews
+        response_data = project.__dict__.copy()
+        response_data['properties'] = property_overviews
+        
+        return ProjectResponse.model_validate(response_data)
         
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
