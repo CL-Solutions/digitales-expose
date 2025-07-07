@@ -710,7 +710,7 @@ class InvestagonSyncService:
             )
             
             # Refresh micro location for the project
-            ProjectService.refresh_project_micro_location(
+            await ProjectService.refresh_project_micro_location(
                 db=db,
                 project_id=property_obj.project_id,
                 tenant_id=current_user.tenant_id,
@@ -1043,7 +1043,7 @@ class InvestagonSyncService:
             
             # Refresh micro location for the project (only if not already exists)
             try:
-                refreshed = ProjectService.refresh_project_micro_location(
+                refreshed = await ProjectService.refresh_project_micro_location(
                     db=db,
                     project_id=local_project_id,
                     tenant_id=current_user.tenant_id,
@@ -1286,7 +1286,7 @@ class InvestagonSyncService:
                         if project_obj:
                             try:
                                 from app.services.project_service import ProjectService
-                                ProjectService.refresh_project_micro_location(
+                                await ProjectService.refresh_project_micro_location(
                                     db=db,
                                     project_id=project_obj.id,
                                     tenant_id=current_user.tenant_id,
@@ -1469,7 +1469,7 @@ class InvestagonSyncService:
                 
                 # Refresh micro location for the project
                 try:
-                    ProjectService.refresh_project_micro_location(
+                    await ProjectService.refresh_project_micro_location(
                         db=db,
                         project_id=project_id,
                         tenant_id=current_user.tenant_id,

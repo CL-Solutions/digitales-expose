@@ -96,14 +96,18 @@ class ProjectService:
                 
                 # Run async geocoding
                 import asyncio
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
                 try:
-                    geocode_result = loop.run_until_complete(
+                    geocode_result = asyncio.run(
                         google_maps_service.geocode_address(db, address)
                     )
-                finally:
-                    loop.close()
+                except RuntimeError as e:
+                    if "another loop is running" in str(e):
+                        loop = asyncio.get_event_loop()
+                        geocode_result = loop.run_until_complete(
+                            google_maps_service.geocode_address(db, address)
+                        )
+                    else:
+                        raise
                 
                 geocoded_data = None
                 if geocode_result:
@@ -144,14 +148,20 @@ class ProjectService:
                 
                 # Run async function in sync context
                 import asyncio
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
                 try:
-                    micro_location_data = loop.run_until_complete(
+                    # Use asyncio.run() for cleaner async-to-sync conversion
+                    micro_location_data = asyncio.run(
                         google_maps_service.get_micro_location_data(db, address)
                     )
-                finally:
-                    loop.close()
+                except RuntimeError as e:
+                    if "another loop is running" in str(e):
+                        # If we're already in an async context, use the existing loop
+                        loop = asyncio.get_event_loop()
+                        micro_location_data = loop.run_until_complete(
+                            google_maps_service.get_micro_location_data(db, address)
+                        )
+                    else:
+                        raise
                 
                 # Update project with micro location data
                 if micro_location_data:
@@ -436,14 +446,18 @@ class ProjectService:
                     
                     # Run async geocoding
                     import asyncio
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
                     try:
-                        geocode_result = loop.run_until_complete(
+                        geocode_result = asyncio.run(
                             google_maps_service.geocode_address(db, address)
                         )
-                    finally:
-                        loop.close()
+                    except RuntimeError as e:
+                        if "another loop is running" in str(e):
+                            loop = asyncio.get_event_loop()
+                            geocode_result = loop.run_until_complete(
+                                google_maps_service.geocode_address(db, address)
+                            )
+                        else:
+                            raise
                     
                     geocoded_data = None
                     if geocode_result:
@@ -683,7 +697,7 @@ class ProjectService:
         }
     
     @staticmethod
-    def refresh_project_micro_location(
+    async def refresh_project_micro_location(
         db: Session,
         project_id: UUID,
         tenant_id: UUID,
@@ -730,16 +744,8 @@ class ProjectService:
                 google_maps_service = GoogleMapsService()
                 address = f"{project.street} {project.house_number}, {project.zip_code} {project.city}, {project.state}"
                 
-                # Run async function in sync context
-                import asyncio
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    micro_location_data = loop.run_until_complete(
-                        google_maps_service.get_micro_location_data(db, address, force_refresh=force_refresh)
-                    )
-                finally:
-                    loop.close()
+                # Now we can call async function directly since this method is async
+                micro_location_data = await google_maps_service.get_micro_location_data(db, address, force_refresh=force_refresh)
                 
                 # Update project with micro location data
                 if micro_location_data:
