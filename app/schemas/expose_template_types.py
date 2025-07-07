@@ -59,9 +59,11 @@ class ProcessStep(BaseModel):
 
 class OpportunityItem(BaseModel):
     """Opportunity/chance item"""
-    text: str = Field(..., description="Opportunity description")
+    title: str = Field(..., description="Opportunity title")
+    description: Optional[str] = Field(None, description="Optional detailed description")
 
 
 class RiskItem(BaseModel):
     """Risk item"""
-    text: str = Field(..., description="Risk description")
+    title: str = Field(..., description="Risk title")
+    description: Optional[str] = Field(None, description="Optional detailed description")

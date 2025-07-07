@@ -69,6 +69,14 @@ class ExposeService:
                 from app.schemas.expose_template_types import EnabledSections
                 template_dict["enabled_sections"] = EnabledSections().model_dump()
             
+            # Apply default content for any missing fields
+            from app.utils.default_template_content import get_default_template_content
+            default_content = get_default_template_content()
+            
+            for field, default_value in default_content.items():
+                if field not in template_dict or template_dict[field] is None:
+                    template_dict[field] = default_value
+            
             template = ExposeTemplate(
                 **template_dict,
                 tenant_id=current_user.tenant_id,
@@ -267,14 +275,15 @@ class ExposeService:
             
             # Create default template with all sections enabled
             from app.schemas.expose_template_types import EnabledSections
+            from app.utils.default_template_content import get_default_template_content
+            
+            default_content = get_default_template_content()
             
             default_template = ExposeTemplate(
-                name="Standard Template",
                 tenant_id=tenant_id,
                 created_by=created_by,
                 enabled_sections=EnabledSections().model_dump(),  # All sections enabled by default
-                content={},  # Empty content
-                is_active=True
+                **default_content  # Unpack all default content fields
             )
             
             db.add(default_template)
