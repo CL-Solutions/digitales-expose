@@ -67,3 +67,10 @@ class RiskItem(BaseModel):
     """Risk item"""
     title: str = Field(..., description="Risk title")
     description: Optional[str] = Field(None, description="Optional detailed description")
+
+
+class OpportunitiesRisksSection(BaseModel):
+    """Single section for opportunities and risks content"""
+    headline: str = Field(..., description="Section headline")
+    content: str = Field(..., description="Section content (can be multi-paragraph)")
+    is_expanded_by_default: bool = Field(default=False, description="Whether this section should be expanded by default")

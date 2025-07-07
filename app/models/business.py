@@ -327,8 +327,7 @@ class ExposeTemplate(Base, TenantMixin, AuditMixin):
     modernization_items = Column(JSON, nullable=True)  # List of modernization items [{title, description?}]
     insurance_plans = Column(JSON, nullable=True)  # Insurance plan data [{name, price, period, features, recommended}]
     process_steps_list = Column(JSON, nullable=True)  # Process steps [{number, title, description, color_scheme}]
-    opportunities_list = Column(JSON, nullable=True)  # List of opportunity items
-    risks_list = Column(JSON, nullable=True)  # List of risk items
+    opportunities_risks_sections = Column(JSON, nullable=True)  # List of opportunities/risks sections [{headline, content, is_expanded_by_default}]
     
     # Relationships
     tenant = relationship("Tenant", foreign_keys="ExposeTemplate.tenant_id")

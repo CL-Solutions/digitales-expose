@@ -10,7 +10,8 @@ from uuid import UUID
 from app.schemas.base import BaseSchema, BaseResponseSchema, PaginationParams, TimestampMixin
 from app.schemas.expose_template_types import (
     ModernizationItem, InsurancePlan, ProcessStep, 
-    OpportunityItem, RiskItem, EnabledSections
+    OpportunityItem, RiskItem, EnabledSections,
+    OpportunitiesRisksSection
 )
 
 # ================================
@@ -674,8 +675,7 @@ class ExposeTemplateBase(BaseSchema):
     modernization_items: Optional[List[ModernizationItem]] = Field(None, description="List of modernization items")
     insurance_plans: Optional[List[InsurancePlan]] = Field(None, description="Insurance plan options")
     process_steps_list: Optional[List[ProcessStep]] = Field(None, description="Process steps")
-    opportunities_list: Optional[List[OpportunityItem]] = Field(None, description="Opportunity items")
-    risks_list: Optional[List[RiskItem]] = Field(None, description="Risk items")
+    opportunities_risks_sections: Optional[List[OpportunitiesRisksSection]] = Field(None, description="Opportunities and risks sections")
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -693,8 +693,7 @@ class ExposeTemplateUpdate(BaseSchema):
     modernization_items: Optional[List[ModernizationItem]] = None
     insurance_plans: Optional[List[InsurancePlan]] = None
     process_steps_list: Optional[List[ProcessStep]] = None
-    opportunities_list: Optional[List[OpportunityItem]] = None
-    risks_list: Optional[List[RiskItem]] = None
+    opportunities_risks_sections: Optional[List[OpportunitiesRisksSection]] = None
 
     model_config = ConfigDict(
         from_attributes=True,
