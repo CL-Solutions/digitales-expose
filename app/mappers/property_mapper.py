@@ -202,7 +202,7 @@ def map_property_to_response(prop: Property) -> Dict[str, Any]:
             "heating_building_year": prop.project.heating_building_year,
             "description": prop.project.description,
             "amenities": prop.project.amenities,
-            "micro_location": prop.project.micro_location,
+            "micro_location_v2": prop.project.micro_location_v2,
             "status": prop.project.status,
             "city_id": prop.project.city_id,
             "investagon_id": prop.project.investagon_id,
