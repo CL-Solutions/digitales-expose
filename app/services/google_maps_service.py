@@ -257,14 +257,22 @@ class GoogleMapsService:
                 logger.error(f"Error fetching places for type {place_type}: {e}")
                 continue
         
+        # Deduplicate places by place_id
+        seen_place_ids = set()
+        unique_places = []
+        for place in all_places:
+            if place["place_id"] not in seen_place_ids:
+                seen_place_ids.add(place["place_id"])
+                unique_places.append(place)
+        
         # Sort by rating and number of reviews
-        all_places.sort(
+        unique_places.sort(
             key=lambda x: ((x.get("rating") or 0) * (x.get("user_ratings_total") or 0)),
             reverse=True
         )
         
         # Take top 4 places
-        top_places = all_places[:4]
+        top_places = unique_places[:4]
         
         # Store in cache
         cache_entry = GooglePlacesCache(
