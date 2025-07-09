@@ -158,7 +158,7 @@ async def upload_template_image(
         s3_service = S3Service()
         
         # Upload to S3
-        from app.dependencies import get_s3_service
+        from app.services.s3_service import get_s3_service
         s3_service = get_s3_service()
         
         # Set resize options based on image type
