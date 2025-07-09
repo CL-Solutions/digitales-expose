@@ -16,6 +16,10 @@ class SectionKey(str, Enum):
     INSURANCE = "insurance"
     PROCESS_STEPS = "process_steps"
     OPPORTUNITIES_RISKS = "opportunities_risks"
+    LIABILITY_DISCLAIMER = "liability_disclaimer"
+    ONSITE_MANAGEMENT = "onsite_management"
+    COLIVING = "coliving"
+    SPECIAL_FEATURES = "special_features"
     CONTACT = "contact"
 
 
@@ -31,6 +35,10 @@ class EnabledSections(BaseModel):
     insurance: bool = Field(default=True)
     process_steps: bool = Field(default=True)
     opportunities_risks: bool = Field(default=True)
+    liability_disclaimer: bool = Field(default=True)
+    onsite_management: bool = Field(default=True)
+    coliving: bool = Field(default=True)
+    special_features: bool = Field(default=True)
     contact: bool = Field(default=True)
 
 
@@ -74,3 +82,22 @@ class OpportunitiesRisksSection(BaseModel):
     headline: str = Field(..., description="Section headline")
     content: str = Field(..., description="Section content (can be multi-paragraph)")
     is_expanded_by_default: bool = Field(default=False, description="Whether this section should be expanded by default")
+
+
+class OnsiteManagementService(BaseModel):
+    """On-site management service item"""
+    service: str = Field(..., description="Service name")
+    description: str = Field(..., description="Service description")
+
+
+class OnsiteManagementPackage(BaseModel):
+    """Management package details"""
+    name: str = Field(..., description="Package name (e.g., 'ANGEBOT 360°+')")
+    price: float = Field(..., description="Package price")
+    unit: str = Field(default="€ brutto monatlich pro Wohnung", description="Price unit")
+
+
+class SpecialFeatureItem(BaseModel):
+    """Special feature item"""
+    title: str = Field(..., description="Feature title")
+    description: str = Field(..., description="Feature description")

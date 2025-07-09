@@ -329,13 +329,50 @@ class ExposeTemplate(Base, TenantMixin, AuditMixin):
     process_steps_list = Column(JSON, nullable=True)  # Process steps [{number, title, description, color_scheme}]
     opportunities_risks_sections = Column(JSON, nullable=True)  # List of opportunities/risks sections [{headline, content, is_expanded_by_default}]
     
+    # New sections (January 2025)
+    liability_disclaimer_content = Column(Text, nullable=True)  # Content for Haftungsausschluss section
+    onsite_management_services = Column(JSON, nullable=True)  # On-site management services [{service, description}]
+    onsite_management_package = Column(JSON, nullable=True)  # Management package details {name, price, unit}
+    coliving_content = Column(Text, nullable=True)  # Co-Living description text
+    special_features_items = Column(JSON, nullable=True)  # Special features [{title, description}]
+    
     # Relationships
     tenant = relationship("Tenant", foreign_keys="ExposeTemplate.tenant_id")
     creator = relationship("User", foreign_keys="ExposeTemplate.created_by")
     updater = relationship("User", foreign_keys="ExposeTemplate.updated_by")
+    images = relationship("ExposeTemplateImage", back_populates="template", cascade="all, delete-orphan", order_by="ExposeTemplateImage.display_order")
 
     def __repr__(self):
         return f"<ExposeTemplate(tenant_id='{self.tenant_id}')>"
+
+class ExposeTemplateImage(Base, TenantMixin, AuditMixin):
+    """Expose Template Image Model"""
+    __tablename__ = "expose_template_images"
+    
+    # Foreign Keys
+    template_id = Column(UUID(as_uuid=True), ForeignKey('expose_templates.id', ondelete='CASCADE'), nullable=False)
+    
+    # Image Information
+    image_url = Column(Text, nullable=False)  # S3 URL
+    image_type = Column(String(50), nullable=False)  # 'coliving', 'special_features', 'management', 'general'
+    title = Column(String(255), nullable=True)
+    description = Column(Text, nullable=True)
+    display_order = Column(Integer, default=0, nullable=False)
+    
+    # Metadata
+    file_size = Column(Integer, nullable=True)
+    mime_type = Column(String(100), nullable=True)
+    width = Column(Integer, nullable=True)
+    height = Column(Integer, nullable=True)
+    
+    # Relationships
+    template = relationship("ExposeTemplate", back_populates="images")
+    tenant = relationship("Tenant", foreign_keys="ExposeTemplateImage.tenant_id")
+    creator = relationship("User", foreign_keys="ExposeTemplateImage.created_by")
+    updater = relationship("User", foreign_keys="ExposeTemplateImage.updated_by")
+
+    def __repr__(self):
+        return f"<ExposeTemplateImage(template='{self.template_id}', type='{self.image_type}')>"
 
 class ExposeLink(Base, TenantMixin, AuditMixin):
     """Shareable expose links with tracking"""

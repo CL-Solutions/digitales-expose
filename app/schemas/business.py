@@ -11,7 +11,8 @@ from app.schemas.base import BaseSchema, BaseResponseSchema, PaginationParams, T
 from app.schemas.expose_template_types import (
     ModernizationItem, InsurancePlan, ProcessStep, 
     OpportunityItem, RiskItem, EnabledSections,
-    OpportunitiesRisksSection
+    OpportunitiesRisksSection, OnsiteManagementService,
+    OnsiteManagementPackage, SpecialFeatureItem
 )
 
 # ================================
@@ -676,6 +677,13 @@ class ExposeTemplateBase(BaseSchema):
     insurance_plans: Optional[List[InsurancePlan]] = Field(None, description="Insurance plan options")
     process_steps_list: Optional[List[ProcessStep]] = Field(None, description="Process steps")
     opportunities_risks_sections: Optional[List[OpportunitiesRisksSection]] = Field(None, description="Opportunities and risks sections")
+    
+    # New sections (January 2025)
+    liability_disclaimer_content: Optional[str] = Field(None, description="Content for liability disclaimer section")
+    onsite_management_services: Optional[List[OnsiteManagementService]] = Field(None, description="On-site management services")
+    onsite_management_package: Optional[OnsiteManagementPackage] = Field(None, description="Management package details")
+    coliving_content: Optional[str] = Field(None, description="Co-living description text")
+    special_features_items: Optional[List[SpecialFeatureItem]] = Field(None, description="Special features list")
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -694,15 +702,35 @@ class ExposeTemplateUpdate(BaseSchema):
     insurance_plans: Optional[List[InsurancePlan]] = None
     process_steps_list: Optional[List[ProcessStep]] = None
     opportunities_risks_sections: Optional[List[OpportunitiesRisksSection]] = None
+    
+    # New sections (January 2025)
+    liability_disclaimer_content: Optional[str] = None
+    onsite_management_services: Optional[List[OnsiteManagementService]] = None
+    onsite_management_package: Optional[OnsiteManagementPackage] = None
+    coliving_content: Optional[str] = None
+    special_features_items: Optional[List[SpecialFeatureItem]] = None
 
     model_config = ConfigDict(
         from_attributes=True,
         extra="ignore"  # Ignore extra fields not defined in the schema
     )
 
+class ExposeTemplateImageSchema(BaseResponseSchema):
+    """Schema for ExposeTemplateImage"""
+    template_id: UUID
+    image_url: str
+    image_type: str
+    title: Optional[str]
+    description: Optional[str]
+    display_order: int = 0
+    file_size: Optional[int]
+    mime_type: Optional[str]
+    width: Optional[int]
+    height: Optional[int]
+
 class ExposeTemplateResponse(ExposeTemplateBase, BaseResponseSchema):
     """Schema for ExposeTemplate response"""
-    pass
+    images: List[ExposeTemplateImageSchema] = []
 
 # ================================
 # Expose Link Schemas

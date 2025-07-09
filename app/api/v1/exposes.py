@@ -7,12 +7,13 @@ from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 
-from app.dependencies import get_db, get_current_active_user, require_permission
+from app.dependencies import get_db, get_current_active_user, get_current_tenant_id, require_permission
 from app.models.user import User
 from app.schemas.business import (
     ExposeTemplateCreate,
     ExposeTemplateUpdate,
     ExposeTemplateResponse,
+    ExposeTemplateImageSchema,
     ExposeLinkCreate,
     ExposeLinkUpdate,
     ExposeLinkResponse,
@@ -114,6 +115,170 @@ async def delete_template(
     """Delete an expose template"""
     try:
         ExposeService.delete_template(db, template_id, current_user)
+        db.commit()
+    
+    except AppException as e:
+        db.rollback()
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Template Image Management Endpoints
+
+@router.post("/templates/{template_id}/images/upload", response_model=SuccessResponse)
+async def upload_template_image(
+    template_id: UUID = Path(..., description="Template ID"),
+    request: Request = ...,
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: UUID = Depends(get_current_tenant_id),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_permission("expose", "manage_templates"))
+):
+    """Upload an image for an expose template"""
+    try:
+        # Process multipart form data
+        form = await request.form()
+        
+        # Extract form fields
+        file = form.get("file")
+        image_type = form.get("type", "coliving")  # Default to coliving
+        title = form.get("title")
+        description = form.get("description")
+        display_order = int(form.get("display_order", 0))
+        
+        if not file:
+            raise HTTPException(status_code=400, detail="No file provided")
+        
+        # Validate image type
+        valid_types = ["coliving", "special_features", "management", "general"]
+        if image_type not in valid_types:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid image type. Must be one of: {', '.join(valid_types)}"
+            )
+        
+        # Check template exists and user has access
+        template = ExposeService.get_template(db, template_id, current_user)
+        
+        # Upload image
+        from app.services.s3_service import S3Service
+        s3_service = S3Service()
+        
+        # Read file content
+        file_content = await file.read()
+        
+        # Process and upload image
+        upload_result = s3_service.upload_image(
+            file_content=file_content,
+            filename=file.filename,
+            entity_type="expose_template",
+            entity_id=str(template_id),
+            image_type=image_type,
+            tenant_id=str(tenant_id)
+        )
+        
+        # Create database record
+        from app.models.business import ExposeTemplateImage
+        
+        image = ExposeTemplateImage(
+            template_id=template_id,
+            tenant_id=tenant_id,
+            image_url=upload_result["url"],
+            image_type=image_type,
+            title=title,
+            description=description,
+            display_order=display_order,
+            file_size=upload_result.get("file_size"),
+            mime_type=upload_result.get("mime_type"),
+            width=upload_result.get("width"),
+            height=upload_result.get("height"),
+            created_by=current_user.id
+        )
+        
+        db.add(image)
+        db.commit()
+        
+        return SuccessResponse(
+            success=True,
+            message="Image uploaded successfully"
+        )
+    
+    except AppException as e:
+        db.rollback()
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/templates/{template_id}/images", response_model=List[ExposeTemplateImageSchema])
+async def list_template_images(
+    template_id: UUID = Path(..., description="Template ID"),
+    image_type: Optional[str] = Query(None, description="Filter by image type"),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_permission("expose", "view"))
+):
+    """List all images for an expose template"""
+    try:
+        # Check template exists and user has access
+        template = ExposeService.get_template(db, template_id, current_user)
+        
+        # Build query
+        from app.models.business import ExposeTemplateImage
+        query = db.query(ExposeTemplateImage).filter(
+            ExposeTemplateImage.template_id == template_id
+        )
+        
+        if image_type:
+            query = query.filter(ExposeTemplateImage.image_type == image_type)
+        
+        # Order by display_order, then created_at
+        images = query.order_by(
+            ExposeTemplateImage.display_order,
+            ExposeTemplateImage.created_at
+        ).all()
+        
+        # Import at function level to avoid circular imports
+        from app.schemas.business import ExposeTemplateImageSchema
+        
+        return [ExposeTemplateImageSchema.model_validate(img) for img in images]
+    
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/templates/{template_id}/images/{image_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_template_image(
+    template_id: UUID = Path(..., description="Template ID"),
+    image_id: UUID = Path(..., description="Image ID"),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_permission("expose", "manage_templates"))
+):
+    """Delete an expose template image"""
+    try:
+        # Check template exists and user has access
+        template = ExposeService.get_template(db, template_id, current_user)
+        
+        # Find the image
+        from app.models.business import ExposeTemplateImage
+        image = db.query(ExposeTemplateImage).filter(
+            ExposeTemplateImage.id == image_id,
+            ExposeTemplateImage.template_id == template_id
+        ).first()
+        
+        if not image:
+            raise HTTPException(status_code=404, detail="Image not found")
+        
+        # Delete from S3
+        from app.services.s3_service import S3Service
+        s3_service = S3Service()
+        s3_service.delete_file(image.image_url)
+        
+        # Delete from database
+        db.delete(image)
         db.commit()
     
     except AppException as e:

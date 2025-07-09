@@ -155,6 +155,65 @@ DEFAULT_OPPORTUNITIES_RISKS_SECTIONS = [
     }
 ]
 
+DEFAULT_LIABILITY_DISCLAIMER = """Alle Angaben, Berechnungen und Zahlenbeispiele dieser Unterlagen entsprechen dem augenblicklichen Planungsstand. Änderungen der Bauausführung und der Material- bzw. Baustoffauswahl bleiben soweit sie erforderlich, gleichwertig und dem Erwerber zumutbar sind, vorbehalten.
+
+Maßliche Differenzen, statische und bauliche Maßnahmen, die sich aus architektonischen, bau- oder genehmigungstechnischen Gründen ergeben, jedoch keinen Einfluss auf die Qualität und Nutzung des Gebäudes haben, bleiben ebenso vorbehalten. Einrichtungsgegenstände, die in den Planunterlagen eingezeichnet sind, dienen ausschließlich dem besseren Vorstellungsvermögen und sind, falls nicht ausdrücklich im Leistungsbedarf beschrieben, nicht Teil. Die aufgeführten Bilder sind als Werbebeispiele anzusehen.
+
+Haftung
+Für umfassende oder unvollständige Angaben oder für die Verletzung eventuell bestehender Aufklärungsoder Hinweispflichten haftet die Invenio GmbH nur bei Vorsatz oder grober Fahrlässigkeit. Eine Haftung für Schäden aus der Verletzung des Lebens, des Körpers oder der Gesundheit ist weder ausgeschlossen, noch begrenzt. Eine Haftung für den Eintritt insbesondere eines angegebenen Steuervortells oder Progression oder für die Abweichung insbesondere durch zukünftige wirtschaftliche Entwicklungen, durch Gesetzesänderung oder Änderung der Rechtsprechung kann nicht übernommen werden. Es kann von der Invenio GmbH keine Garantie oder Gewähr über mit der Investition verfolgten wirtschaftlichen, steuerlichen oder sonstigen Ziele übernommen werden."""
+
+DEFAULT_ONSITE_MANAGEMENT_SERVICES = [
+    {"service": "Neuvermietung bei Mieterschäden inkl. Bonitätsprüfung", "description": None},
+    {"service": "Mietvertragsstellung nach aktueller Rechtsprechung", "description": None},
+    {"service": "Protokollierte Wohnungsübergaben inkl. anschließender Mietraumauflung", "description": None},
+    {"service": "Jährliche Betriebskostenabrechnung", "description": None},
+    {"service": "Kaufmännerverwaltung- und Abrechnung bei Auszug", "description": None},
+    {"service": "Mieterstützung und Kommunikation", "description": None},
+    {"service": "Koordination von Instandhaltungs- und Instandsetzungsmaßnahmen/Modernisierungen", "description": None},
+    {"service": "Durchsetzen von Mieterhöhungsverlangen nach aktueller Rechtsprechung", "description": None},
+    {"service": "Regelmäßige Wirtschaftlichkeitsberechnung mit Prüfung von Renditeerhöhungspotential und Entwicklungschancen", "description": None},
+    {"service": "***Finanzmanagement", "description": None},
+    {"service": "Reporting", "description": None}
+]
+
+DEFAULT_ONSITE_MANAGEMENT_PACKAGE = {
+    "name": "ANGEBOT 360°+",
+    "price": 142.80,
+    "unit": "€ brutto monatlich pro Wohnung (WG-Konzept mit 4 Zimmern)"
+}
+
+DEFAULT_COLIVING_CONTENT = """Kapital schafft Verantwortung!
+Doch welche Investments schaffen gesellschaftlichen Mehrwert bei guter Rendite?
+
+Das Investment in Co-Living ist ein Win-Win-Situation für Investor und Mieter. Mit dem Investment in Co-Living Konzepte ermöglicht zu einem Young Professional ein schönes und trotzdem leistbares Zuhause und sichert dein Kapital gegen die Inflation."""
+
+DEFAULT_SPECIAL_FEATURES = [
+    {
+        "title": "Möblierung (Bett, Schrank, Schreibtisch, Stuhl, Spiegel, Lampe, Vorhänklung)",
+        "description": None
+    },
+    {
+        "title": "Mietausfsallrisko verteilt auf 4 Mieter",
+        "description": None
+    },
+    {
+        "title": "Erstausmietungsgarantie in voller Höhe (im Kaufvertrag festgehalten)",
+        "description": None
+    },
+    {
+        "title": "Gewährleistung der Modernisierung für 5 Jahre (im Kaufvertrag festgehalten)",
+        "description": None
+    },
+    {
+        "title": "Schutz vor Mietpiegel durch 3 Faktoren:\n- Modernisierung der Wohnungen auf Neubaustandard\n- Einzelzimmervermietung\n- Teilmöblierte Vermietung",
+        "description": None
+    },
+    {
+        "title": "Geringer Zeitaufwand:\nÜbergabe der Mieter in die Sondereigentumsverwaltung (siehe Angebot)",
+        "description": None
+    }
+]
+
 def get_default_template_content():
     """Returns a dictionary with all default template content"""
     return {
@@ -162,5 +221,10 @@ def get_default_template_content():
         "modernization_items": DEFAULT_MODERNIZATION_ITEMS,
         "insurance_plans": DEFAULT_INSURANCE_PLANS,
         "process_steps_list": DEFAULT_PROCESS_STEPS,
-        "opportunities_risks_sections": DEFAULT_OPPORTUNITIES_RISKS_SECTIONS
+        "opportunities_risks_sections": DEFAULT_OPPORTUNITIES_RISKS_SECTIONS,
+        "liability_disclaimer_content": DEFAULT_LIABILITY_DISCLAIMER,
+        "onsite_management_services": DEFAULT_ONSITE_MANAGEMENT_SERVICES,
+        "onsite_management_package": DEFAULT_ONSITE_MANAGEMENT_PACKAGE,
+        "coliving_content": DEFAULT_COLIVING_CONTENT,
+        "special_features_items": DEFAULT_SPECIAL_FEATURES
     }
