@@ -165,16 +165,13 @@ async def upload_template_image(
         from app.services.s3_service import S3Service
         s3_service = S3Service()
         
-        # Read file content
-        file_content = await file.read()
+        # Create folder path for expose template images
+        folder = f"expose_templates/{template_id}/{image_type}"
         
         # Process and upload image
-        upload_result = s3_service.upload_image(
-            file_content=file_content,
-            filename=file.filename,
-            entity_type="expose_template",
-            entity_id=str(template_id),
-            image_type=image_type,
+        upload_result = await s3_service.upload_image(
+            file=file,
+            folder=folder,
             tenant_id=str(tenant_id)
         )
         
