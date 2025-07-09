@@ -1,5 +1,5 @@
 """Type definitions for ExposeTemplate JSON fields"""
-from typing import Optional, List, Dict
+from typing import Optional, List
 from pydantic import BaseModel, Field
 from enum import Enum
 
