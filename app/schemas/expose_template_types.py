@@ -87,7 +87,7 @@ class OpportunitiesRisksSection(BaseModel):
 class OnsiteManagementService(BaseModel):
     """On-site management service item"""
     service: str = Field(..., description="Service name")
-    description: str = Field(..., description="Service description")
+    description: Optional[str] = Field(None, description="Optional service description")
 
 
 class OnsiteManagementPackage(BaseModel):
@@ -100,4 +100,4 @@ class OnsiteManagementPackage(BaseModel):
 class SpecialFeatureItem(BaseModel):
     """Special feature item"""
     title: str = Field(..., description="Feature title")
-    description: str = Field(..., description="Feature description")
+    description: Optional[str] = Field(None, description="Optional feature description")
