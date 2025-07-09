@@ -2,7 +2,7 @@
 # EXPOSES API (api/v1/exposes.py)
 # ================================
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status, Path, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Path, Request, File, UploadFile, Form
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 from uuid import UUID
@@ -129,7 +129,11 @@ async def delete_template(
 @router.post("/templates/{template_id}/images/upload", response_model=SuccessResponse)
 async def upload_template_image(
     template_id: UUID = Path(..., description="Template ID"),
-    request: Request = ...,
+    image: UploadFile = File(..., description="Image file to upload"),
+    image_type: str = Form("coliving", description="Image type (coliving, special_features, management, general)"),
+    title: Optional[str] = Form(None, description="Image title"),
+    description: Optional[str] = Form(None, description="Image description"),
+    display_order: int = Form(0, description="Display order"),
     current_user: User = Depends(get_current_active_user),
     tenant_id: UUID = Depends(get_current_tenant_id),
     db: Session = Depends(get_db),
@@ -137,18 +141,6 @@ async def upload_template_image(
 ):
     """Upload an image for an expose template"""
     try:
-        # Process multipart form data
-        form = await request.form()
-        
-        # Extract form fields
-        file = form.get("file")
-        image_type = form.get("type", "coliving")  # Default to coliving
-        title = form.get("title")
-        description = form.get("description")
-        display_order = int(form.get("display_order", 0))
-        
-        if not file:
-            raise HTTPException(status_code=400, detail="No file provided")
         
         # Validate image type
         valid_types = ["coliving", "special_features", "management", "general"]
@@ -165,14 +157,22 @@ async def upload_template_image(
         from app.services.s3_service import S3Service
         s3_service = S3Service()
         
-        # Create folder path for expose template images
-        folder = f"expose_templates/{template_id}/{image_type}"
+        # Upload to S3
+        from app.dependencies import get_s3_service
+        s3_service = get_s3_service()
         
-        # Process and upload image
+        # Set resize options based on image type
+        resize_options = None
+        if image_type in ['coliving', 'special_features']:
+            # Resize images to max 1920px wide
+            resize_options = {'width': 1920, 'quality': 85}
+        
         upload_result = await s3_service.upload_image(
-            file=file,
-            folder=folder,
-            tenant_id=str(tenant_id)
+            file=image,
+            folder=f"expose_templates/{template_id}/{image_type}",
+            tenant_id=str(tenant_id),
+            max_size_mb=10,
+            resize_options=resize_options
         )
         
         # Create database record
