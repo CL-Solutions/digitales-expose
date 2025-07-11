@@ -123,7 +123,7 @@ class PropertyService:
             from sqlalchemy.orm import joinedload
             property = db.query(Property).options(
                 joinedload(Property.images),
-                joinedload(Property.city_ref),
+                joinedload(Property.city_ref).joinedload(City.images),
                 joinedload(Property.project).joinedload(Project.images),
                 joinedload(Property.project).joinedload(Project.city_ref)
             ).filter(Property.id == property.id).first()
@@ -148,7 +148,7 @@ class PropertyService:
         try:
             query = db.query(Property).options(
                 joinedload(Property.images),
-                joinedload(Property.city_ref),
+                joinedload(Property.city_ref).joinedload(City.images),
                 joinedload(Property.project).joinedload(Project.images),
                 joinedload(Property.project).joinedload(Project.city_ref)
             )
@@ -413,7 +413,7 @@ class PropertyService:
             from sqlalchemy.orm import joinedload
             property = db.query(Property).options(
                 joinedload(Property.images),
-                joinedload(Property.city_ref),
+                joinedload(Property.city_ref).joinedload(City.images),
                 joinedload(Property.project).joinedload(Project.images),
                 joinedload(Property.project).joinedload(Project.city_ref)
             ).filter(Property.id == property.id).first()

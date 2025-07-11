@@ -12,7 +12,7 @@ import string
 
 from app.models.business import (
     ExposeTemplate, ExposeLink, ExposeLinkView,
-    Property, City
+    Property, Project, City
 )
 from app.models.user import User
 from app.schemas.business import (
@@ -351,6 +351,15 @@ class ExposeService:
                 }
             )
             
+            # Load relationships for response
+            db.refresh(link)
+            
+            # Eagerly load property with project for response mapping
+            link = db.query(ExposeLink).options(
+                joinedload(ExposeLink.property).joinedload(Property.project),
+                joinedload(ExposeLink.template)
+            ).filter(ExposeLink.id == link.id).first()
+            
             return link
             
         except AppException:
@@ -373,6 +382,8 @@ class ExposeService:
         try:
             link = db.query(ExposeLink).options(
                 joinedload(ExposeLink.property).joinedload(Property.images),
+                joinedload(ExposeLink.property).joinedload(Property.project).joinedload(Project.city_ref),
+                joinedload(ExposeLink.property).joinedload(Property.project).joinedload(Project.images),
                 joinedload(ExposeLink.template)
             ).filter(
                 ExposeLink.link_id == link_id
@@ -542,6 +553,15 @@ class ExposeService:
                 resource_id=link.id,
                 new_values={"updated_fields": list(update_data.keys())}
             )
+            
+            # Load relationships for response
+            db.refresh(link)
+            
+            # Eagerly load property with project for response mapping
+            link = db.query(ExposeLink).options(
+                joinedload(ExposeLink.property).joinedload(Property.project),
+                joinedload(ExposeLink.template)
+            ).filter(ExposeLink.id == link.id).first()
             
             return link
             

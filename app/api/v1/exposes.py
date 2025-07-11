@@ -319,7 +319,10 @@ async def create_expose_link(
         link = ExposeService.create_expose_link(db, link_data, current_user)
         db.commit()
         
-        return ExposeLinkResponse.model_validate(link)
+        # Use the mapper to ensure property fields are included
+        from app.mappers.expose_mapper import map_expose_link_to_response
+        response_data = map_expose_link_to_response(link)
+        return ExposeLinkResponse(**response_data)
     
     except AppException as e:
         db.rollback()
@@ -337,8 +340,13 @@ async def get_expose_link_details(
 ):
     """Get details of an expose link (for management)"""
     try:
-        # Get link by UUID (not public link_id)
-        link = db.query(ExposeLink).filter(
+        # Get link by UUID (not public link_id) with eager loading
+        from sqlalchemy.orm import joinedload
+        from app.models.business import Property
+        link = db.query(ExposeLink).options(
+            joinedload(ExposeLink.property).joinedload(Property.project),
+            joinedload(ExposeLink.template)
+        ).filter(
             ExposeLink.id == link_id,
             ExposeLink.tenant_id == current_user.tenant_id
         ).first()
@@ -346,7 +354,10 @@ async def get_expose_link_details(
         if not link:
             raise HTTPException(status_code=404, detail="Expose link not found")
         
-        return ExposeLinkResponse.model_validate(link)
+        # Use the mapper to ensure property fields are included
+        from app.mappers.expose_mapper import map_expose_link_to_response
+        response_data = map_expose_link_to_response(link)
+        return ExposeLinkResponse(**response_data)
     
     except HTTPException:
         raise
@@ -366,7 +377,10 @@ async def update_expose_link(
         link = ExposeService.update_expose_link(db, link_id, link_data, current_user)
         db.commit()
         
-        return ExposeLinkResponse.model_validate(link)
+        # Use the mapper to ensure property fields are included
+        from app.mappers.expose_mapper import map_expose_link_to_response
+        response_data = map_expose_link_to_response(link)
+        return ExposeLinkResponse(**response_data)
     
     except AppException as e:
         db.rollback()

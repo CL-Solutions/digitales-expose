@@ -402,7 +402,6 @@ class PropertyResponse(PropertyBase, BaseResponseSchema, TimestampMixin):
     # Include related data
     project: Optional["ProjectResponse"]
     images: List[PropertyImageSchema] = []  # Property-specific images only
-    city_ref: Optional["CityResponse"]
     
     # Computed fields - these fields are dynamically added in validator
     # We don't define them here to avoid them appearing in OpenAPI schema as nullable

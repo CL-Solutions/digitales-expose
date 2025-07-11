@@ -206,9 +206,6 @@ async def get_property(
                 img_dict['project_id'] = None
                 response_data['images'].append(img_dict)
                 
-        if property.city_ref:
-            response_data['city_ref'] = property.city_ref.__dict__.copy()
-            response_data['city_ref'].pop('_sa_instance_state', None)
         
         # The PropertyResponse validator will handle combining all_images
         return PropertyResponse.model_validate(response_data)

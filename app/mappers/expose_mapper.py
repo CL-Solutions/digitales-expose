@@ -3,7 +3,7 @@ Expose Mapper Module
 Handles conversion of ExposeLink ORM objects to response dictionaries
 """
 from typing import Dict, Any, Optional, List
-from app.models.business import ExposeLink, Property
+from app.models.business import ExposeLink, Property, Project
 from app.mappers.property_mapper import map_property_to_overview
 
 
