@@ -603,7 +603,7 @@ class CityUpdate(BaseSchema):
 class CityImageCreate(BaseSchema):
     """Schema for creating a CityImage"""
     image_url: str
-    image_type: str = Field(..., pattern="^(skyline|landmark|downtown|residential|commercial|nature|transport|culture|nightlife|education|recreation|overview)$")
+    image_type: str = Field(..., pattern="^(header|location|lifestyle|other)$")
     title: Optional[str] = Field(max_length=255)
     description: Optional[str]
     display_order: int = Field(default=0)
@@ -615,7 +615,7 @@ class CityImageCreate(BaseSchema):
 class CityImageUpdate(BaseSchema):
     """Schema for updating a CityImage"""
     image_url: Optional[str]
-    image_type: Optional[str] = Field(pattern="^(skyline|landmark|downtown|residential|commercial|nature|transport|culture|nightlife|education|recreation|overview)$")
+    image_type: Optional[str] = Field(pattern="^(header|location|lifestyle|other)$")
     title: Optional[str] = Field(max_length=255)
     description: Optional[str]
     display_order: Optional[int]

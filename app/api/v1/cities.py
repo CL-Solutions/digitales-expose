@@ -146,7 +146,7 @@ async def delete_city(
 async def upload_city_image(
     city_id: UUID = Path(..., description="City ID"),
     image: UploadFile = File(..., description="Image file to upload"),
-    image_type: str = Form(..., description="Image type (skyline, landmark, downtown, residential, commercial, nature, transport, culture, nightlife, education, recreation, overview)"),
+    image_type: str = Form(..., description="Image type (header, location, lifestyle, other)"),
     title: Optional[str] = Form(None, description="Image title"),
     description: Optional[str] = Form(None, description="Image description"),
     display_order: int = Form(0, description="Display order"),
@@ -157,7 +157,7 @@ async def upload_city_image(
     """Upload an image file for a city"""
     try:
         # Validate image type
-        valid_types = ['skyline', 'landmark', 'downtown', 'residential', 'commercial', 'nature', 'transport', 'culture', 'nightlife', 'education', 'recreation', 'overview']
+        valid_types = ['header', 'location', 'lifestyle', 'other']
         if image_type not in valid_types:
             raise HTTPException(
                 status_code=400,
@@ -172,12 +172,12 @@ async def upload_city_image(
         
         # Set resize options based on image type
         resize_options = None
-        if image_type in ['skyline', 'landmark', 'downtown', 'overview']:
-            # Resize landscape/overview photos to max 1920px wide
+        if image_type == 'header':
+            # Header images should be wide for hero sections
             resize_options = {'width': 1920, 'quality': 85}
-        elif image_type in ['nature', 'culture', 'recreation']:
-            # Keep nature/culture images larger
-            resize_options = {'width': 1600, 'quality': 90}
+        else:
+            # Other images can be slightly smaller
+            resize_options = {'width': 1600, 'quality': 85}
         
         upload_result = await s3_service.upload_image(
             file=image,

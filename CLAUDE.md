@@ -853,6 +853,130 @@ audit_logger.log_system_event(
 4. **Avoid logging sensitive data**: Never log passwords, tokens, or personal information
 5. **Be consistent with action names**: Use RESOURCE_ACTION format (e.g., USER_UPDATED)
 6. **Log both success and failure**: Track failed attempts for security analysis
+7. **Pass IP and user agent as parameters**: Don't store in details JSON - use dedicated fields
+8. **Capture old values before updates**: Store current state before making changes
+9. **Log comprehensive details for creation events**: Include all relevant fields for new entities
+10. **Track provision changes at all levels**: Both user provision and team assignment provision
+
+### Critical Implementation Patterns
+
+#### IP Address and User Agent Handling
+
+**ALWAYS pass IP address and user agent as parameters, not in details:**
+
+```python
+# ❌ WRONG - Don't put IP in details
+audit_logger.log_auth_event(
+    db=db,
+    action="LOGIN_SUCCESS",
+    user_id=user.id,
+    tenant_id=tenant_id,
+    details={"ip": request.client.host}  # DON'T DO THIS
+)
+
+# ✅ CORRECT - Use dedicated parameters
+audit_logger.log_auth_event(
+    db=db,
+    action="LOGIN_SUCCESS",
+    user_id=user.id,
+    tenant_id=tenant_id,
+    ip_address=request.client.host,      # Pass as parameter
+    user_agent=request.headers.get("user-agent")  # Pass as parameter
+)
+```
+
+#### Capturing Old Values for Updates
+
+**ALWAYS capture old values before making updates:**
+
+```python
+# ✅ CORRECT - Capture old values first
+def update_user_profile(db, user_id, update_data, current_user):
+    user = db.query(User).filter(User.id == user_id).first()
+    
+    # Capture old values BEFORE updating
+    old_values = {
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "provision_percentage": user.provision_percentage
+    }
+    
+    # Apply updates
+    new_values = {}
+    if update_data.first_name:
+        user.first_name = update_data.first_name
+        new_values["first_name"] = update_data.first_name
+    
+    # Log with both old and new values
+    audit_logger.log_business_event(
+        db=db,
+        action="USER_UPDATED",
+        user_id=current_user.id,
+        tenant_id=user.tenant_id,
+        resource_type="user",
+        resource_id=user.id,
+        old_values=old_values,
+        new_values=new_values
+    )
+```
+
+#### Comprehensive USER_CREATED Logging
+
+**Use log_business_event with detailed new_values for USER_CREATED:**
+
+```python
+# ✅ CORRECT - Log all relevant user details
+audit_logger.log_business_event(
+    db=db,
+    action="USER_CREATED",
+    user_id=created_by_user.id,
+    tenant_id=tenant_id,
+    resource_type="user",
+    resource_id=user.id,
+    new_values={
+        "email": user.email,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "auth_method": user.auth_method,
+        "is_verified": user.is_verified,
+        "provision_percentage": user.provision_percentage,
+        "roles": [str(role_id) for role_id in user_data.role_ids]
+    }
+)
+```
+
+#### Team Assignment and Provision Logging
+
+**Log both user provision and team assignment provision changes:**
+
+```python
+# Team assignment creation with provision
+audit_logger.log_business_event(
+    db=db,
+    action="TEAM_ASSIGNMENT_CREATED",
+    user_id=assigned_by,
+    tenant_id=tenant_id,
+    resource_type="team_assignment",
+    resource_id=assignment.id,
+    new_values={
+        "manager_id": str(assignment.manager_id),
+        "member_id": str(assignment.member_id),
+        "provision_percentage": assignment.provision_percentage  # Include provision!
+    }
+)
+
+# Team member provision update
+audit_logger.log_business_event(
+    db=db,
+    action="TEAM_MEMBER_PROVISION_UPDATED",
+    user_id=current_user.id,
+    tenant_id=effective_tenant_id,
+    resource_type="team_assignment",
+    resource_id=team_assignment.id,
+    old_values={"provision_percentage": old_team_provision},
+    new_values={"provision_percentage": provision_percentage}
+)
+```
 
 ### Example Usage in Context
 
@@ -907,6 +1031,15 @@ async def update_user_provision(
       name: str
       # id: UUID is inherited from BaseResponseSchema
   ```
+
+### Frontend Audit Log Viewer
+
+The audit logs can be viewed in the frontend at `/dashboard/audit-logs`. The viewer provides:
+- **Role-based Access**: Super admins see all logs, tenant admins see only their tenant's logs
+- **Filtering**: By date range, event type, and search across multiple fields
+- **Expandable Details**: Click to see old and new values for each change
+- **Export**: Download audit logs as CSV for compliance reporting
+- **Real-time Updates**: IP addresses and user agents are properly displayed
 
 ### Common Permission Errors and Solutions
 

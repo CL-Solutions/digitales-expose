@@ -328,6 +328,20 @@ class CityService:
                         detail="You don't have permission to upload images"
                     )
             
+            # Check if an image of this type already exists and delete it
+            existing_image = db.query(CityImage).filter(
+                and_(
+                    CityImage.city_id == city.id,
+                    CityImage.image_type == image_type,
+                    CityImage.tenant_id == city.tenant_id
+                )
+            ).first()
+            
+            if existing_image:
+                # Delete the existing image
+                db.delete(existing_image)
+                db.flush()
+            
             # Create image record
             image = CityImage(
                 city_id=city.id,

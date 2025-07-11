@@ -295,7 +295,7 @@ class CityImage(Base, TenantMixin, AuditMixin):
     
     # Image Information
     image_url = Column(Text, nullable=False)  # S3 URL
-    image_type = Column(String(50), nullable=False)  # 'skyline', 'landmark', 'map', 'university', 'other'
+    image_type = Column(String(50), nullable=False)  # 'header', 'location', 'lifestyle', 'other'
     title = Column(String(255), nullable=True)
     description = Column(Text, nullable=True)
     display_order = Column(Integer, default=0, nullable=False)
