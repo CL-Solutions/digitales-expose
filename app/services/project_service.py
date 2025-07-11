@@ -94,20 +94,27 @@ class ProjectService:
                 google_maps_service = GoogleMapsService()
                 address = f"{project.street} {project.house_number}, {project.zip_code} {project.city}, {project.state}"
                 
-                # Run async geocoding
+                # Run async geocoding in sync context
                 import asyncio
-                try:
-                    geocode_result = asyncio.run(
-                        google_maps_service.geocode_address(db, address)
-                    )
-                except RuntimeError as e:
-                    if "another loop is running" in str(e):
-                        loop = asyncio.get_event_loop()
-                        geocode_result = loop.run_until_complete(
+                import concurrent.futures
+                
+                def run_async_geocode():
+                    new_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(new_loop)
+                    try:
+                        return new_loop.run_until_complete(
                             google_maps_service.geocode_address(db, address)
                         )
-                    else:
-                        raise
+                    finally:
+                        new_loop.close()
+                
+                try:
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(run_async_geocode)
+                        geocode_result = future.result(timeout=10)
+                except Exception as e:
+                    logger.error(f"Error during geocoding in create_project: {e}")
+                    geocode_result = None
                 
                 geocoded_data = None
                 if geocode_result:
@@ -148,20 +155,25 @@ class ProjectService:
                 
                 # Run async function in sync context
                 import asyncio
-                try:
-                    # Use asyncio.run() for cleaner async-to-sync conversion
-                    micro_location_data = asyncio.run(
-                        google_maps_service.get_micro_location_data(db, address)
-                    )
-                except RuntimeError as e:
-                    if "another loop is running" in str(e):
-                        # If we're already in an async context, use the existing loop
-                        loop = asyncio.get_event_loop()
-                        micro_location_data = loop.run_until_complete(
+                import concurrent.futures
+                
+                def run_async_micro_location():
+                    new_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(new_loop)
+                    try:
+                        return new_loop.run_until_complete(
                             google_maps_service.get_micro_location_data(db, address)
                         )
-                    else:
-                        raise
+                    finally:
+                        new_loop.close()
+                
+                try:
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(run_async_micro_location)
+                        micro_location_data = future.result(timeout=30)  # Give more time for ChatGPT
+                except Exception as e:
+                    logger.error(f"Error fetching micro location data: {e}")
+                    micro_location_data = None
                 
                 # Update project with micro location data
                 if micro_location_data:
@@ -444,20 +456,33 @@ class ProjectService:
                     google_maps_service = GoogleMapsService()
                     address = f"{project.street} {project.house_number}, {project.zip_code} {project.city}, {project.state}"
                     
-                    # Run async geocoding
+                    # Run async geocoding in sync context
+                    # Since we're in a sync method but FastAPI runs in async context,
+                    # we need to handle this carefully
                     import asyncio
+                    geocode_result = None
+                    
                     try:
-                        geocode_result = asyncio.run(
-                            google_maps_service.geocode_address(db, address)
-                        )
-                    except RuntimeError as e:
-                        if "another loop is running" in str(e):
-                            loop = asyncio.get_event_loop()
-                            geocode_result = loop.run_until_complete(
-                                google_maps_service.geocode_address(db, address)
-                            )
-                        else:
-                            raise
+                        # Create a new event loop in a thread to run the async function
+                        import concurrent.futures
+                        
+                        def run_async_geocode():
+                            new_loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(new_loop)
+                            try:
+                                return new_loop.run_until_complete(
+                                    google_maps_service.geocode_address(db, address)
+                                )
+                            finally:
+                                new_loop.close()
+                        
+                        with concurrent.futures.ThreadPoolExecutor() as executor:
+                            future = executor.submit(run_async_geocode)
+                            geocode_result = future.result(timeout=10)
+                            
+                    except Exception as e:
+                        logger.error(f"Error during geocoding: {e}")
+                        geocode_result = None
                     
                     geocoded_data = None
                     if geocode_result:

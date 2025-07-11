@@ -4,7 +4,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from sqlalchemy.orm import Session
-from app.dependencies import get_db, get_super_admin_user, get_current_user
+from app.dependencies import get_db, get_super_admin_user, get_current_user, get_current_active_user, get_current_tenant_id, require_permission
 from app.schemas.tenant import (
     TenantCreate, TenantUpdate, TenantAdminUpdate, TenantResponse, 
     TenantListResponse, TenantFilterParams, TenantStatsResponse,
@@ -721,6 +721,119 @@ async def clone_tenant(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to clone tenant")
+
+# ================================
+# TENANT AUDIT LOGS
+# ================================
+
+@router.get("/{tenant_id}/audit-logs")
+async def get_tenant_audit_logs(
+    tenant_id: uuid.UUID = Path(..., description="Tenant ID"),
+    limit: int = Query(default=100, ge=1, le=1000),
+    user_id: Optional[uuid.UUID] = Query(None, description="Filter by user ID"),
+    action: Optional[str] = Query(None, description="Filter by action"),
+    success: Optional[bool] = Query(None, description="Filter by success status"),
+    start_date: Optional[str] = Query(None, description="Start date (ISO format)"),
+    end_date: Optional[str] = Query(None, description="End date (ISO format)"),
+    ip_address: Optional[str] = Query(None, description="Filter by IP address"),
+    current_user: User = Depends(get_current_active_user),
+    current_tenant_id: uuid.UUID = Depends(get_current_tenant_id),
+    _: bool = Depends(require_permission("tenant", "manage")),
+    db: Session = Depends(get_db)
+):
+    """Get audit logs for a specific tenant (tenant admins only)"""
+    try:
+        # Verify the user is accessing their own tenant
+        if str(current_tenant_id) != str(tenant_id):
+            raise HTTPException(status_code=403, detail="You can only view audit logs for your own tenant")
+        
+        # Import here to avoid circular imports
+        from app.models.audit import AuditLog
+        from sqlalchemy import desc, and_
+        from datetime import datetime
+        
+        query = db.query(AuditLog).filter(AuditLog.tenant_id == tenant_id)
+        
+        # Apply filters
+        if user_id:
+            query = query.filter(AuditLog.user_id == user_id)
+        
+        if action:
+            query = query.filter(AuditLog.action == action)
+        
+        if success is not None:
+            # Map success to specific actions
+            if not success:
+                query = query.filter(AuditLog.action.in_([
+                    "LOGIN_FAILED", "USER_CREATE_FAILED", "ACCOUNT_LOCKED"
+                ]))
+            else:
+                query = query.filter(~AuditLog.action.in_([
+                    "LOGIN_FAILED", "USER_CREATE_FAILED", "ACCOUNT_LOCKED"
+                ]))
+        
+        if start_date:
+            start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+            query = query.filter(AuditLog.created_at >= start_dt)
+        
+        if end_date:
+            end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+            query = query.filter(AuditLog.created_at <= end_dt)
+        
+        if ip_address:
+            query = query.filter(AuditLog.ip_address == ip_address)
+        
+        # Order by most recent first
+        logs = query.order_by(desc(AuditLog.created_at)).limit(limit).all()
+        
+        # Get user details for the logs
+        user_ids = list(set([log.user_id for log in logs if log.user_id]))
+        users = db.query(User).filter(User.id.in_(user_ids)).all() if user_ids else []
+        user_map = {str(user.id): user for user in users}
+        
+        audit_responses = []
+        for log in logs:
+            user_info = user_map.get(str(log.user_id)) if log.user_id else None
+            
+            # Build response without exposing super admin impersonation details
+            response_data = {
+                "id": str(log.id),
+                "user_id": str(log.user_id) if log.user_id else None,
+                "action": log.action,
+                "timestamp": log.created_at.isoformat(),
+                "ip_address": str(log.ip_address) if log.ip_address else None,
+                "user_agent": log.user_agent,
+                "tenant_id": str(log.tenant_id) if log.tenant_id else None,
+                "success": "FAILED" not in log.action and "ERROR" not in log.action,
+                "resource_type": log.resource_type,
+                "resource_id": str(log.resource_id) if log.resource_id else None,
+                "details": log.new_values or {}
+            }
+            
+            # Add user details if available
+            if user_info:
+                response_data["user_email"] = user_info.email
+                response_data["user_name"] = f"{user_info.first_name or ''} {user_info.last_name or ''}".strip() or user_info.email
+            
+            audit_responses.append(response_data)
+        
+        return {
+            "audit_logs": audit_responses,
+            "total_returned": len(audit_responses),
+            "filters_applied": {
+                "user_id": str(user_id) if user_id else None,
+                "action": action,
+                "success": success,
+                "start_date": start_date,
+                "end_date": end_date,
+                "ip_address": ip_address
+            }
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get tenant audit logs: {str(e)}")
 
 # ================================
 # TENANT MAINTENANCE

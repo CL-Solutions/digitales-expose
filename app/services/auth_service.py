@@ -93,7 +93,8 @@ class AuthService:
         db: Session, 
         email: str, 
         password: str, 
-        ip_address: str = None
+        ip_address: str = None,
+        user_agent: str = None
     ) -> tuple[User, dict]:
         """Authentifiziert einen lokalen User - Einheitliche Fehlermeldung für Security"""
         
@@ -114,7 +115,9 @@ class AuthService:
         if not user:
             audit_logger.log_auth_event(
                 db, "LOGIN_FAILED", None, None,
-                {"reason": "user_not_found", "email": email, "ip": ip_address}
+                {"reason": "user_not_found", "email": email},
+                ip_address=ip_address,
+                user_agent=user_agent
             )
             raise AuthenticationError(GENERIC_ERROR_MESSAGE)
         
@@ -122,7 +125,9 @@ class AuthService:
         if user.locked_until and user.locked_until > datetime.utcnow():
             audit_logger.log_auth_event(
                 db, "LOGIN_FAILED", user.id, user.tenant_id,
-                {"reason": "account_locked", "locked_until": user.locked_until.isoformat(), "ip": ip_address}
+                {"reason": "account_locked", "locked_until": user.locked_until.isoformat()},
+                ip_address=ip_address,
+                user_agent=user_agent
             )
             raise AuthenticationError(GENERIC_ERROR_MESSAGE)
         
@@ -130,7 +135,9 @@ class AuthService:
         if not user.is_active:
             audit_logger.log_auth_event(
                 db, "LOGIN_FAILED", user.id, user.tenant_id,
-                {"reason": "account_deactivated", "ip": ip_address}
+                {"reason": "account_deactivated"},
+                ip_address=ip_address,
+                user_agent=user_agent
             )
             raise AuthenticationError(GENERIC_ERROR_MESSAGE)
         
@@ -144,12 +151,16 @@ class AuthService:
                 user.locked_until = datetime.utcnow() + timedelta(minutes=30)
                 audit_logger.log_auth_event(
                     db, "ACCOUNT_LOCKED", user.id, user.tenant_id,
-                    {"failed_attempts": user.failed_login_attempts, "ip": ip_address}
+                    {"failed_attempts": user.failed_login_attempts},
+                    ip_address=ip_address,
+                    user_agent=user_agent
                 )
             else:
                 audit_logger.log_auth_event(
                     db, "LOGIN_FAILED", user.id, user.tenant_id,
-                    {"reason": "invalid_password", "failed_attempts": user.failed_login_attempts, "ip": ip_address}
+                    {"reason": "invalid_password", "failed_attempts": user.failed_login_attempts},
+                    ip_address=ip_address,
+                    user_agent=user_agent
                 )
             
             db.commit()  # Save failed attempt count
@@ -159,7 +170,9 @@ class AuthService:
         if not user.is_verified:
             audit_logger.log_auth_event(
                 db, "LOGIN_FAILED", user.id, user.tenant_id,
-                {"reason": "email_not_verified", "ip": ip_address}
+                {"reason": "email_not_verified"},
+                ip_address=ip_address,
+                user_agent=user_agent
             )
             raise AuthenticationError("Please verify your email address first")
         
@@ -172,7 +185,9 @@ class AuthService:
         
         audit_logger.log_auth_event(
             db, "LOGIN_SUCCESS", user.id, user.tenant_id,
-            {"ip": ip_address}
+            {},  # No need for IP in details since it's now a parameter
+            ip_address=ip_address,
+            user_agent=user_agent
         )
         
         return user, tokens
@@ -199,7 +214,8 @@ class AuthService:
         
         audit_logger.log_auth_event(
             db, "SUPER_ADMIN_IMPERSONATE", super_admin.id, tenant_id,
-            {"impersonated_tenant_id": str(tenant_id), "ip": ip_address}
+            {"impersonated_tenant_id": str(tenant_id)},
+            ip_address=ip_address
         )
         
         return tokens

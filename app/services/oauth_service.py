@@ -47,7 +47,8 @@ class EnterpriseOAuthService:
         db: Session, 
         auth_code: str, 
         tenant_id: uuid.UUID,
-        ip_address: str = None
+        ip_address: str = None,
+        user_agent: str = None
     ) -> tuple[User, dict]:
         """Authentifiziert User über Microsoft Entra ID (Tenant-spezifisch)"""
         
@@ -106,9 +107,10 @@ class EnterpriseOAuthService:
                 db, "OAUTH_LOGIN_SUCCESS", user.id, tenant_id,
                 {
                     "provider": "microsoft", 
-                    "azure_tenant_id": oauth_config.azure_tenant_id,
-                    "ip": ip_address
-                }
+                    "azure_tenant_id": oauth_config.azure_tenant_id
+                },
+                ip_address=ip_address,
+                user_agent=user_agent
             )
             
             return user, tokens
@@ -118,9 +120,10 @@ class EnterpriseOAuthService:
                 db, "OAUTH_LOGIN_FAILED", None, tenant_id,
                 {
                     "provider": "microsoft",
-                    "error": str(e),
-                    "ip": ip_address
-                }
+                    "error": str(e)
+                },
+                ip_address=ip_address,
+                user_agent=user_agent
             )
             raise
     
@@ -129,7 +132,8 @@ class EnterpriseOAuthService:
         db: Session, 
         auth_code: str, 
         tenant_id: uuid.UUID,
-        ip_address: str = None
+        ip_address: str = None,
+        user_agent: str = None
     ) -> tuple[User, dict]:
         """Authentifiziert User über Google Workspace (Tenant-spezifisch)"""
         
@@ -186,9 +190,10 @@ class EnterpriseOAuthService:
             audit_logger.log_auth_event(
                 db, "OAUTH_LOGIN_SUCCESS", user.id, tenant_id,
                 {
-                    "provider": "google",
-                    "ip": ip_address
-                }
+                    "provider": "google"
+                },
+                ip_address=ip_address,
+                user_agent=user_agent
             )
             
             return user, tokens
@@ -198,9 +203,10 @@ class EnterpriseOAuthService:
                 db, "OAUTH_LOGIN_FAILED", None, tenant_id,
                 {
                     "provider": "google",
-                    "error": str(e),
-                    "ip": ip_address
-                }
+                    "error": str(e)
+                },
+                ip_address=ip_address,
+                user_agent=user_agent
             )
             raise
     

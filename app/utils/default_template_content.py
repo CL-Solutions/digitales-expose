@@ -185,7 +185,9 @@ DEFAULT_ONSITE_MANAGEMENT_PACKAGE = {
 DEFAULT_COLIVING_CONTENT = """Kapital schafft Verantwortung!
 Doch welche Investments schaffen gesellschaftlichen Mehrwert bei guter Rendite?
 
-Das Investment in Co-Living ist ein Win-Win-Situation für Investor und Mieter. Mit dem Investment in Co-Living Konzepte ermöglicht zu einem Young Professional ein schönes und trotzdem leistbares Zuhause und sichert dein Kapital gegen die Inflation."""
+Das Investment in Co-Living ist eine Win-Win-Situation für Investor und Mieter. Mit dem Investment in Co-Living Konzepte ermöglichst du einem Young Professional ein schönes und trotzdem leistbares Zuhause und sicherst dein Kapital gegen die Inflation.
+
+Co-Living ist mehr als nur geteilter Wohnraum. Es ist eine moderne Lebensform, die auf Gemeinschaft, Nachhaltigkeit und Flexibilität setzt. In unseren sorgfältig gestalteten Co-Living-Spaces finden junge Berufstätige nicht nur ein Zuhause, sondern eine Community. Die voll möblierten Zimmer, gemeinsamen Arbeitsbereiche und durchdachten Gemeinschaftsflächen schaffen ein Umfeld, in dem sich persönliche Entwicklung und soziale Interaktion ideal ergänzen."""
 
 DEFAULT_SPECIAL_FEATURES = [
     {

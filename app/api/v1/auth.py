@@ -71,9 +71,10 @@ async def login_local_user(
     """Local user login - Uses AuthService"""
     try:
         ip_address = request.client.host if request.client else None
+        user_agent = request.headers.get("User-Agent", None)
         
         user, tokens = await AuthService.authenticate_local_user(
-            db, login_data.email, login_data.password, ip_address
+            db, login_data.email, login_data.password, ip_address, user_agent
         )
         db.commit()
         
@@ -244,14 +245,15 @@ async def oauth_callback(
     
     try:
         ip_address = request.client.host if request.client else None
+        user_agent = request.headers.get("User-Agent", None)
         
         if provider == "microsoft":
             user, tokens = await EnterpriseOAuthService.authenticate_microsoft_enterprise_user(
-                db, callback_data.code, tenant.id, ip_address
+                db, callback_data.code, tenant.id, ip_address, user_agent
             )
         elif provider == "google":
             user, tokens = await EnterpriseOAuthService.authenticate_google_enterprise_user(
-                db, callback_data.code, tenant.id, ip_address
+                db, callback_data.code, tenant.id, ip_address, user_agent
             )
         else:
             raise HTTPException(status_code=400, detail="Unsupported OAuth provider")
