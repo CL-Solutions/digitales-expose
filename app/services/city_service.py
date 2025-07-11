@@ -310,7 +310,6 @@ class CityService:
         image_type: str,
         title: Optional[str],
         description: Optional[str],
-        display_order: int,
         current_user: User
     ) -> CityImage:
         """Add an image to a city"""
@@ -350,7 +349,6 @@ class CityService:
                 image_type=image_type,
                 title=title,
                 description=description,
-                display_order=display_order,
                 created_by=current_user.id
             )
             

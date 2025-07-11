@@ -280,7 +280,7 @@ class City(Base, TenantMixin, AuditMixin):
     tenant = relationship("Tenant", foreign_keys="City.tenant_id")
     creator = relationship("User", foreign_keys="City.created_by")
     updater = relationship("User", foreign_keys="City.updated_by")
-    images = relationship("CityImage", back_populates="city", cascade="all, delete-orphan", order_by="CityImage.display_order")
+    images = relationship("CityImage", back_populates="city", cascade="all, delete-orphan")
     # Removed properties relationship to prevent circular loading
 
     def __repr__(self):
@@ -298,7 +298,6 @@ class CityImage(Base, TenantMixin, AuditMixin):
     image_type = Column(String(50), nullable=False)  # 'header', 'location', 'lifestyle', 'other'
     title = Column(String(255), nullable=True)
     description = Column(Text, nullable=True)
-    display_order = Column(Integer, default=0, nullable=False)
     
     # Metadata
     file_size = Column(Integer, nullable=True)

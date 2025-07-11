@@ -149,7 +149,6 @@ async def upload_city_image(
     image_type: str = Form(..., description="Image type (header, location, lifestyle, other)"),
     title: Optional[str] = Form(None, description="Image title"),
     description: Optional[str] = Form(None, description="Image description"),
-    display_order: int = Form(0, description="Display order"),
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("cities", "update"))
@@ -193,7 +192,6 @@ async def upload_city_image(
             image_type=image_type,
             title=title,
             description=description,
-            display_order=display_order,
             file_size=upload_result['file_size'],
             mime_type=upload_result['mime_type'],
             width=upload_result.get('width'),
@@ -203,7 +201,7 @@ async def upload_city_image(
         # Save to database using the existing service method
         image_record = CityService.add_city_image(
             db, city_id, image_data.image_url, image_data.image_type,
-            image_data.title, image_data.description, image_data.display_order, current_user
+            image_data.title, image_data.description, current_user
         )
         
         db.commit()
@@ -224,7 +222,6 @@ async def add_city_image(
     image_type: str = ...,
     title: Optional[str] = None,
     description: Optional[str] = None,
-    display_order: int = 0,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("images", "upload"))
@@ -233,7 +230,7 @@ async def add_city_image(
     try:
         image = CityService.add_city_image(
             db, city_id, image_url, image_type, 
-            title, description, display_order, current_user
+            title, description, current_user
         )
         db.commit()
         
@@ -248,9 +245,9 @@ async def add_city_image(
 
 @router.put("/{city_id}/images/{image_id}", response_model=CityImageSchema, response_model_exclude_none=True)
 async def update_city_image(
+    image_data: CityImageUpdate,
     city_id: UUID = Path(..., description="City ID"),
     image_id: UUID = Path(..., description="Image ID"),
-    image_data: CityImageUpdate = ...,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("images", "upload"))

@@ -606,7 +606,6 @@ class CityImageCreate(BaseSchema):
     image_type: str = Field(..., pattern="^(header|location|lifestyle|other)$")
     title: Optional[str] = Field(max_length=255)
     description: Optional[str]
-    display_order: int = Field(default=0)
     file_size: Optional[int] = Field(gt=0)
     mime_type: Optional[str] = Field(max_length=100)
     width: Optional[int] = Field(gt=0)
@@ -614,11 +613,10 @@ class CityImageCreate(BaseSchema):
 
 class CityImageUpdate(BaseSchema):
     """Schema for updating a CityImage"""
-    image_url: Optional[str]
-    image_type: Optional[str] = Field(pattern="^(header|location|lifestyle|other)$")
-    title: Optional[str] = Field(max_length=255)
-    description: Optional[str]
-    display_order: Optional[int]
+    image_url: Optional[str] = None
+    image_type: Optional[str] = Field(None, pattern="^(header|location|lifestyle|other)$")
+    title: Optional[str] = Field(None, max_length=255)
+    description: Optional[str] = None
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -632,7 +630,6 @@ class CityImageSchema(BaseResponseSchema):
     image_type: str
     title: Optional[str]
     description: Optional[str]
-    display_order: int = 0
     file_size: Optional[int]
     mime_type: Optional[str]
     width: Optional[int]
