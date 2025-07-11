@@ -33,13 +33,37 @@ class GoogleMapsService:
             logger.warning("GOOGLE_MAPS_API_KEY not configured")
         
         self.base_url = "https://maps.googleapis.com/maps/api"
+        self.places_v1_url = "https://places.googleapis.com/v1/places:searchNearby"
+        self.routes_v2_url = "https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix"
         self.cache_duration = timedelta(days=30)  # Cache for 30 days
         
-        # Category mappings for Places API
+        # Fixed radius for all categories
+        self.default_radius = 2000  # 2km for all categories
+        
+        # Category mappings for Places API v1
         self.category_types = {
-            "shopping": ["supermarket", "grocery_or_supermarket", "shopping_mall", "department_store"],
-            "transit": ["transit_station", "subway_station", "train_station", "bus_station"],
-            "leisure": ["park", "gym", "movie_theater", "restaurant", "cafe", "museum"]
+            "shopping": {
+                "includedTypes": ["supermarket", "market", "shopping_mall", "department_store", 
+                                 "discount_store", "food_store", "clothing_store"],
+                "excludedTypes": []
+            },
+            "transit": {
+                "includedTypes": ["airport", "ferry_terminal", "international_airport", 
+                                 "light_rail_station", "park_and_ride", "subway_station", "train_station"],
+                "excludedTypes": ["car_rental", "heliport"]
+            },
+            "leisure": {
+                "includedTypes": ["adventure_sports_center", "amusement_center", "aquarium", "botanical_garden",
+                                 "bowling_alley", "casino", "comedy_club", "community_center", "concert_hall",
+                                 "convention_center", "cycling_park", "dance_hall", "dog_park", "ferris_wheel",
+                                 "garden", "hiking_area", "historical_landmark", "internet_cafe", "karaoke",
+                                 "marina", "movie_theater", "national_park", "night_club", "observation_deck",
+                                 "off_roading_area", "opera_house", "park", "philharmonic_hall", "picnic_ground",
+                                 "planetarium", "plaza", "roller_coaster", "skateboard_park", "state_park",
+                                 "tourist_attraction", "video_arcade", "visitor_center", "water_park",
+                                 "wildlife_park", "wildlife_refuge", "zoo"],
+                "excludedTypes": ["sports_coaching"]
+            }
         }
         
         # German translations for categories
@@ -186,12 +210,12 @@ class GoogleMapsService:
         lat: float,
         lng: float,
         category: str,
-        radius: int = 1500,  # 1.5km default
+        radius: int = None,  # Will use default_radius if not provided
         force_refresh: bool = False
     ) -> List[Dict]:
         """
-        Find nearby places of a specific category
-        Returns list of places with name, address, location, and place_id
+        Find nearby places of a specific category using Places API v1
+        Returns list of places with name, location, place_id, and primary type
         """
         if not self.api_key:
             raise AppException(
@@ -205,8 +229,12 @@ class GoogleMapsService:
                 detail=f"Invalid category: {category}"
             )
         
+        # Use default radius if not provided
+        if radius is None:
+            radius = self.default_radius
+        
         # Check cache
-        cache_id = self._generate_cache_id("places", lat, lng, category, radius)
+        cache_id = self._generate_cache_id("places_v1", lat, lng, category, radius)
         
         if not force_refresh:
             cached = db.query(GooglePlacesCache).filter(
@@ -222,83 +250,93 @@ class GoogleMapsService:
                 logger.info(f"Using cached places for category: {category}")
                 return cached.places[:4]  # Return top 4 places
         
-        # Make API requests for each place type in category
-        all_places = []
+        # Prepare request for Places API v1
+        category_config = self.category_types[category]
+        request_body = {
+            "maxResultCount": 4,
+            "locationRestriction": {
+                "circle": {
+                    "center": {
+                        "latitude": lat,
+                        "longitude": lng
+                    },
+                    "radius": radius
+                }
+            },
+            "includedTypes": category_config["includedTypes"],
+            "excludedTypes": category_config["excludedTypes"],
+            "rankPreference": "DISTANCE",
+            "languageCode": "de"
+        }
         
-        for place_type in self.category_types[category]:
-            url = f"{self.base_url}/place/nearbysearch/json"
-            params = {
-                "location": f"{lat},{lng}",
-                "radius": radius,
-                "type": place_type,
-                "key": self.api_key,
-                "language": "de"
-            }
-            
-            try:
-                async with httpx.AsyncClient() as client:
-                    response = await client.get(url, params=params)
-                    response.raise_for_status()
-                    data = response.json()
+        headers = {
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": self.api_key,
+            "X-Goog-FieldMask": "places.id,places.displayName,places.primaryTypeDisplayName,places.location"
+        }
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    self.places_v1_url,
+                    json=request_body,
+                    headers=headers
+                )
+                response.raise_for_status()
+                data = response.json()
+                
+                places = []
+                for place in data.get("places", []):
+                    place_data = {
+                        "name": place["displayName"]["text"],
+                        "lat": place["location"]["latitude"],
+                        "lng": place["location"]["longitude"],
+                        "place_id": place["id"]
+                    }
                     
-                    if data["status"] == "OK":
-                        for place in data.get("results", []):
-                            all_places.append({
-                                "name": place["name"],
-                                "address": place.get("vicinity", ""),
-                                "lat": place["geometry"]["location"]["lat"],
-                                "lng": place["geometry"]["location"]["lng"],
-                                "place_id": place["place_id"],
-                                "types": place.get("types", []),
-                                "rating": place.get("rating", 0),
-                                "user_ratings_total": place.get("user_ratings_total", 0)
-                            })
-                            
-            except Exception as e:
-                logger.error(f"Error fetching places for type {place_type}: {e}")
-                continue
-        
-        # Deduplicate places by place_id
-        seen_place_ids = set()
-        unique_places = []
-        for place in all_places:
-            if place["place_id"] not in seen_place_ids:
-                seen_place_ids.add(place["place_id"])
-                unique_places.append(place)
-        
-        # Sort by rating and number of reviews
-        unique_places.sort(
-            key=lambda x: ((x.get("rating") or 0) * (x.get("user_ratings_total") or 0)),
-            reverse=True
-        )
-        
-        # Take top 4 places
-        top_places = unique_places[:4]
-        
-        # Store in cache
-        cache_entry = GooglePlacesCache(
-            id=cache_id,
-            latitude=lat,
-            longitude=lng,
-            category=category,
-            radius=radius,
-            places=top_places
-        )
-        
-        # Update or insert
-        existing = db.query(GooglePlacesCache).filter(
-            GooglePlacesCache.id == cache_id
-        ).first()
-        
-        if existing:
-            existing.places = top_places
-            existing.updated_at = datetime.utcnow()
-        else:
-            db.add(cache_entry)
-        
-        db.commit()
-        
-        return top_places
+                    # Add primary type display name if available
+                    if "primaryTypeDisplayName" in place and "text" in place["primaryTypeDisplayName"]:
+                        place_data["primary_type_display_name"] = place["primaryTypeDisplayName"]["text"]
+                    
+                    places.append(place_data)
+                
+                # Store in cache
+                cache_entry = GooglePlacesCache(
+                    id=cache_id,
+                    latitude=lat,
+                    longitude=lng,
+                    category=category,
+                    radius=radius,
+                    places=places
+                )
+                
+                # Update or insert
+                existing = db.query(GooglePlacesCache).filter(
+                    GooglePlacesCache.id == cache_id
+                ).first()
+                
+                if existing:
+                    existing.places = places
+                    existing.updated_at = datetime.utcnow()
+                else:
+                    db.add(cache_entry)
+                
+                db.commit()
+                
+                return places
+                
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Error fetching places: {e.response.text}")
+            raise AppException(
+                status_code=502,
+                detail=f"Places API error: {e.response.text}"
+            )
+        except Exception as e:
+            logger.error(f"Error fetching places: {str(e)}")
+            raise AppException(
+                status_code=502,
+                detail="Failed to fetch nearby places"
+            )
     
     async def calculate_distances(
         self,
@@ -309,7 +347,8 @@ class GoogleMapsService:
         force_refresh: bool = False
     ) -> Dict[str, List[Dict]]:
         """
-        Calculate distances and durations from origin to multiple destinations
+        Calculate distances and durations from origin to multiple destinations using Routes API v2
+        Makes one request per mode for all destinations at once
         Returns: {
             'driving': [{'distance_meters': int, 'duration_seconds': int}, ...],
             'walking': [...],
@@ -324,19 +363,28 @@ class GoogleMapsService:
         
         results = {}
         
+        # Map our mode names to Routes API travel modes
+        mode_mapping = {
+            "driving": "DRIVE",
+            "walking": "WALK", 
+            "transit": "TRANSIT"
+        }
+        
         for mode in modes:
-            mode_results = []
-            
-            # Check cache for each destination
-            for dest in destinations:
-                cache_id = self._generate_cache_id(
-                    "distance", 
-                    origin[0], origin[1],
-                    dest[0], dest[1],
-                    mode
-                )
+            # For caching, we'll still check individually but make batch API calls
+            if not force_refresh:
+                # Check cache for all destinations
+                all_cached = True
+                cached_results = []
                 
-                if not force_refresh:
+                for dest in destinations:
+                    cache_id = self._generate_cache_id(
+                        "distance_v2", 
+                        f"{origin[0]:.15f}", f"{origin[1]:.15f}",
+                        f"{dest[0]:.15f}", f"{dest[1]:.15f}",
+                        mode
+                    )
+                    
                     cached = db.query(GoogleDistanceCache).filter(
                         and_(
                             GoogleDistanceCache.origin_lat == origin[0],
@@ -348,81 +396,149 @@ class GoogleMapsService:
                     ).first()
                     
                     if cached and self._is_cache_valid(cached.created_at):
-                        mode_results.append({
+                        cached_results.append({
                             "distance_meters": cached.distance_meters,
                             "duration_seconds": cached.duration_seconds
                         })
-                        continue
+                    else:
+                        all_cached = False
+                        break
                 
-                # Make API request for uncached routes
-                url = f"{self.base_url}/distancematrix/json"
-                params = {
-                    "origins": f"{origin[0]},{origin[1]}",
-                    "destinations": f"{dest[0]},{dest[1]}",
-                    "mode": mode,
-                    "key": self.api_key,
-                    "language": "de",
-                    "units": "metric"
-                }
-                
-                try:
-                    async with httpx.AsyncClient() as client:
-                        response = await client.get(url, params=params)
-                        response.raise_for_status()
-                        data = response.json()
-                        
-                        if data["status"] == "OK":
-                            element = data["rows"][0]["elements"][0]
+                # If all destinations are cached, return cached results
+                if all_cached:
+                    results[mode] = cached_results
+                    continue
+            
+            # Make a single API request for all destinations for this mode
+            request_body = {
+                "origins": [{
+                    "waypoint": {
+                        "location": {
+                            "latLng": {
+                                "latitude": origin[0],
+                                "longitude": origin[1]
+                            }
+                        }
+                    }
+                }],
+                "destinations": [
+                    {
+                        "waypoint": {
+                            "location": {
+                                "latLng": {
+                                    "latitude": dest[0],
+                                    "longitude": dest[1]
+                                }
+                            }
+                        }
+                    } for dest in destinations
+                ],
+                "travelMode": mode_mapping.get(mode, "DRIVE"),
+                "languageCode": "de"
+            }
+            
+            headers = {
+                "Content-Type": "application/json",
+                "X-Goog-Api-Key": self.api_key,
+                "X-Goog-FieldMask": "distanceMeters,duration"
+            }
+            
+            try:
+                async with httpx.AsyncClient() as client:
+                    response = await client.post(
+                        self.routes_v2_url,
+                        json=request_body,
+                        headers=headers
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+                    
+                    mode_results = []
+                    
+                    # Process results and cache them
+                    for idx, route in enumerate(data):
+                        if idx < len(destinations):  # Safety check
+                            dest = destinations[idx]
                             
-                            if element["status"] == "OK":
-                                distance_meters = element["distance"]["value"]
-                                duration_seconds = element["duration"]["value"]
+                            # Check if route has distance data
+                            if "distanceMeters" in route:
+                                distance_meters = route.get("distanceMeters", 0)
+                                # Parse duration string (e.g., "139s" -> 139)
+                                duration_str = route.get("duration", "0s")
+                                duration_seconds = int(duration_str.rstrip("s"))
                                 
                                 # Store in cache
-                                cache_entry = GoogleDistanceCache(
-                                    id=cache_id,
-                                    origin_lat=origin[0],
-                                    origin_lng=origin[1],
-                                    destination_lat=dest[0],
-                                    destination_lng=dest[1],
-                                    mode=mode,
-                                    distance_meters=distance_meters,
-                                    duration_seconds=duration_seconds,
-                                    raw_response=data
+                                cache_id = self._generate_cache_id(
+                                    "distance_v2",
+                                    f"{origin[0]:.15f}", f"{origin[1]:.15f}",
+                                    f"{dest[0]:.15f}", f"{dest[1]:.15f}",
+                                    mode
                                 )
                                 
-                                existing = db.query(GoogleDistanceCache).filter(
-                                    GoogleDistanceCache.id == cache_id
-                                ).first()
-                                
-                                if existing:
-                                    existing.distance_meters = distance_meters
-                                    existing.duration_seconds = duration_seconds
-                                    existing.raw_response = data
-                                    existing.updated_at = datetime.utcnow()
-                                else:
-                                    db.add(cache_entry)
-                                
-                                db.commit()
+                                try:
+                                    existing = db.query(GoogleDistanceCache).filter(
+                                        GoogleDistanceCache.id == cache_id
+                                    ).first()
+                                    
+                                    if existing:
+                                        existing.distance_meters = distance_meters
+                                        existing.duration_seconds = duration_seconds
+                                        existing.raw_response = route
+                                        existing.updated_at = datetime.utcnow()
+                                    else:
+                                        cache_entry = GoogleDistanceCache(
+                                            id=cache_id,
+                                            origin_lat=origin[0],
+                                            origin_lng=origin[1],
+                                            destination_lat=dest[0],
+                                            destination_lng=dest[1],
+                                            mode=mode,
+                                            distance_meters=distance_meters,
+                                            duration_seconds=duration_seconds,
+                                            raw_response=route
+                                        )
+                                        db.add(cache_entry)
+                                    
+                                    db.flush()  # Flush each entry individually
+                                    
+                                except Exception as e:
+                                    logger.warning(f"Could not cache distance result: {e}")
+                                    db.rollback()  # Rollback this specific cache attempt
                                 
                                 mode_results.append({
                                     "distance_meters": distance_meters,
                                     "duration_seconds": duration_seconds
                                 })
                             else:
+                                # No route found
                                 mode_results.append({
                                     "distance_meters": None,
                                     "duration_seconds": None
                                 })
-                        
-                except Exception as e:
-                    logger.error(f"Error calculating distance for mode {mode}: {e}")
-                    mode_results.append({
-                        "distance_meters": None,
-                        "duration_seconds": None
-                    })
-            
-            results[mode] = mode_results
+                    
+                    # Commit all changes for this mode
+                    try:
+                        db.commit()
+                    except Exception as e:
+                        logger.warning(f"Could not commit cache updates: {e}")
+                        db.rollback()
+                    
+                    results[mode] = mode_results
+                    
+            except httpx.HTTPStatusError as e:
+                logger.error(f"Error calculating distances for mode {mode}: {e.response.text}")
+                # Return None results for all destinations
+                results[mode] = [
+                    {"distance_meters": None, "duration_seconds": None}
+                    for _ in destinations
+                ]
+            except Exception as e:
+                logger.error(f"Error calculating distances for mode {mode}: {str(e)}")
+                # Return None results for all destinations
+                results[mode] = [
+                    {"distance_meters": None, "duration_seconds": None}
+                    for _ in destinations
+                ]
         
         return results
     

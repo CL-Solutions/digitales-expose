@@ -453,7 +453,7 @@ async def refresh_access_token(
     """Refresh access token with refresh token"""
     try:
         from app.core.security import verify_token, create_access_token
-        from datetime import datetime
+        from datetime import datetime, timezone
         
         # Verify refresh token
         payload = verify_token(refresh_data.refresh_token, "refresh")
@@ -476,7 +476,7 @@ async def refresh_access_token(
             UserSession.refresh_token == refresh_data.refresh_token[-32:]
         ).first()
         
-        if not session or session.expires_at < datetime.utcnow():
+        if not session or session.expires_at < datetime.now(timezone.utc):
             raise HTTPException(status_code=401, detail="Session expired")
         
         # Create new access token
@@ -504,6 +504,9 @@ async def refresh_access_token(
     except HTTPException:
         raise
     except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Token refresh error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Token refresh failed")
 
 # ================================
