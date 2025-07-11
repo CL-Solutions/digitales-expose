@@ -182,7 +182,6 @@ async def upload_city_image(
             file=image,
             folder=f"cities/{city_id}",
             tenant_id=str(city.tenant_id),
-            max_size_mb=15,  # Allow larger files for city images
             resize_options=resize_options
         )
         

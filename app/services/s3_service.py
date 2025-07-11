@@ -85,7 +85,7 @@ class S3Service:
         file: UploadFile,
         folder: str,
         tenant_id: str,
-        max_size_mb: int = 10,
+        max_size_mb: Optional[int] = None,
         allowed_types: Optional[list] = None,
         resize_options: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
@@ -126,6 +126,10 @@ class S3Service:
             file_size = len(content)
             
             # Validate file size
+            # Use configured max size if not specified
+            if max_size_mb is None:
+                max_size_mb = settings.MAX_FILE_SIZE_MB
+            
             max_size_bytes = max_size_mb * 1024 * 1024
             if file_size > max_size_bytes:
                 raise AppException(

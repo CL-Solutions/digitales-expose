@@ -171,7 +171,6 @@ async def upload_template_image(
             file=image,
             folder=f"expose_templates/{template_id}/{image_type}",
             tenant_id=str(tenant_id),
-            max_size_mb=10,
             resize_options=resize_options
         )
         

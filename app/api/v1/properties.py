@@ -301,7 +301,6 @@ async def upload_property_image(
             file=image,
             folder=f"properties/{property_id}",
             tenant_id=str(property.tenant_id),
-            max_size_mb=20,  # Allow larger files for floor plans
             resize_options=resize_options
         )
         

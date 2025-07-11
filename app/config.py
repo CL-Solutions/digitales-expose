@@ -56,8 +56,8 @@ class settings(BaseSettings):
     GITHUB_OWNER: str = "CL-Solutions"
     GITHUB_REPO: str = "digitales-expose-frontend"
     
-    # Google Maps API Settings
-    GOOGLE_MAPS_API_KEY: Optional[str] = None
+    # File Upload Settings
+    MAX_FILE_SIZE_MB: int = 50  # Maximum file size for uploads in MB
     
     # Fallback SMTP (falls SES nicht verfügbar)
     SMTP_HOST: Optional[str] = None
