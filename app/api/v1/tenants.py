@@ -807,7 +807,8 @@ async def get_tenant_audit_logs(
                 "success": "FAILED" not in log.action and "ERROR" not in log.action,
                 "resource_type": log.resource_type,
                 "resource_id": str(log.resource_id) if log.resource_id else None,
-                "details": log.new_values or {}
+                "old_values": log.old_values,
+                "new_values": log.new_values
             }
             
             # Add user details if available

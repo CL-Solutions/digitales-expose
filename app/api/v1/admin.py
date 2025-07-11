@@ -373,18 +373,46 @@ async def get_audit_logs(
         # Order by most recent first
         logs = query.order_by(desc(AuditLog.created_at)).limit(limit).all()
         
+        # Get user and tenant details for the logs
+        user_ids = list(set([log.user_id for log in logs if log.user_id]))
+        tenant_ids = list(set([log.tenant_id for log in logs if log.tenant_id]))
+        
+        users = db.query(User).filter(User.id.in_(user_ids)).all() if user_ids else []
+        tenants = db.query(Tenant).filter(Tenant.id.in_(tenant_ids)).all() if tenant_ids else []
+        
+        user_map = {str(user.id): user for user in users}
+        tenant_map = {str(tenant.id): tenant for tenant in tenants}
+        
         audit_responses = []
         for log in logs:
-            audit_responses.append({
-                "user_id": log.user_id,
+            user_info = user_map.get(str(log.user_id)) if log.user_id else None
+            tenant_info = tenant_map.get(str(log.tenant_id)) if log.tenant_id else None
+            
+            response_data = {
+                "id": str(log.id),
+                "user_id": str(log.user_id) if log.user_id else None,
                 "action": log.action,
                 "timestamp": log.created_at.isoformat(),
                 "ip_address": str(log.ip_address) if log.ip_address else None,
                 "user_agent": log.user_agent,
-                "tenant_id": log.tenant_id,
+                "tenant_id": str(log.tenant_id) if log.tenant_id else None,
                 "success": "FAILED" not in log.action and "ERROR" not in log.action,
-                "details": log.new_values or {}
-            })
+                "resource_type": log.resource_type,
+                "resource_id": str(log.resource_id) if log.resource_id else None,
+                "old_values": log.old_values,
+                "new_values": log.new_values
+            }
+            
+            # Add user details if available
+            if user_info:
+                response_data["user_email"] = user_info.email
+                response_data["user_name"] = f"{user_info.first_name or ''} {user_info.last_name or ''}".strip() or user_info.email
+            
+            # Add tenant details if available (super admin only sees this)
+            if tenant_info:
+                response_data["tenant_name"] = tenant_info.name
+            
+            audit_responses.append(response_data)
         
         return {
             "audit_logs": audit_responses,

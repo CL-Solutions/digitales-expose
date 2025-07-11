@@ -56,7 +56,8 @@ class AuthService:
             last_name=user_data.last_name,
             is_verified=user_data.send_welcome_email,  # Verified if welcome email sent
             email_verification_token=generate_reset_token() if user_data.require_email_verification else None,
-            email_verification_expires=datetime.utcnow() + timedelta(hours=24) if user_data.require_email_verification else None
+            email_verification_expires=datetime.utcnow() + timedelta(hours=24) if user_data.require_email_verification else None,
+            provision_percentage=user_data.provision_percentage if hasattr(user_data, 'provision_percentage') else 0
         )
         
         db.add(user)
@@ -81,9 +82,23 @@ class AuthService:
                 tenant_name=tenant.name if tenant else None
             )
         
-        audit_logger.log_auth_event(
-            db, "USER_CREATED", created_by_user.id, tenant_id,
-            {"new_user_id": str(user.id), "email": user.email}
+        # Create comprehensive audit log for user creation
+        audit_logger.log_business_event(
+            db=db,
+            action="USER_CREATED",
+            user_id=created_by_user.id,
+            tenant_id=tenant_id,
+            resource_type="user",
+            resource_id=user.id,
+            new_values={
+                "email": user.email,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "auth_method": user.auth_method,
+                "is_verified": user.is_verified,
+                "provision_percentage": user.provision_percentage,
+                "roles": [role_id for role_id in (user_data.role_ids or [])]
+            }
         )
         
         return user

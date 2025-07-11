@@ -72,7 +72,8 @@ class UserTeamService:
             member_id=assignment_data.member_id,
             tenant_id=tenant_id,
             assigned_by=assigned_by,
-            assigned_at=datetime.utcnow()
+            assigned_at=datetime.utcnow(),
+            provision_percentage=assignment_data.provision_percentage
         )
         
         db.add(assignment)
@@ -88,7 +89,8 @@ class UserTeamService:
             resource_id=assignment.id,
             new_values={
                 "manager_id": str(assignment.manager_id),
-                "member_id": str(assignment.member_id)
+                "member_id": str(assignment.member_id),
+                "provision_percentage": assignment.provision_percentage
             }
         )
         

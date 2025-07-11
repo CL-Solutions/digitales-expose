@@ -23,6 +23,7 @@ class UserCreate(UserBase):
     send_welcome_email: bool = Field(default=True, description="Send welcome email to user")
     require_email_verification: bool = Field(default=False, description="Require email verification before login")
     tenant_id: UUID = Field(..., description="Tenant ID for the user")
+    provision_percentage: Optional[int] = Field(default=0, ge=0, le=100, description="User's provision percentage (0-100)")
 
 class UserUpdate(BaseSchema):
     """Schema für User-Updates"""

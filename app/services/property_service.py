@@ -357,8 +357,15 @@ class PropertyService:
                         detail="You don't have permission to update properties"
                     )
             
-            # Update fields
+            # Store old values before update
+            old_values = {}
             update_data = property_data.model_dump(exclude_unset=True)
+            
+            # Capture old values for fields being updated
+            for field in update_data.keys():
+                old_values[field] = getattr(property, field, None)
+            
+            # Update fields
             for field, value in update_data.items():
                 setattr(property, field, value)
             
@@ -367,7 +374,7 @@ class PropertyService:
             
             db.flush()
             
-            # Log activity
+            # Log activity with old and new values
             audit_logger.log_business_event(
                 db=db,
                 action="PROPERTY_UPDATED",
@@ -375,7 +382,8 @@ class PropertyService:
                 tenant_id=current_user.tenant_id,
                 resource_type="property",
                 resource_id=property.id,
-                new_values={"updated_fields": list(update_data.keys())}
+                old_values=old_values,
+                new_values=update_data
             )
             
             # If status was updated, update project status

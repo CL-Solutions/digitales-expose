@@ -58,6 +58,7 @@ class CreateUserRequest(BaseSchema, PasswordFieldMixin):
     send_welcome_email: bool = Field(default=True, description="Send welcome email")
     require_email_verification: bool = Field(default=False, description="Require email verification")
     tenant_id: Optional[UUID] = Field(description="Tenant ID (only for super admin)")
+    provision_percentage: Optional[int] = Field(default=0, ge=0, le=100, description="User's provision percentage (0-100)")
 
 # ================================
 # OAUTH SCHEMAS (schemas/oauth.py)

@@ -437,6 +437,11 @@ class ProjectService:
         # Update fields
         update_data = project_update.model_dump(exclude_unset=True)
         
+        # Store old values before update
+        old_values = {}
+        for field in update_data.keys():
+            old_values[field] = getattr(project, field, None)
+        
         # Check if address fields are being updated
         address_fields = {'street', 'house_number', 'city', 'state', 'country', 'zip_code'}
         address_changed = any(field in update_data for field in address_fields)
@@ -516,16 +521,16 @@ class ProjectService:
                     logger.error(f"Error geocoding updated address for project {project.id}: {str(e)}")
                     # Continue without geocoding data
             
-            # Log activity
+            # Log activity with old and new values
             audit_logger.log_business_event(
                 db=db,
                 user_id=updated_by,
                 tenant_id=tenant_id,
-                action="UPDATE",
+                action="PROJECT_UPDATED",
                 resource_type="project",
                 resource_id=project.id,
-                new_values=update_data,
-                additional_context={"updated_fields": list(update_data.keys())}
+                old_values=old_values,
+                new_values=update_data
             )
             
             # Reload with relationships for response

@@ -64,10 +64,16 @@ class UserService:
             user.provision_percentage = user_update.provision_percentage
             update_data["provision_percentage"] = user_update.provision_percentage
         
-        # Audit log
-        audit_logger.log_auth_event(
-            db, "USER_UPDATED", current_user.id, user.tenant_id,
-            {"target_user_id": str(user.id), "updates": update_data}
+        # Audit log with old and new values
+        audit_logger.log_business_event(
+            db=db,
+            action="USER_UPDATED",
+            user_id=current_user.id,
+            tenant_id=user.tenant_id,
+            resource_type="user",
+            resource_id=user.id,
+            old_values=old_values,
+            new_values=update_data
         )
         
         return user
