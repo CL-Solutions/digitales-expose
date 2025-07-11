@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 # LOCAL AUTHENTICATION
 # ================================
 
-@router.post("/create-user/", response_model=dict, response_model_exclude_none=True)
+@router.post("/create-user", response_model=dict, response_model_exclude_none=True)
 async def create_user_by_admin(
     user_data: CreateUserRequest,
     current_user: User = Depends(get_current_user),
@@ -62,7 +62,7 @@ async def create_user_by_admin(
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to create user")
 
-@router.post("/login/", response_model=TokenResponse, response_model_exclude_none=True)
+@router.post("/login", response_model=TokenResponse, response_model_exclude_none=True)
 async def login_local_user(
     login_data: LoginRequest,
     request: Request,
@@ -90,7 +90,7 @@ async def login_local_user(
         logger.error(f"Login failed with unexpected error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=401, detail="Authentication failed")
 
-@router.post("/logout/")
+@router.post("/logout")
 async def logout_user(
     request: Request,
     current_user: User = Depends(get_current_user),
@@ -119,7 +119,7 @@ async def logout_user(
 # PASSWORD MANAGEMENT
 # ================================
 
-@router.post("/password-reset/request/")
+@router.post("/password-reset/request")
 async def request_password_reset(
     reset_data: PasswordResetRequest,
     db: Session = Depends(get_db)
@@ -136,7 +136,7 @@ async def request_password_reset(
         db.rollback()
         return {"message": "If the email exists, a reset link has been sent"}
 
-@router.post("/password-reset/confirm/")
+@router.post("/password-reset/confirm")
 async def confirm_password_reset(
     reset_data: PasswordResetConfirm,
     db: Session = Depends(get_db)
@@ -155,7 +155,7 @@ async def confirm_password_reset(
         db.rollback()
         raise HTTPException(status_code=400, detail="Password reset failed")
 
-@router.post("/verify-email/")
+@router.post("/verify-email")
 async def verify_email(
     verification_data: EmailVerificationRequest,
     db: Session = Depends(get_db)
@@ -174,7 +174,7 @@ async def verify_email(
         db.rollback()
         raise HTTPException(status_code=400, detail="Email verification failed")
 
-@router.post("/change-password/")
+@router.post("/change-password")
 async def change_password(
     password_data: ChangePasswordRequest,
     current_user: User = Depends(get_current_user),
@@ -272,7 +272,7 @@ async def oauth_callback(
 # SUPER ADMIN IMPERSONATION
 # ================================
 
-@router.post("/impersonate/", response_model=TokenResponse, response_model_exclude_none=True)
+@router.post("/impersonate", response_model=TokenResponse, response_model_exclude_none=True)
 async def super_admin_impersonate(
     impersonate_data: ImpersonateRequest,
     request: Request,
@@ -296,7 +296,7 @@ async def super_admin_impersonate(
         db.rollback()
         raise HTTPException(status_code=500, detail="Impersonation failed")
 
-@router.post("/end-impersonation/")
+@router.post("/end-impersonation")
 async def end_impersonation(
     request: Request,
     super_admin: User = Depends(get_super_admin_user),
@@ -319,7 +319,7 @@ async def end_impersonation(
 # AUTHENTICATION STATUS & HISTORY
 # ================================
 
-@router.get("/status/", response_model=AuthStatusResponse, response_model_exclude_none=True)
+@router.get("/status", response_model=AuthStatusResponse, response_model_exclude_none=True)
 async def get_auth_status(
     request: Request,
     current_user: User = Depends(get_current_user),
@@ -364,7 +364,7 @@ async def get_auth_status(
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to get auth status")
 
-@router.get("/history/", response_model=List[LoginHistoryResponse], response_model_exclude_none=True)
+@router.get("/history", response_model=List[LoginHistoryResponse], response_model_exclude_none=True)
 async def get_login_history(
     limit: int = Query(default=20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
@@ -399,7 +399,7 @@ async def get_login_history(
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to get login history")
 
-@router.get("/security-events/", response_model=List[SecurityEventResponse], response_model_exclude_none=True)
+@router.get("/security-events", response_model=List[SecurityEventResponse], response_model_exclude_none=True)
 async def get_security_events(
     limit: int = Query(default=20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
@@ -445,7 +445,7 @@ async def get_security_events(
 # TOKEN REFRESH
 # ================================
 
-@router.post("/refresh/", response_model=TokenResponse, response_model_exclude_none=True)
+@router.post("/refresh", response_model=TokenResponse, response_model_exclude_none=True)
 async def refresh_access_token(
     refresh_data: RefreshTokenRequest,
     db: Session = Depends(get_db)
@@ -510,7 +510,7 @@ async def refresh_access_token(
 # SESSION MANAGEMENT
 # ================================
 
-@router.get("/sessions/")
+@router.get("/sessions")
 async def get_user_sessions(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -550,7 +550,7 @@ async def terminate_session(
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to terminate session")
 
-@router.delete("/sessions/")
+@router.delete("/sessions")
 async def terminate_all_sessions(
     request: Request,
     keep_current: bool = Query(default=True, description="Keep current session active"),
@@ -578,7 +578,7 @@ async def terminate_all_sessions(
 # ACCOUNT SECURITY SETTINGS
 # ================================
 
-@router.get("/security/settings/")
+@router.get("/security/settings")
 async def get_security_settings(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -602,7 +602,7 @@ async def get_security_settings(
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to get security settings")
 
-@router.post("/security/email/resend-verification/")
+@router.post("/security/email/resend-verification")
 async def resend_email_verification(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)

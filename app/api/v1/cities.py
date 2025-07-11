@@ -44,7 +44,7 @@ async def list_cities(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/with-properties/", response_model=List[Dict[str, Any]], response_model_exclude_none=True)
+@router.get("/with-properties", response_model=List[Dict[str, Any]], response_model_exclude_none=True)
 async def get_cities_with_properties(
     current_user: User = Depends(get_current_active_user),
     tenant_id: Optional[UUID] = Depends(get_current_tenant_id),

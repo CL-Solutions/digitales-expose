@@ -202,6 +202,15 @@ async def create_resource(
 4. Add permission requirements using `Depends(require_permission("resource", "action"))`
 5. Update API documentation if needed
 
+**API Endpoint Standards:**
+- **NO trailing slashes in endpoint paths** - This is the project standard
+- ✅ Correct: `@router.get("/items")`
+- ✅ Correct: `@router.post("/items/{id}/upload")`
+- ❌ Wrong: `@router.get("/items/")`
+- ❌ Wrong: `@router.post("/items/{id}/upload/")`
+
+This prevents redirect issues with file uploads and maintains consistency across the API.
+
 **Important: Permission Usage**
 ```python
 # CORRECT - Use as a dependency parameter

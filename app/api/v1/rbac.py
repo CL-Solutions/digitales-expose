@@ -25,7 +25,7 @@ router = APIRouter()
 # ROLE MANAGEMENT
 # ================================
 
-@router.post("/roles/", response_model=RoleResponse, response_model_exclude_none=True)
+@router.post("/roles", response_model=RoleResponse, response_model_exclude_none=True)
 async def create_role(
     role_data: RoleCreate,
     request: Request,
@@ -60,7 +60,7 @@ async def create_role(
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to create role")
 
-@router.get("/roles/", response_model=RoleListResponse, response_model_exclude_none=True)
+@router.get("/roles", response_model=RoleListResponse, response_model_exclude_none=True)
 async def list_roles(
     request: Request,
     page: int = Query(default=1, ge=1),
@@ -461,7 +461,7 @@ async def clone_role(
 # PERMISSION MANAGEMENT
 # ================================
 
-@router.get("/permissions/", response_model=List[PermissionResponse], response_model_exclude_none=True)
+@router.get("/permissions", response_model=List[PermissionResponse], response_model_exclude_none=True)
 async def list_permissions(
     request: Request,
     current_user: User = Depends(get_current_user),
@@ -488,7 +488,7 @@ async def list_permissions(
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to retrieve permissions")
 
-@router.post("/permissions/", response_model=PermissionResponse, response_model_exclude_none=True)
+@router.post("/permissions", response_model=PermissionResponse, response_model_exclude_none=True)
 async def create_permission(
     permission_data: PermissionCreate,
     request: Request,
@@ -517,7 +517,7 @@ async def create_permission(
 # BULK ROLE OPERATIONS
 # ================================
 
-@router.post("/roles/bulk-assign/")
+@router.post("/roles/bulk-assign")
 async def bulk_assign_roles(
     assignment_data: BulkRoleAssignment,
     request: Request,
@@ -636,7 +636,7 @@ async def check_user_permission(
 # RBAC STATISTICS & REPORTS
 # ================================
 
-@router.get("/stats/", response_model=RBACStatsResponse, response_model_exclude_none=True)
+@router.get("/stats", response_model=RBACStatsResponse, response_model_exclude_none=True)
 async def get_rbac_statistics(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -652,7 +652,7 @@ async def get_rbac_statistics(
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to get RBAC statistics")
 
-@router.get("/reports/role-usage/")
+@router.get("/reports/role-usage")
 async def get_role_usage_report(
     request: Request,
     current_user: User = Depends(get_current_user),
@@ -686,7 +686,7 @@ async def get_role_usage_report(
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to generate role usage report")
 
-@router.get("/reports/permission-usage/")
+@router.get("/reports/permission-usage")
 async def get_permission_usage_report(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -705,7 +705,7 @@ async def get_permission_usage_report(
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to generate permission usage report")
 
-@router.get("/reports/compliance/")
+@router.get("/reports/compliance")
 async def get_rbac_compliance_report(
     request: Request,
     current_user: User = Depends(get_current_user),
@@ -738,7 +738,7 @@ async def get_rbac_compliance_report(
 # SUPER ADMIN RBAC OPERATIONS
 # ================================
 
-@router.get("/global/stats/")
+@router.get("/global/stats")
 async def get_global_rbac_statistics(
     super_admin: User = Depends(get_super_admin_user),
     db: Session = Depends(get_db)
@@ -755,7 +755,7 @@ async def get_global_rbac_statistics(
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to get global RBAC statistics")
 
-@router.get("/global/reports/permission-usage/")
+@router.get("/global/reports/permission-usage")
 async def get_global_permission_usage_report(
     super_admin: User = Depends(get_super_admin_user),
     db: Session = Depends(get_db)
