@@ -13,6 +13,7 @@ class SectionKey(str, Enum):
     FLOOR_PLAN = "floor_plan"
     MODERNIZATION = "modernization"
     FINANCIAL = "financial"
+    VIRTUAL_TOUR = "virtual_tour"
     INSURANCE = "insurance"
     PROCESS_STEPS = "process_steps"
     OPPORTUNITIES_RISKS = "opportunities_risks"
@@ -32,6 +33,7 @@ class EnabledSections(BaseModel):
     floor_plan: bool = Field(default=True)
     modernization: bool = Field(default=True)
     financial: bool = Field(default=True)
+    virtual_tour: bool = Field(default=True)
     insurance: bool = Field(default=True)
     process_steps: bool = Field(default=True)
     opportunities_risks: bool = Field(default=True)
