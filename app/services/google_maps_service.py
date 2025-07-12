@@ -38,7 +38,7 @@ class GoogleMapsService:
         self.cache_duration = timedelta(days=30)  # Cache for 30 days
         
         # Fixed radius for all categories
-        self.default_radius = 2000  # 2km for all categories
+        self.default_radius = 5000  # 2km for all categories
         
         # Category mappings for Places API v1
         self.category_types = {
