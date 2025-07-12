@@ -451,7 +451,7 @@ class ExposeService:
         property_id: Optional[UUID] = None,
         is_active: Optional[bool] = None
     ) -> List[ExposeLink]:
-        """List expose links"""
+        """List expose links - users only see links they created"""
         try:
             query = db.query(ExposeLink).options(
                 joinedload(ExposeLink.property).joinedload(Property.project)
@@ -459,6 +459,9 @@ class ExposeService:
             
             # Always filter by current tenant (even for super admins)
             query = query.filter(ExposeLink.tenant_id == current_user.tenant_id)
+            
+            # Filter by created_by to ensure users only see their own links
+            query = query.filter(ExposeLink.created_by == current_user.id)
             
             if property_id:
                 query = query.filter(ExposeLink.property_id == property_id)
