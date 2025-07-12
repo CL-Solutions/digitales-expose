@@ -739,7 +739,7 @@ class ExposeLinkBase(BaseSchema):
     name: Optional[str] = Field(None, max_length=255)
     
     # Financial presets
-    preset_equity_percentage: Optional[float] = Field(None, ge=0, le=100)
+    preset_equity_percentage: Optional[float] = Field(None, ge=-10, le=100)
     preset_interest_rate: Optional[float] = Field(None, ge=0, le=20)
     preset_repayment_rate: Optional[float] = Field(None, ge=0, le=10)
     preset_gross_income: Optional[float] = Field(None, ge=0)
@@ -769,7 +769,7 @@ class ExposeLinkUpdate(BaseSchema):
     name: Optional[str] = Field(max_length=255)
     
     # Financial presets
-    preset_equity_percentage: Optional[float] = Field(ge=0, le=100)
+    preset_equity_percentage: Optional[float] = Field(ge=-10, le=100)
     preset_interest_rate: Optional[float] = Field(ge=0, le=20)
     preset_repayment_rate: Optional[float] = Field(ge=0, le=10)
     preset_gross_income: Optional[float] = Field(ge=0)
