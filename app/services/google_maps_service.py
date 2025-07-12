@@ -45,7 +45,7 @@ class GoogleMapsService:
             "shopping": {
                 "includedTypes": ["supermarket", "market", "shopping_mall", "department_store", 
                                  "discount_store", "food_store", "clothing_store"],
-                "excludedTypes": []
+                "excludedTypes": ["child_care_agency"]
             },
             "transit": {
                 "includedTypes": ["airport", "ferry_terminal", "international_airport", 
@@ -62,7 +62,7 @@ class GoogleMapsService:
                                  "planetarium", "plaza", "roller_coaster", "skateboard_park", "state_park",
                                  "tourist_attraction", "video_arcade", "visitor_center", "water_park",
                                  "wildlife_park", "wildlife_refuge", "zoo"],
-                "excludedTypes": ["sports_coaching"]
+                "excludedTypes": ["sports_coaching","event_venue"]
             }
         }
         
