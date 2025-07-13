@@ -8,6 +8,7 @@ from app.models.user import User
 from typing import Optional, Dict, Any, Union
 from datetime import datetime, timedelta
 from ipaddress import IPv4Address, IPv6Address
+from decimal import Decimal
 import uuid
 import json
 import logging
@@ -474,12 +475,17 @@ class AuditLogger:
                 sanitized[key] = self._sanitize_sensitive_data(value)
             elif isinstance(value, list):
                 sanitized[key] = [
-                    self._sanitize_sensitive_data(item) if isinstance(item, dict) else item
+                    self._sanitize_sensitive_data(item) if isinstance(item, dict) 
+                    else float(item) if isinstance(item, Decimal)
+                    else item
                     for item in value
                 ]
             else:
+                # Convert Decimal to float for JSON serialization
+                if isinstance(value, Decimal):
+                    sanitized[key] = float(value)
                 # Truncate very long strings to prevent log bloat
-                if isinstance(value, str) and len(value) > 1000:
+                elif isinstance(value, str) and len(value) > 1000:
                     sanitized[key] = value[:1000] + "...[TRUNCATED]"
                 else:
                     sanitized[key] = value

@@ -18,6 +18,7 @@ from app.schemas.business import (
     ProjectAggregateStats, RangeStats
 )
 from app.core.exceptions import AppException
+from app.mappers.project_mapper import map_project_to_overview, map_project_to_response
 from app.services.s3_service import get_s3_service
 from app.services.google_maps_service import GoogleMapsService
 from app.services.city_service import CityService
@@ -338,81 +339,11 @@ class ProjectService:
             selectinload(Project.images)
         ).all()
         
-        # Convert to overview schema
+        # Convert to overview schema using mapper
         items = []
         for project in projects:
-            # Get thumbnail from first image
-            thumbnail_url = None
-            if project.images:
-                # Sort by display_order and get first
-                sorted_images = sorted(project.images, key=lambda x: x.display_order)
-                if sorted_images:
-                    thumbnail_url = sorted_images[0].image_url
-            
-            # Calculate visibility status based on properties
-            visibility_status = None
-            if project.properties:
-                visibility_counts = {}
-                for prop in project.properties:
-                    if hasattr(prop, 'visibility') and prop.visibility is not None:
-                        visibility_counts[prop.visibility] = visibility_counts.get(prop.visibility, 0) + 1
-                
-                # Determine visibility status
-                if len(visibility_counts) == 0:
-                    visibility_status = 'active'  # Default if no visibility set
-                elif len(visibility_counts) == 1:
-                    # All properties have same visibility
-                    visibility = list(visibility_counts.keys())[0]
-                    if visibility == 1:
-                        visibility_status = 'active'
-                    elif visibility == 0:
-                        visibility_status = 'in_progress'
-                    elif visibility == -1:
-                        visibility_status = 'deactivated'
-                else:
-                    # Mixed visibility
-                    if 1 in visibility_counts:
-                        visibility_status = 'active'  # If any property is active, project is active
-                    elif 0 in visibility_counts:
-                        visibility_status = 'in_progress'  # If any in progress (but none active)
-                    else:
-                        visibility_status = 'deactivated'  # All are deactivated
-            
-            # Use pre-calculated values from database
-            min_rental_yield = float(project.min_rental_yield) if project.min_rental_yield else None
-            max_rental_yield = float(project.max_rental_yield) if project.max_rental_yield else None
-            min_price = float(project.min_price) if project.min_price else None
-            max_price = float(project.max_price) if project.max_price else None
-            min_initial_maintenance_expenses = float(project.min_initial_maintenance_expenses) if hasattr(project, 'min_initial_maintenance_expenses') and project.min_initial_maintenance_expenses else None
-            max_initial_maintenance_expenses = float(project.max_initial_maintenance_expenses) if hasattr(project, 'max_initial_maintenance_expenses') and project.max_initial_maintenance_expenses else None
-            
-            overview = ProjectOverview(
-                id=project.id,
-                name=project.name,
-                street=project.street,
-                house_number=project.house_number,
-                city=project.city,
-                district=project.district if hasattr(project, 'district') else None,
-                state=project.state,
-                zip_code=project.zip_code,
-                status=project.status,
-                building_type=project.building_type,
-                total_floors=project.total_floors,
-                construction_year=project.construction_year,
-                property_count=len(project.properties),
-                has_elevator=project.has_elevator,
-                has_parking=project.has_parking,
-                thumbnail_url=thumbnail_url,
-                investagon_id=project.investagon_id,
-                visibility_status=visibility_status,
-                min_rental_yield=min_rental_yield,
-                max_rental_yield=max_rental_yield,
-                min_price=min_price,
-                max_price=max_price,
-                min_initial_maintenance_expenses=min_initial_maintenance_expenses,
-                max_initial_maintenance_expenses=max_initial_maintenance_expenses,
-                provision_percentage=project.provision_percentage if hasattr(project, 'provision_percentage') else 0.0
-            )
+            overview_data = map_project_to_overview(project)
+            overview = ProjectOverview(**overview_data)
             items.append(overview)
         
         return ProjectListResponse(
@@ -445,6 +376,18 @@ class ProjectService:
         # Check if address fields are being updated
         address_fields = {'street', 'house_number', 'city', 'state', 'country', 'zip_code'}
         address_changed = any(field in update_data for field in address_fields)
+        
+        # Special handling for renovations field - convert Pydantic models to dict
+        if 'renovations' in update_data and update_data['renovations'] is not None:
+            renovations_list = []
+            for renovation in update_data['renovations']:
+                if hasattr(renovation, 'model_dump'):
+                    # It's a Pydantic model, convert to dict
+                    renovations_list.append(renovation.model_dump())
+                elif isinstance(renovation, dict):
+                    # It's already a dict
+                    renovations_list.append(renovation)
+            update_data['renovations'] = renovations_list
         
         for field, value in update_data.items():
             setattr(project, field, value)

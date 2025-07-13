@@ -47,6 +47,14 @@ class Project(Base, TenantMixin, AuditMixin):
     heating_type = Column(String(100), nullable=True)
     heating_building_year = Column(Integer, nullable=True)
     
+    # New fields from Issue #51
+    backyard_development = Column(Boolean, nullable=True)  # Hinterlandsbebauung
+    sev_takeover_one_year = Column(Boolean, nullable=True)  # Übernahme SEV für 1 Jahr
+    
+    # HOA renovations (WEG Gewerke) - JSON array of renovation objects
+    # Format: [{"type": "roof", "year": 2023}, {"type": "windows", "year": 2025}, ...]
+    renovations = Column(JSON, nullable=True)
+    
     # Additional Information
     description = Column(Text, nullable=True)
     amenities = Column(JSON, nullable=True)  # List of building amenities
@@ -140,7 +148,7 @@ class Property(Base, TenantMixin, AuditMixin):
     size_sqm = Column(Float, nullable=False)
     rooms = Column(Float, nullable=False)
     bathrooms = Column(Integer, nullable=True)
-    balcony = Column(Boolean, nullable=True)  # Has balcony or not
+    balcony = Column(String(50), nullable=True)  # 'none' or orientation: 'north', 'south', 'east', 'west', etc.
     
     # Financial Data
     purchase_price = Column(Numeric(12, 2), nullable=False)
@@ -178,6 +186,13 @@ class Property(Base, TenantMixin, AuditMixin):
     primary_energy_consumption = Column(Float, nullable=True)  # Primärenergieverbrauch
     energy_class = Column(String(10), nullable=True)  # 'A+', 'A', 'B', etc.
     heating_type = Column(String(100), nullable=True)
+    
+    # New fields from Issue #50
+    reserves = Column(Numeric(10, 2), nullable=True)  # Rücklagen
+    takeover_special_charges_years = Column(Integer, nullable=True)  # Übernahme Sonderlagen bis zu x Jahre
+    takeover_special_charges_amount = Column(Numeric(10, 2), nullable=True)  # Übernahme Sonderlagen bis zu x €
+    has_cellar = Column(Boolean, nullable=True)  # Keller vorhanden
+    parking_type = Column(String(50), nullable=True)  # Stellplatz/Garage/Duplexgarage/Tiefgarage
     
     # Investagon Status Flags
     active = Column(Integer, nullable=True)  # Can be more than 1

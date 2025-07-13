@@ -131,6 +131,12 @@ def map_property_to_response(prop: Property) -> Dict[str, Any]:
         "primary_energy_consumption": prop.primary_energy_consumption,
         "energy_class": prop.energy_class,
         "heating_type": prop.heating_type,
+        # New fields from Issue #50
+        "reserves": prop.reserves,
+        "takeover_special_charges_years": prop.takeover_special_charges_years,
+        "takeover_special_charges_amount": prop.takeover_special_charges_amount,
+        "has_cellar": prop.has_cellar,
+        "parking_type": prop.parking_type,
         "active": prop.active,
         "pre_sale": prop.pre_sale,
         "draft": prop.draft,
@@ -244,6 +250,7 @@ def map_property_to_response(prop: Property) -> Dict[str, Any]:
                 {
                     "id": img.id,
                     "project_id": img.project_id,
+                    "property_id": None,  # Add this for GenericImageSchema compatibility
                     "image_url": img.image_url,
                     "image_type": img.image_type,
                     "title": img.title,
@@ -267,8 +274,26 @@ def map_property_to_response(prop: Property) -> Dict[str, Any]:
     else:
         response_data["project"] = None
     
-    if hasattr(prop, 'images'):
-        response_data["images"] = prop.images
+    if hasattr(prop, 'images') and prop.images:
+        response_data["images"] = [
+            {
+                "id": img.id,
+                "property_id": img.property_id,
+                "project_id": None,  # Add this for GenericImageSchema compatibility
+                "image_url": img.image_url,
+                "image_type": img.image_type,
+                "title": img.title,
+                "description": img.description,
+                "display_order": img.display_order,
+                "file_size": img.file_size,
+                "mime_type": img.mime_type,
+                "width": img.width,
+                "height": img.height,
+                "created_at": img.created_at,
+                "updated_at": img.updated_at,
+            }
+            for img in prop.images
+        ]
     else:
         response_data["images"] = []
     

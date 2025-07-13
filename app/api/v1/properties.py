@@ -223,7 +223,31 @@ async def update_property(
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("properties", "update"))
 ):
-    """Update property details"""
+    """Update property details (full update)"""
+    try:
+        property = PropertyService.update_property(db, property_id, property_data, current_user)
+        db.commit()
+        
+        # Use mapper to get response data with calculated fields
+        response_data = map_property_to_response(property)
+        return PropertyResponse(**response_data)
+    
+    except AppException as e:
+        db.rollback()
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.patch("/{property_id}", response_model=PropertyResponse, response_model_exclude_none=True)
+async def patch_property(
+    property_id: UUID = Path(..., description="Property ID"),
+    property_data: PropertyUpdate = ...,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_permission("properties", "update"))
+):
+    """Update property details (partial update)"""
     try:
         property = PropertyService.update_property(db, property_id, property_data, current_user)
         db.commit()

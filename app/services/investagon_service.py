@@ -461,7 +461,8 @@ class InvestagonSyncService:
             "rooms": safe_float(investagon_data.get("object_rooms", 0)),
             "bathrooms": safe_int(investagon_data.get("object_bathrooms")),
             "floor": investagon_data.get("object_floor"),  # Keep as string (e.g., "1. OG", "2. OG Mitte")
-            "balcony": bool(investagon_data.get("balcony")) if investagon_data.get("balcony") is not None else None,
+            # Map balcony: convert boolean to string - "yes" if true, "none" if false, None if not provided
+            "balcony": "yes" if investagon_data.get("balcony") is True else ("none" if investagon_data.get("balcony") is False else None),
             
             # Financial Data
             "purchase_price": safe_decimal(investagon_data.get("purchase_price_apartment", 0)),

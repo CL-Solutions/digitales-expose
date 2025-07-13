@@ -17,6 +17,8 @@ from app.models.user import User
 from app.services.project_service import ProjectService
 from app.core.exceptions import AppException
 from app.services.s3_service import get_s3_service
+from app.mappers.project_mapper import map_project_to_response
+from app.mappers.property_mapper import map_property_to_overview
 
 router = APIRouter()
 
@@ -40,7 +42,8 @@ async def create_project(
             created_by=current_user.id,
             tenant_id=tenant_id
         )
-        return ProjectResponse.model_validate(new_project)
+        response_data = map_project_to_response(new_project)
+        return ProjectResponse(**response_data)
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
 
@@ -115,11 +118,13 @@ async def get_project(
             
             property_overviews.sort(key=get_unit_number_sort_key)
         
-        # Create response with property overviews
-        response_data = project.__dict__.copy()
+        # Create response using mapper
+        response_data = map_project_to_response(project)
+        
+        # Add property overviews
         response_data['properties'] = property_overviews
         
-        return ProjectResponse.model_validate(response_data)
+        return ProjectResponse(**response_data)
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
 
@@ -165,11 +170,13 @@ async def update_project(
             
             property_overviews.sort(key=get_unit_number_sort_key)
         
-        # Create response with property overviews
-        response_data = updated_project.__dict__.copy()
+        # Create response using mapper
+        response_data = map_project_to_response(updated_project)
+        
+        # Add property overviews
         response_data['properties'] = property_overviews
         
-        return ProjectResponse.model_validate(response_data)
+        return ProjectResponse(**response_data)
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
 
@@ -390,11 +397,13 @@ async def refresh_micro_location(
             
             property_overviews.sort(key=get_unit_number_sort_key)
         
-        # Create response with property overviews
-        response_data = project.__dict__.copy()
+        # Create response using mapper
+        response_data = map_project_to_response(project)
+        
+        # Add property overviews
         response_data['properties'] = property_overviews
         
-        return ProjectResponse.model_validate(response_data)
+        return ProjectResponse(**response_data)
         
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)

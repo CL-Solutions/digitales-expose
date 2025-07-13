@@ -2,8 +2,8 @@
 # DIGITALES EXPOSE SCHEMAS (schemas/business.py)
 # ================================
 
-from pydantic import Field, ConfigDict, field_validator, model_validator
-from typing import Optional, List, Dict, Any
+from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
+from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime
 from uuid import UUID
 
@@ -18,6 +18,29 @@ from app.schemas.expose_template_types import (
 # ================================
 # Project Schemas
 # ================================
+
+# Renovation types that can be tracked for HOA (WEG) works
+RenovationType = Literal[
+    "roof",  # Dach
+    "facade_insulation",  # Fassadendämmung
+    "facade_painting",  # Fassadenanstrich
+    "heating",  # Heizung
+    "windows",  # Fenster
+    "riser_pipes",  # Steigleitungen
+    "staircase",  # Treppenhaus
+    "entrance",  # Hauseingang
+    "balconies",  # Balkone
+    "elevator",  # Aufzug
+    "underground_parking"  # Tiefgarage
+]
+
+class RenovationItem(BaseModel):
+    """Schema for a single renovation item"""
+    type: RenovationType
+    year: int = Field(..., ge=1900, le=2100)
+    description: Optional[str] = Field(None, max_length=500)
+    
+    model_config = ConfigDict(from_attributes=True)
 
 class ProjectBase(BaseSchema):
     """Base schema for Project"""
@@ -52,6 +75,11 @@ class ProjectBase(BaseSchema):
     heating_type: Optional[str] = Field(None, max_length=100)
     primary_energy_consumption: Optional[float] = Field(None, ge=0)
     heating_building_year: Optional[int] = Field(None, ge=1800, le=2100)
+    
+    # New fields from Issue #51
+    backyard_development: Optional[bool] = None  # Hinterlandsbebauung
+    sev_takeover_one_year: Optional[bool] = None  # Übernahme SEV für 1 Jahr
+    renovations: Optional[List[RenovationItem]] = None  # HOA renovations
     
     # Additional Information
     description: Optional[str] = None
@@ -98,6 +126,11 @@ class ProjectUpdate(BaseSchema):
     heating_type: Optional[str] = Field(None, max_length=100)
     primary_energy_consumption: Optional[float] = Field(None, ge=0)
     heating_building_year: Optional[int] = Field(None, ge=1800, le=2100)
+    
+    # New fields from Issue #51
+    backyard_development: Optional[bool] = None  # Hinterlandsbebauung
+    sev_takeover_one_year: Optional[bool] = None  # Übernahme SEV für 1 Jahr
+    renovations: Optional[List[RenovationItem]] = None  # HOA renovations
     
     description: Optional[str] = None
     amenities: Optional[List[str]] = None
@@ -257,7 +290,7 @@ class PropertyBase(BaseSchema):
     rooms: float = Field(..., ge=0)
     bathrooms: Optional[int] = Field(None, ge=0)
     floor: Optional[str] = Field(None, max_length=50)  # e.g., "1. OG", "2. OG Mitte", "EG"
-    balcony: Optional[bool] = None
+    balcony: Optional[str] = Field(None, max_length=50)  # 'none' or orientation: 'north', 'south', etc.
     
     purchase_price: float = Field(..., ge=0)
     purchase_price_parking: Optional[float] = Field(None, ge=0)
@@ -293,6 +326,13 @@ class PropertyBase(BaseSchema):
     primary_energy_consumption: Optional[float] = Field(None, ge=0)  # Primärenergieverbrauch
     energy_class: Optional[str] = Field(None, max_length=10)
     heating_type: Optional[str] = Field(None, max_length=100)
+    
+    # New fields from Issue #50
+    reserves: Optional[float] = Field(None, ge=0)  # Rücklagen
+    takeover_special_charges_years: Optional[int] = Field(None, ge=0)  # Übernahme Sonderlagen Jahre
+    takeover_special_charges_amount: Optional[float] = Field(None, ge=0)  # Übernahme Sonderlagen €
+    has_cellar: Optional[bool] = None  # Keller vorhanden
+    parking_type: Optional[str] = Field(None, max_length=50)  # Stellplatz/Garage/Duplexgarage/Tiefgarage
     
     # Investagon Status Flags
     active: Optional[int] = Field(None, ge=0)
@@ -332,7 +372,7 @@ class PropertyUpdate(BaseSchema):
     rooms: Optional[float] = Field(None, ge=0)
     bathrooms: Optional[int] = Field(None, ge=0)
     floor: Optional[str] = Field(None, max_length=50)
-    balcony: Optional[bool] = None
+    balcony: Optional[str] = Field(None, max_length=50)  # 'none' or orientation: 'north', 'south', etc.
     
     purchase_price: Optional[float] = Field(None, ge=0)
     purchase_price_parking: Optional[float] = Field(None, ge=0)
@@ -368,6 +408,13 @@ class PropertyUpdate(BaseSchema):
     primary_energy_consumption: Optional[float] = Field(None, ge=0)
     energy_class: Optional[str] = Field(None, max_length=10)
     heating_type: Optional[str] = Field(None, max_length=100)
+    
+    # New fields from Issue #50
+    reserves: Optional[float] = Field(None, ge=0)  # Rücklagen
+    takeover_special_charges_years: Optional[int] = Field(None, ge=0)  # Übernahme Sonderlagen Jahre
+    takeover_special_charges_amount: Optional[float] = Field(None, ge=0)  # Übernahme Sonderlagen €
+    has_cellar: Optional[bool] = None  # Keller vorhanden
+    parking_type: Optional[str] = Field(None, max_length=50)  # Stellplatz/Garage/Duplexgarage/Tiefgarage
     
     # Investagon Status Flags
     active: Optional[int] = Field(None, ge=0)
