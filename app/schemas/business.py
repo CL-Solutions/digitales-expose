@@ -300,11 +300,6 @@ class PropertyBase(BaseSchema):
     additional_costs: Optional[float] = Field(None, ge=0)
     management_fee: Optional[float] = Field(None, ge=0)
     
-    # Transaction Costs (as percentages)
-    transaction_broker_rate: Optional[float] = Field(None, ge=0)
-    transaction_tax_rate: Optional[float] = Field(None, ge=0)
-    transaction_notary_rate: Optional[float] = Field(None, ge=0)
-    transaction_register_rate: Optional[float] = Field(None, ge=0)
     
     # Operating Costs
     operation_cost_landlord: Optional[float] = Field(None, ge=0)
@@ -333,6 +328,9 @@ class PropertyBase(BaseSchema):
     takeover_special_charges_amount: Optional[float] = Field(None, ge=0)  # Übernahme Sonderlagen €
     has_cellar: Optional[bool] = None  # Keller vorhanden
     parking_type: Optional[str] = Field(None, max_length=50)  # Stellplatz/Garage/Duplexgarage/Tiefgarage
+    
+    # Fee override
+    notary_override_percentage: Optional[float] = Field(None, ge=0, le=10, description="Override notary fee as percentage")
     
     # Investagon Status Flags
     active: Optional[int] = Field(None, ge=0)
@@ -382,11 +380,6 @@ class PropertyUpdate(BaseSchema):
     additional_costs: Optional[float] = Field(None, ge=0)
     management_fee: Optional[float] = Field(None, ge=0)
     
-    # Transaction Costs
-    transaction_broker_rate: Optional[float] = Field(None, ge=0)
-    transaction_tax_rate: Optional[float] = Field(None, ge=0)
-    transaction_notary_rate: Optional[float] = Field(None, ge=0)
-    transaction_register_rate: Optional[float] = Field(None, ge=0)
     
     # Operating Costs
     operation_cost_landlord: Optional[float] = Field(None, ge=0)
@@ -415,6 +408,9 @@ class PropertyUpdate(BaseSchema):
     takeover_special_charges_amount: Optional[float] = Field(None, ge=0)  # Übernahme Sonderlagen €
     has_cellar: Optional[bool] = None  # Keller vorhanden
     parking_type: Optional[str] = Field(None, max_length=50)  # Stellplatz/Garage/Duplexgarage/Tiefgarage
+    
+    # Fee override
+    notary_override_percentage: Optional[float] = Field(None, ge=0, le=10, description="Override notary fee as percentage")
     
     # Investagon Status Flags
     active: Optional[int] = Field(None, ge=0)
@@ -1041,3 +1037,133 @@ class PropertyListResponse(BaseSchema):
     pages: int
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ================================
+# Fee Configuration Schemas
+# ================================
+
+class FeeTableBResponse(BaseResponseSchema):
+    """Schema for fee table B entry"""
+    geschaeftswert_from: float
+    geschaeftswert_to: Optional[float]
+    gebuehr: float
+    
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TenantFeeConfigBase(BaseSchema):
+    """Base schema for tenant fee configuration"""
+    # Notary fee rates (Gebührensätze)
+    notary_kaufvertrag_rate: float = Field(..., ge=0, le=10, description="Kaufvertrag Beurkundung rate")
+    notary_grundschuld_rate: float = Field(..., ge=0, le=10, description="Grundschuld Beurkundung rate")
+    notary_vollzug_rate: float = Field(..., ge=0, le=10, description="Vollzug/Betreuung rate")
+    
+    # Grundbuch fee rates (Gebührensätze)
+    grundbuch_auflassung_rate: float = Field(..., ge=0, le=10, description="Auflassungsvormerkung rate")
+    grundbuch_eigentum_rate: float = Field(..., ge=0, le=10, description="Eigentumsumschreibung rate")
+    grundbuch_grundschuld_rate: float = Field(..., ge=0, le=10, description="Eintragung der Grundschuld rate")
+    
+    # Override option (percentage of purchase price)
+    notary_override_percentage: Optional[float] = Field(None, ge=0, le=10, description="Override notary fee as percentage")
+    
+    @field_validator('notary_kaufvertrag_rate', 'notary_grundschuld_rate', 'notary_vollzug_rate',
+                    'grundbuch_auflassung_rate', 'grundbuch_eigentum_rate', 'grundbuch_grundschuld_rate')
+    def validate_gebuehrensatz(cls, v):
+        """Validate that the rate is one of the allowed values"""
+        allowed_values = [0.2, 0.3, 0.5, 0.6, 1.0, 2.0]
+        if v not in allowed_values:
+            raise ValueError(f"Rate must be one of {allowed_values}")
+        return v
+
+
+class TenantFeeConfigCreate(TenantFeeConfigBase):
+    """Schema for creating tenant fee configuration"""
+    pass
+
+
+class TenantFeeConfigUpdate(BaseSchema):
+    """Schema for updating tenant fee configuration"""
+    # All fields are optional for updates
+    notary_kaufvertrag_rate: Optional[float] = Field(None, ge=0, le=10)
+    notary_grundschuld_rate: Optional[float] = Field(None, ge=0, le=10)
+    notary_vollzug_rate: Optional[float] = Field(None, ge=0, le=10)
+    grundbuch_auflassung_rate: Optional[float] = Field(None, ge=0, le=10)
+    grundbuch_eigentum_rate: Optional[float] = Field(None, ge=0, le=10)
+    grundbuch_grundschuld_rate: Optional[float] = Field(None, ge=0, le=10)
+    notary_override_percentage: Optional[float] = Field(None, ge=0, le=10)
+    
+    @field_validator('notary_kaufvertrag_rate', 'notary_grundschuld_rate', 'notary_vollzug_rate',
+                    'grundbuch_auflassung_rate', 'grundbuch_eigentum_rate', 'grundbuch_grundschuld_rate')
+    def validate_gebuehrensatz(cls, v):
+        """Validate that the rate is one of the allowed values"""
+        if v is not None:
+            allowed_values = [0.2, 0.3, 0.5, 0.6, 1.0, 2.0]
+            if v not in allowed_values:
+                raise ValueError(f"Rate must be one of {allowed_values}")
+        return v
+
+
+class TenantFeeConfigResponse(TenantFeeConfigBase, BaseResponseSchema, TimestampMixin):
+    """Schema for tenant fee configuration response"""
+    tenant_id: UUID
+    
+    model_config = ConfigDict(from_attributes=True)
+
+
+class FeeCalculationRequest(BaseSchema):
+    """Request schema for fee calculation"""
+    purchase_price: float = Field(..., gt=0, description="Purchase price in EUR")
+    loan_amount: float = Field(..., ge=0, description="Loan amount for Grundschuld in EUR")
+    has_werkvertrag: bool = Field(False, description="Whether Werkvertrag is enabled")
+    werkvertrag_amount: Optional[float] = Field(None, ge=0, description="Werkvertrag amount if enabled")
+    
+    # Optional property-level override
+    property_notary_override: Optional[float] = Field(None, ge=0, le=10, description="Property-specific notary override percentage")
+    
+    @model_validator(mode='after')
+    def validate_werkvertrag(self):
+        """Validate werkvertrag amount is provided when enabled"""
+        if self.has_werkvertrag and (self.werkvertrag_amount is None or self.werkvertrag_amount <= 0):
+            raise ValueError("Werkvertrag amount must be provided when werkvertrag is enabled")
+        return self
+
+
+class FeeCalculationResponse(BaseSchema):
+    """Response schema for fee calculation"""
+    # Input values
+    purchase_price: float
+    purchase_price_after_werkvertrag: float  # Purchase price minus werkvertrag if applicable
+    loan_amount: float
+    
+    # Notary fees breakdown
+    notary_fees: Dict[str, Dict[str, float]] = Field(..., description="Notary fees by category")
+    # Structure:
+    # {
+    #   "kaufvertrag": {"geschaeftswert": X, "rate": Y, "base_fee": Z, "calculated_fee": W},
+    #   "grundschuld": {...},
+    #   "vollzug": {...}
+    # }
+    
+    notary_fees_subtotal: float
+    notary_fees_vat: float  # 19% VAT
+    notary_fees_total: float
+    
+    # Grundbuch fees breakdown
+    grundbuch_fees: Dict[str, Dict[str, float]] = Field(..., description="Grundbuch fees by category")
+    # Structure:
+    # {
+    #   "auflassung": {"geschaeftswert": X, "rate": Y, "base_fee": Z, "calculated_fee": W},
+    #   "eigentum": {...},
+    #   "grundschuld": {...}
+    # }
+    
+    grundbuch_fees_total: float
+    
+    # Totals
+    total_fees: float
+    
+    # Override info (if applicable)
+    override_applied: bool = False
+    override_percentage: Optional[float] = None
+    original_notary_total: Optional[float] = None  # Before override

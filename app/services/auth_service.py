@@ -9,7 +9,7 @@ from app.core.security import verify_password, get_password_hash, create_access_
 from app.schemas.user import UserCreate
 from app.core.exceptions import AppException, AuthenticationError, AuthorizationError
 from app.utils.audit import AuditLogger
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uuid
 import logging
 import secrets
@@ -56,7 +56,7 @@ class AuthService:
             last_name=user_data.last_name,
             is_verified=user_data.send_welcome_email,  # Verified if welcome email sent
             email_verification_token=generate_reset_token() if user_data.require_email_verification else None,
-            email_verification_expires=datetime.utcnow() + timedelta(hours=24) if user_data.require_email_verification else None,
+            email_verification_expires=datetime.now(timezone.utc) + timedelta(hours=24) if user_data.require_email_verification else None,
             provision_percentage=user_data.provision_percentage if hasattr(user_data, 'provision_percentage') else 0
         )
         
@@ -137,7 +137,7 @@ class AuthService:
             raise AuthenticationError(GENERIC_ERROR_MESSAGE)
         
         # Account locked check
-        if user.locked_until and user.locked_until > datetime.utcnow():
+        if user.locked_until and user.locked_until > datetime.now(timezone.utc):
             audit_logger.log_auth_event(
                 db, "LOGIN_FAILED", user.id, user.tenant_id,
                 {"reason": "account_locked", "locked_until": user.locked_until.isoformat()},
@@ -163,7 +163,7 @@ class AuthService:
             
             # Lock account after 5 failed attempts
             if user.failed_login_attempts >= 5:
-                user.locked_until = datetime.utcnow() + timedelta(minutes=30)
+                user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=30)
                 audit_logger.log_auth_event(
                     db, "ACCOUNT_LOCKED", user.id, user.tenant_id,
                     {"failed_attempts": user.failed_login_attempts},
@@ -194,7 +194,7 @@ class AuthService:
         # Successful login
         user.failed_login_attempts = 0
         user.locked_until = None
-        user.last_login_at = datetime.utcnow()
+        user.last_login_at = datetime.now(timezone.utc)
         
         tokens = await AuthService._create_user_session(db, user, ip_address)
         
@@ -268,7 +268,7 @@ class AuthService:
         """Email-Verifizierung"""
         user = db.query(User).filter(
             User.email_verification_token == token,
-            User.email_verification_expires > datetime.utcnow()
+            User.email_verification_expires > datetime.now(timezone.utc)
         ).first()
         
         if not user:
@@ -299,7 +299,7 @@ class AuthService:
         
         # Generate reset token
         reset_token = generate_reset_token()
-        expires_at = datetime.utcnow() + timedelta(hours=24)
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
         
         # Store reset token
         password_reset = PasswordResetToken(
@@ -329,7 +329,7 @@ class AuthService:
         """Password-Reset durchführen"""
         reset_token = db.query(PasswordResetToken).filter(
             PasswordResetToken.token == token,
-            PasswordResetToken.expires_at > datetime.utcnow(),
+            PasswordResetToken.expires_at > datetime.now(timezone.utc),
             PasswordResetToken.used_at.is_(None)
         ).first()
         
@@ -346,7 +346,7 @@ class AuthService:
         user.locked_until = None
         
         # Mark token as used
-        reset_token.used_at = datetime.utcnow()
+        reset_token.used_at = datetime.now(timezone.utc)
         
         # Invalidate all existing sessions
         db.query(UserSession).filter(UserSession.user_id == user.id).delete()
@@ -414,7 +414,7 @@ class AuthService:
             tenant_id=user.tenant_id,
             session_token=access_token[-32:],  # Store last 32 chars for lookup
             refresh_token=refresh_token[-32:],
-            expires_at=datetime.utcnow() + timedelta(minutes=30),
+            expires_at=datetime.now(timezone.utc) + timedelta(days=7),  # Match refresh token expiry
             impersonated_tenant_id=impersonated_tenant_id,
             ip_address=ip_address
         )

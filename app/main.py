@@ -23,7 +23,7 @@ from app.core.middleware import (
 )
 
 # API Routes - UPDATED TO INCLUDE RBAC
-from app.api.v1 import auth, users, tenants, projects, properties, cities, exposes, admin, rbac, investagon, user_preferences, user_team, feedback, reservations
+from app.api.v1 import auth, users, tenants, projects, properties, cities, exposes, admin, rbac, investagon, user_preferences, user_team, feedback, reservations, fees
 
 import logging
 import uvicorn
@@ -633,6 +633,17 @@ app.include_router(
     responses={
         401: {"description": "Authentication required"},
         502: {"description": "External API error"}
+    }
+)
+
+# Fee configuration routes
+app.include_router(
+    fees.router,
+    prefix="/api/v1",
+    tags=["Fees"],
+    responses={
+        401: {"description": "Authentication required"},
+        403: {"description": "Insufficient permissions"}
     }
 )
 

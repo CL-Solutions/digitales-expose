@@ -473,12 +473,6 @@ class InvestagonSyncService:
             "additional_costs": safe_decimal(investagon_data.get("additional_costs", 0)),
             "management_fee": safe_decimal(investagon_data.get("property_management_fee", 0)) or safe_decimal(investagon_data.get("property_management_fee_sev", 0)),
             
-            # Transaction Costs (as percentages)
-            "transaction_broker_rate": safe_decimal(investagon_data.get("transaction_broker_rate", 0)),
-            "transaction_tax_rate": safe_decimal(investagon_data.get("transaction_tax_rate", 0)),
-            "transaction_notary_rate": safe_decimal(investagon_data.get("transaction_notary_rate", 0)),
-            "transaction_register_rate": safe_decimal(investagon_data.get("transaction_register_rate", 0)),
-            
             # Operating Costs
             "operation_cost_landlord": safe_decimal(investagon_data.get("operation_cost_landlord_apartment", 0)),
             "operation_cost_tenant": safe_decimal(investagon_data.get("operation_cost_tenant_apartment", 0)),

@@ -160,10 +160,7 @@ class Property(Base, TenantMixin, AuditMixin):
     management_fee = Column(Numeric(10, 2), nullable=True)
     
     # Transaction Costs (as percentages)
-    transaction_broker_rate = Column(Numeric(5, 2), nullable=True)
-    transaction_tax_rate = Column(Numeric(5, 2), nullable=True)
-    transaction_notary_rate = Column(Numeric(5, 2), nullable=True)
-    transaction_register_rate = Column(Numeric(5, 2), nullable=True)
+    notary_override_percentage = Column(Numeric(5, 2), nullable=True)  # Override for new fee calculation
     
     # Operating Costs
     operation_cost_landlord = Column(Numeric(10, 2), nullable=True)
@@ -564,3 +561,52 @@ class ReservationStatusHistory(Base, TenantMixin):
     
     def __repr__(self):
         return f"<ReservationStatusHistory(reservation='{self.reservation_id}', from='{self.from_status}', to='{self.to_status}')>"
+
+
+class FeeTableB(Base, AuditMixin):
+    """Table B from GNotKG (Gerichts- und Notarkostengesetz) for fee calculations"""
+    __tablename__ = "fee_table_b"
+    
+    # Business value range
+    geschaeftswert_from = Column(Numeric(12, 2), nullable=False)
+    geschaeftswert_to = Column(Numeric(12, 2), nullable=True)  # NULL for last entry (unbounded)
+    
+    # Fee amount
+    gebuehr = Column(Numeric(10, 2), nullable=False)
+    
+    # Indexes
+    __table_args__ = (
+        Index('idx_fee_table_b_geschaeftswert', 'geschaeftswert_from', 'geschaeftswert_to'),
+    )
+    
+    def __repr__(self):
+        return f"<FeeTableB(from={self.geschaeftswert_from}, to={self.geschaeftswert_to}, fee={self.gebuehr})>"
+
+
+class TenantFeeConfig(Base, TenantMixin, AuditMixin):
+    """Tenant-level configuration for notary and Grundbuch fees"""
+    __tablename__ = "tenant_fee_configs"
+    
+    # Notary fee rates (Gebührensätze)
+    notary_kaufvertrag_rate = Column(Numeric(3, 1), nullable=False, default=2.0)
+    notary_grundschuld_rate = Column(Numeric(3, 1), nullable=False, default=1.0)
+    notary_vollzug_rate = Column(Numeric(3, 1), nullable=False, default=0.5)
+    
+    # Grundbuch fee rates (Gebührensätze)
+    grundbuch_auflassung_rate = Column(Numeric(3, 1), nullable=False, default=0.5)
+    grundbuch_eigentum_rate = Column(Numeric(3, 1), nullable=False, default=1.0)
+    grundbuch_grundschuld_rate = Column(Numeric(3, 1), nullable=False, default=1.0)
+    
+    # Override option (percentage of purchase price)
+    notary_override_percentage = Column(Numeric(5, 2), nullable=True)  # e.g., 1.5 for 1.5%
+    
+    # Relationships
+    tenant = relationship("Tenant", foreign_keys="TenantFeeConfig.tenant_id")
+    
+    # Table indexes
+    __table_args__ = (
+        Index('idx_tenant_fee_config_tenant', 'tenant_id', unique=True),
+    )
+    
+    def __repr__(self):
+        return f"<TenantFeeConfig(tenant_id='{self.tenant_id}')>"

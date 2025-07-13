@@ -6,7 +6,7 @@ from sqlalchemy import Column, String, Boolean, DateTime, Integer, Text, Foreign
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID, INET, JSONB
 from app.models.base import Base
-from datetime import datetime
+from datetime import datetime, timezone
 
 class User(Base):
     """User Model"""
@@ -96,7 +96,7 @@ class User(Base):
     @property
     def is_locked(self) -> bool:
         """Check if account is currently locked"""
-        return self.locked_until and self.locked_until > datetime.utcnow()
+        return self.locked_until and self.locked_until > datetime.now(timezone.utc)
     
     def __repr__(self):
         return f"<User(email='{self.email}', tenant='{self.tenant_id}')>"
@@ -117,7 +117,7 @@ class UserSession(Base):
     # Session Context
     ip_address = Column(INET, nullable=True)  # IPv4/IPv6 support
     user_agent = Column(Text, nullable=True)
-    last_accessed_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    last_accessed_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     
     # Super-Admin Impersonation
     impersonated_tenant_id = Column(UUID(as_uuid=True), ForeignKey('tenants.id'), nullable=True)
