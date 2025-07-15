@@ -216,6 +216,117 @@ DEFAULT_SPECIAL_FEATURES = [
     }
 ]
 
+DEFAULT_HIGHLIGHTS = [
+    {
+        "label": "Mietrendite",
+        "value": "{{gross_rental_yield}}%",
+        "icon": "percent",
+        "color": "green",
+        "enabled": True,
+        "order": 1,
+        "condition": "gross_rental_yield > 4"  # Only show if rental yield is above 4%
+    },
+    {
+        "label": "Positiver Cashflow",
+        "value": "{{monthly_net_income}}",  # Added dynamic value
+        "icon": "trending-up",
+        "color": "blue",
+        "enabled": False,
+        "order": 2,
+        "condition": "monthly_net_income > 0"  # Show only if cashflow is positive
+    },
+    {
+        "label": "Balkon / Terrasse",
+        "value": "{{size_sqm}} m²",  # Show balcony size if available
+        "icon": "home",
+        "color": "amber",
+        "enabled": False,
+        "order": 3,
+        "condition": "has_balcony = true"  # Only show if property has balcony
+    },
+    {
+        "label": "Hinterlandsbebauung",
+        "value": None,
+        "icon": "building",
+        "color": "gray",
+        "enabled": False,
+        "order": 4,
+        "condition": "backyard_development = true"  # Check project-level field
+    },
+    {
+        "label": "Erhaltungsaufwand",
+        "value": "{{initial_maintenance_expenses_formatted}}",
+        "icon": "wrench",
+        "color": "blue",
+        "enabled": False,
+        "order": 5,
+        "condition": "initial_maintenance_expenses > 0"  # Only show if there are maintenance expenses
+    },
+    {
+        "label": "Übernahme SEV im 1. Jahr",
+        "value": None,
+        "icon": "shield-check",
+        "color": "green",
+        "enabled": False,
+        "order": 6,
+        "condition": "sev_takeover_one_year = true"  # Check project-level field
+    },
+    {
+        "label": "Energieeffizienz",
+        "value": "Klasse {{energy_class}}",  # Added "Klasse" prefix
+        "icon": "zap",
+        "color": "green",
+        "enabled": False,
+        "order": 7,
+        "condition": "energy_class <= D"  # Only show for energy class D or better
+    },
+    {
+        "label": "Erstvermietungsgarantie",
+        "value": None,
+        "icon": "check-circle",
+        "color": "blue",
+        "enabled": False,
+        "order": 8,
+        "condition": None  # Manual configuration needed
+    },
+    {
+        "label": "Gewährleistung",
+        "value": "5 Jahre",  # Default warranty period
+        "icon": "shield",
+        "color": "amber",
+        "enabled": False,
+        "order": 9,
+        "condition": None  # Manual configuration needed
+    },
+    {
+        "label": "{{parking_type}}",  # Dynamic label showing the parking type
+        "value": "{{purchase_price_parking}}",  # Show parking price if available
+        "icon": "car",
+        "color": "gray",
+        "enabled": False,
+        "order": 10,
+        "condition": "has_parking = true"  # Only show if property has parking
+    },
+    {
+        "label": "Baujahr",
+        "value": "{{construction_year}}",
+        "icon": "calendar",
+        "color": "blue",
+        "enabled": False,
+        "order": 11,
+        "condition": "construction_year > 2020"  # Only show for newer buildings
+    },
+    {
+        "label": "Übernahme Sonderumlagen",
+        "value": "{{takeover_special_charges_amount}} für {{takeover_special_charges_years}} Jahre",
+        "icon": "receipt",
+        "color": "green",
+        "enabled": False,
+        "order": 12,
+        "condition": "takeover_special_charges_years > 0 OR takeover_special_charges_amount > 0"  # Show if either field is set
+    }
+]
+
 def get_default_template_content():
     """Returns a dictionary with all default template content"""
     return {
@@ -228,5 +339,6 @@ def get_default_template_content():
         "onsite_management_services": DEFAULT_ONSITE_MANAGEMENT_SERVICES,
         "onsite_management_package": DEFAULT_ONSITE_MANAGEMENT_PACKAGE,
         "coliving_content": DEFAULT_COLIVING_CONTENT,
-        "special_features_items": DEFAULT_SPECIAL_FEATURES
+        "special_features_items": DEFAULT_SPECIAL_FEATURES,
+        "highlights": DEFAULT_HIGHLIGHTS
     }

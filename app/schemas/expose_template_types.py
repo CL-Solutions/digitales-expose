@@ -103,3 +103,14 @@ class SpecialFeatureItem(BaseModel):
     """Special feature item"""
     title: str = Field(..., description="Feature title")
     description: Optional[str] = Field(None, description="Optional feature description")
+
+
+class ExposeHighlight(BaseModel):
+    """Dynamic highlight configuration"""
+    label: str = Field(..., description="Display label for the highlight (e.g., 'Mietrendite', 'Positiver Cashflow')")
+    value: Optional[str] = Field(None, description="Optional value to display (e.g., '5.2%', '2024')")
+    icon: Optional[str] = Field(None, description="Optional icon identifier")
+    color: Optional[str] = Field(None, description="Optional color for the badge (e.g., 'green', 'blue', 'amber')")
+    enabled: bool = Field(default=True, description="Whether this highlight is currently enabled")
+    order: Optional[int] = Field(None, description="Display order (lower numbers appear first)")
+    condition: Optional[str] = Field(None, description="Condition for showing this highlight (e.g., 'gross_rental_yield > 4', 'has_balcony = true')")

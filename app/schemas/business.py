@@ -10,9 +10,9 @@ from uuid import UUID
 from app.schemas.base import BaseSchema, BaseResponseSchema, PaginationParams, TimestampMixin
 from app.schemas.expose_template_types import (
     ModernizationItem, InsurancePlan, ProcessStep, 
-    OpportunityItem, RiskItem, EnabledSections,
-    OpportunitiesRisksSection, OnsiteManagementService,
-    OnsiteManagementPackage, SpecialFeatureItem
+    EnabledSections, OpportunitiesRisksSection, 
+    OnsiteManagementService, OnsiteManagementPackage, 
+    SpecialFeatureItem, ExposeHighlight
 )
 
 # ================================
@@ -723,6 +723,9 @@ class ExposeTemplateBase(BaseSchema):
     onsite_management_package: Optional[OnsiteManagementPackage] = Field(None, description="Management package details")
     coliving_content: Optional[str] = Field(None, description="Co-living description text")
     special_features_items: Optional[List[SpecialFeatureItem]] = Field(None, description="Special features list")
+    
+    # Highlights configuration
+    highlights: Optional[List[ExposeHighlight]] = Field(None, description="Expose highlights configuration")
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -748,6 +751,9 @@ class ExposeTemplateUpdate(BaseSchema):
     onsite_management_package: Optional[OnsiteManagementPackage] = None
     coliving_content: Optional[str] = None
     special_features_items: Optional[List[SpecialFeatureItem]] = None
+    
+    # Highlights configuration
+    highlights: Optional[List[ExposeHighlight]] = None
 
     model_config = ConfigDict(
         from_attributes=True,

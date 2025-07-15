@@ -347,6 +347,9 @@ class ExposeTemplate(Base, TenantMixin, AuditMixin):
     coliving_content = Column(Text, nullable=True)  # Co-Living description text
     special_features_items = Column(JSON, nullable=True)  # Special features [{title, description}]
     
+    # Highlights configuration
+    highlights = Column(JSON, nullable=True)  # List of highlight keys to display [{key: string, enabled: boolean}]
+    
     # Relationships
     tenant = relationship("Tenant", foreign_keys="ExposeTemplate.tenant_id")
     creator = relationship("User", foreign_keys="ExposeTemplate.created_by")
