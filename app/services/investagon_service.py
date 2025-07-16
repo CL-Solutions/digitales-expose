@@ -1037,24 +1037,28 @@ class InvestagonSyncService:
                 if local_project:
                     project_documents = {}
                     
-                    # Check for 'files' field which contains documents (list format)
-                    if 'files' in project_with_photos and isinstance(project_with_photos['files'], list):
-                        for doc in project_with_photos['files']:
-                            if isinstance(doc, dict):
-                                doc_id = str(doc.get('id', ''))
-                                doc_url = doc.get('filename', '')  # URL is in 'filename' field
-                                doc_title = doc.get('title', f"Document_{doc_id}")
-                                doc_category = doc.get('category', 'other')
-                                doc_filename = doc.get('original_filename', doc_title)
-                                
-                                if doc_url and doc_url.startswith('http'):
-                                    project_documents[f"{doc_category}_{doc_id}"] = {
-                                        'url': doc_url,
-                                        'title': doc_title,
-                                        'category': doc_category,
-                                        'filename': doc_filename,
-                                        'id': doc_id
-                                    }
+                    # Check for 'files' field which contains a Hydra collection
+                    if 'files' in project_with_photos and isinstance(project_with_photos['files'], dict):
+                        # Handle Hydra collection format
+                        if 'hydra:member' in project_with_photos['files'] and isinstance(project_with_photos['files']['hydra:member'], list):
+                            logger.info(f"Found {len(project_with_photos['files']['hydra:member'])} documents in Hydra collection for project")
+                            for doc in project_with_photos['files']['hydra:member']:
+                                if isinstance(doc, dict):
+                                    doc_id = str(doc.get('id', ''))
+                                    doc_url = doc.get('filename', '')  # URL is in 'filename' field
+                                    doc_title = doc.get('title', f"Document_{doc_id}")
+                                    doc_category = doc.get('category', 'other')
+                                    doc_filename = doc.get('original_filename', doc_title)
+                                    
+                                    if doc_url and doc_url.startswith('http'):
+                                        project_documents[f"{doc_category}_{doc_id}"] = {
+                                            'url': doc_url,
+                                            'title': doc_title,
+                                            'category': doc_category,
+                                            'filename': doc_filename,
+                                            'id': doc_id
+                                        }
+                                        logger.info(f"Found project document: {doc_title} ({doc_category})...")
                     
                     if project_documents:
                         try:
@@ -1131,16 +1135,14 @@ class InvestagonSyncService:
                         
                         # Import property documents
                         property_documents = {}
-                        # Check for 'files' field which may contain documents in different formats
-                        if 'files' in investagon_data:
-                            
-                            # Handle different formats
-                            if isinstance(investagon_data['files'], list):
-                                # Direct list of documents
-                                logger.info(f"Files field is a list with {len(investagon_data['files'])} items for property")
-                                for doc in investagon_data['files']:
+                        # Check for 'files' field which contains a Hydra collection
+                        if 'files' in investagon_data and isinstance(investagon_data['files'], dict):
+                            # Handle Hydra collection format
+                            if 'hydra:member' in investagon_data['files'] and isinstance(investagon_data['files']['hydra:member'], list):
+                                logger.info(f"Found {len(investagon_data['files']['hydra:member'])} documents in Hydra collection for property")
+                                for doc in investagon_data['files']['hydra:member']:
                                     if isinstance(doc, dict):
-                                        # Extract document info
+                                        # Extract document info from Hydra member
                                         doc_id = str(doc.get('id', ''))
                                         doc_url = doc.get('filename', '')  # URL is in 'filename' field
                                         doc_title = doc.get('title', f"Document_{doc_id}")
@@ -1155,39 +1157,7 @@ class InvestagonSyncService:
                                                 'filename': doc_filename,
                                                 'id': doc_id
                                             }
-                                            logger.info(f"Found property document: {doc_title} ({doc_category}) - {doc_url[:100]}...")
-                            elif isinstance(investagon_data['files'], dict):
-                                
-                                # Handle Hydra collection format
-                                if 'hydra:member' in investagon_data['files'] and isinstance(investagon_data['files']['hydra:member'], list):
-                                    for doc in investagon_data['files']['hydra:member']:
-                                        if isinstance(doc, dict):
-                                            # Extract document info from Hydra member
-                                            doc_id = str(doc.get('id', ''))
-                                            doc_url = doc.get('filename', '')  # URL is in 'filename' field
-                                            doc_title = doc.get('title', f"Document_{doc_id}")
-                                            doc_category = doc.get('category', 'other')
-                                            doc_filename = doc.get('original_filename', doc_title)
-                                            
-                                            if doc_url and doc_url.startswith('http'):
-                                                property_documents[f"{doc_category}_{doc_id}"] = {
-                                                    'url': doc_url,
-                                                    'title': doc_title,
-                                                    'category': doc_category,
-                                                    'filename': doc_filename,
-                                                    'id': doc_id
-                                                }
-                                                logger.info(f"Found document: {doc_title} ({doc_category}) - {doc_url[:100]}...")
-                                else:
-                                    # Fallback to old logic if not Hydra format
-                                    logger.info(f"Files field doesn't contain hydra:member, checking direct entries")
-                                    for doc_key, doc_value in investagon_data['files'].items():
-                                        if isinstance(doc_value, str) and doc_value.startswith('http'):
-                                            logger.info(f"Found document {doc_key} with URL: {doc_value[:100]}...")
-                                            property_documents[doc_key] = {'url': doc_value}
-                                        elif isinstance(doc_value, dict) and 'url' in doc_value:
-                                            logger.info(f"Found document object {doc_key} with URL: {doc_value.get('url', '')[:100]}...")
-                                            property_documents[doc_key] = doc_value
+                                            logger.info(f"Found property document: {doc_title} ({doc_category})...")
                         
                         if property_documents:
                             try:
