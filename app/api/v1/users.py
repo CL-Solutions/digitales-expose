@@ -201,7 +201,16 @@ async def list_users(
                 team_provision = team_assignment.provision_percentage
             
             # Create user response using model_validate to get all fields
-            user_response = UserResponse.model_validate(user)
+            try:
+                user_response = UserResponse.model_validate(user)
+            except ValueError as e:
+                # Handle deleted users with invalid email domains
+                if "deleted.local" in str(user.email):
+                    # Skip deleted users - they shouldn't be shown in the list
+                    continue
+                else:
+                    # Re-raise for other validation errors
+                    raise
             
             # Override roles with filtered tenant-specific roles
             user_response.roles = user_roles
