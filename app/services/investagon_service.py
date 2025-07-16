@@ -12,17 +12,19 @@ from uuid import UUID
 import logging
 from decimal import Decimal
 from io import BytesIO
+import io
 import mimetypes
 
 from app.config import settings
 from app.core.exceptions import AppException
-from app.models.business import Property, InvestagonSync, PropertyImage, Project, ProjectImage
+from app.models.business import Property, InvestagonSync, PropertyImage, Project, ProjectImage, ProjectDocument, PropertyDocument, DocumentType
 from app.models.user import User
 from app.utils.audit import AuditLogger
 from app.utils.location_utils import normalize_state_name
 from app.services.rbac_service import RBACService
 from app.services.s3_service import get_s3_service
 from app.services.google_maps_service import GoogleMapsService
+from app.utils.pdf_optimizer import PDFOptimizer
 
 logger = logging.getLogger(__name__)
 audit_logger = AuditLogger()
@@ -617,6 +619,46 @@ class InvestagonSyncService:
                             except Exception as img_error:
                                 logger.error(f"Failed to import project images: {str(img_error)}")
                         
+                        # Import project documents
+                        project_documents = {}
+                        
+                        # Check for 'files' field which contains a Hydra collection
+                        if 'files' in project_details and isinstance(project_details['files'], dict):
+                            # Handle Hydra collection format
+                            if 'hydra:member' in project_details['files'] and isinstance(project_details['files']['hydra:member'], list):
+                                logger.info(f"Found {len(project_details['files']['hydra:member'])} documents in Hydra collection")
+                                for doc in project_details['files']['hydra:member']:
+                                    if isinstance(doc, dict):
+                                        # Extract document info from Hydra member
+                                        doc_id = str(doc.get('id', ''))
+                                        doc_url = doc.get('filename', '')  # URL is in 'filename' field
+                                        doc_title = doc.get('title', f"Document_{doc_id}")
+                                        doc_category = doc.get('category', 'other')
+                                        doc_filename = doc.get('original_filename', doc_title)
+                                        
+                                        if doc_url and doc_url.startswith('http'):
+                                            project_documents[f"{doc_category}_{doc_id}"] = {
+                                                'url': doc_url,
+                                                'title': doc_title,
+                                                'category': doc_category,
+                                                'filename': doc_filename,
+                                                'id': doc_id
+                                            }
+                                            logger.info(f"Found document: {doc_title} ({doc_category}) - {doc_url[:100]}...")
+                            else:
+                                # Fallback to old logic if not Hydra format
+                                for doc_key, doc_value in project_details['files'].items():
+                                    if isinstance(doc_value, str) and doc_value.startswith('http'):
+                                        project_documents[doc_key] = {'url': doc_value}
+                                    elif isinstance(doc_value, dict) and 'url' in doc_value:
+                                        project_documents[doc_key] = doc_value
+                        
+                        if project_documents and project_obj:
+                            try:
+                                await self.import_project_documents(db, project_obj, project_documents, current_user)
+                            except Exception as doc_error:
+                                logger.error(f"Failed to import project documents: {str(doc_error)}")
+                        
                         break
                 
                 if project_obj:
@@ -688,6 +730,54 @@ class InvestagonSyncService:
                     db, property_obj, photos, current_user
                 )
                 logger.info(f"Imported {len(imported_images)} images for property {property_obj.id}")
+            
+            # Import property documents
+            property_documents = {}
+            
+            # Check for 'files' field which contains a Hydra collection
+            if 'files' in investagon_data and isinstance(investagon_data['files'], dict):
+                # Log the structure of files field for debugging
+                logger.info(f"Files field found in property data. Type: {type(investagon_data['files'])}")
+                logger.info(f"Files field keys: {list(investagon_data['files'].keys()) if isinstance(investagon_data['files'], dict) else 'Not a dict'}")
+                
+                # Handle Hydra collection format
+                if 'hydra:member' in investagon_data['files'] and isinstance(investagon_data['files']['hydra:member'], list):
+                    for doc in investagon_data['files']['hydra:member']:
+                        if isinstance(doc, dict):
+                            # Extract document info from Hydra member
+                            doc_id = str(doc.get('id', ''))
+                            doc_url = doc.get('filename', '')  # URL is in 'filename' field
+                            doc_title = doc.get('title', f"Document_{doc_id}")
+                            doc_category = doc.get('category', 'other')
+                            doc_filename = doc.get('original_filename', doc_title)
+                            
+                            if doc_url and doc_url.startswith('http'):
+                                property_documents[f"{doc_category}_{doc_id}"] = {
+                                    'url': doc_url,
+                                    'title': doc_title,
+                                    'category': doc_category,
+                                    'filename': doc_filename,
+                                    'id': doc_id
+                                }
+                                logger.info(f"Found document: {doc_title} ({doc_category}) - {doc_url[:100]}...")
+                else:
+                    # Fallback to old logic if not Hydra format
+                    logger.info(f"Files field doesn't contain hydra:member, checking direct entries")
+                    for doc_key, doc_value in investagon_data['files'].items():
+                        if isinstance(doc_value, str) and doc_value.startswith('http'):
+                            logger.info(f"Found document {doc_key} with URL: {doc_value[:100]}...")
+                            property_documents[doc_key] = {'url': doc_value}
+                        elif isinstance(doc_value, dict) and 'url' in doc_value:
+                            logger.info(f"Found document object {doc_key} with URL: {doc_value.get('url', '')[:100]}...")
+                            property_documents[doc_key] = doc_value
+            
+            if property_documents:
+                try:
+                    imported_docs = await self.import_property_documents(
+                        db, property_obj, property_documents, current_user
+                    )
+                except Exception as doc_error:
+                    logger.error(f"Failed to import property documents: {str(doc_error)}")
             
             # Update project status based on properties
             from app.services.project_service import ProjectService
@@ -943,6 +1033,40 @@ class InvestagonSyncService:
                             logger.error(f"Failed to import project images: {str(img_error)}")
                             errors.append(f"Failed to import project images: {str(img_error)}")
                 
+                # Import project documents
+                if local_project:
+                    project_documents = {}
+                    
+                    # Check for 'files' field which contains documents (list format)
+                    if 'files' in project_with_photos and isinstance(project_with_photos['files'], list):
+                        for doc in project_with_photos['files']:
+                            if isinstance(doc, dict):
+                                doc_id = str(doc.get('id', ''))
+                                doc_url = doc.get('filename', '')  # URL is in 'filename' field
+                                doc_title = doc.get('title', f"Document_{doc_id}")
+                                doc_category = doc.get('category', 'other')
+                                doc_filename = doc.get('original_filename', doc_title)
+                                
+                                if doc_url and doc_url.startswith('http'):
+                                    project_documents[f"{doc_category}_{doc_id}"] = {
+                                        'url': doc_url,
+                                        'title': doc_title,
+                                        'category': doc_category,
+                                        'filename': doc_filename,
+                                        'id': doc_id
+                                    }
+                    
+                    if project_documents:
+                        try:
+                            imported_docs = await self.import_project_documents(
+                                db, local_project, project_documents, current_user
+                            )
+                        except Exception as doc_error:
+                            logger.error(f"Failed to import project documents: {str(doc_error)}")
+                            errors.append(f"Failed to import project documents: {str(doc_error)}")
+                    else:
+                        logger.info("No documents found in project data")
+                
                 # Process each property URL
                 for property_url in property_urls:
                     try:
@@ -1004,6 +1128,74 @@ class InvestagonSyncService:
                                 logger.info(f"Imported {len(imported_images)} images for property {prop.id}")
                             except Exception as img_error:
                                 logger.error(f"Failed to import images for property {prop.id}: {str(img_error)}")
+                        
+                        # Import property documents
+                        property_documents = {}
+                        # Check for 'files' field which may contain documents in different formats
+                        if 'files' in investagon_data:
+                            
+                            # Handle different formats
+                            if isinstance(investagon_data['files'], list):
+                                # Direct list of documents
+                                logger.info(f"Files field is a list with {len(investagon_data['files'])} items for property")
+                                for doc in investagon_data['files']:
+                                    if isinstance(doc, dict):
+                                        # Extract document info
+                                        doc_id = str(doc.get('id', ''))
+                                        doc_url = doc.get('filename', '')  # URL is in 'filename' field
+                                        doc_title = doc.get('title', f"Document_{doc_id}")
+                                        doc_category = doc.get('category', 'other')
+                                        doc_filename = doc.get('original_filename', doc_title)
+                                        
+                                        if doc_url and doc_url.startswith('http'):
+                                            property_documents[f"{doc_category}_{doc_id}"] = {
+                                                'url': doc_url,
+                                                'title': doc_title,
+                                                'category': doc_category,
+                                                'filename': doc_filename,
+                                                'id': doc_id
+                                            }
+                                            logger.info(f"Found property document: {doc_title} ({doc_category}) - {doc_url[:100]}...")
+                            elif isinstance(investagon_data['files'], dict):
+                                
+                                # Handle Hydra collection format
+                                if 'hydra:member' in investagon_data['files'] and isinstance(investagon_data['files']['hydra:member'], list):
+                                    for doc in investagon_data['files']['hydra:member']:
+                                        if isinstance(doc, dict):
+                                            # Extract document info from Hydra member
+                                            doc_id = str(doc.get('id', ''))
+                                            doc_url = doc.get('filename', '')  # URL is in 'filename' field
+                                            doc_title = doc.get('title', f"Document_{doc_id}")
+                                            doc_category = doc.get('category', 'other')
+                                            doc_filename = doc.get('original_filename', doc_title)
+                                            
+                                            if doc_url and doc_url.startswith('http'):
+                                                property_documents[f"{doc_category}_{doc_id}"] = {
+                                                    'url': doc_url,
+                                                    'title': doc_title,
+                                                    'category': doc_category,
+                                                    'filename': doc_filename,
+                                                    'id': doc_id
+                                                }
+                                                logger.info(f"Found document: {doc_title} ({doc_category}) - {doc_url[:100]}...")
+                                else:
+                                    # Fallback to old logic if not Hydra format
+                                    logger.info(f"Files field doesn't contain hydra:member, checking direct entries")
+                                    for doc_key, doc_value in investagon_data['files'].items():
+                                        if isinstance(doc_value, str) and doc_value.startswith('http'):
+                                            logger.info(f"Found document {doc_key} with URL: {doc_value[:100]}...")
+                                            property_documents[doc_key] = {'url': doc_value}
+                                        elif isinstance(doc_value, dict) and 'url' in doc_value:
+                                            logger.info(f"Found document object {doc_key} with URL: {doc_value.get('url', '')[:100]}...")
+                                            property_documents[doc_key] = doc_value
+                        
+                        if property_documents:
+                            try:
+                                imported_docs = await self.import_property_documents(
+                                    db, prop, property_documents, current_user
+                                )
+                            except Exception as doc_error:
+                                logger.error(f"Failed to import documents for property {prop.id}: {str(doc_error)}")
                         
                         total_synced += 1
                         
@@ -1277,6 +1469,49 @@ class InvestagonSyncService:
                             except Exception as img_error:
                                 logger.error(f"Failed to import images for project {project_obj.id}: {str(img_error)}")
                         
+                        # Import project documents
+                        if project_obj and project_with_photos:
+                            project_documents = {}
+                            
+                            # Check for 'files' field which contains a Hydra collection
+                            if 'files' in project_with_photos and isinstance(project_with_photos['files'], dict):
+                                # Handle Hydra collection format
+                                if 'hydra:member' in project_with_photos['files'] and isinstance(project_with_photos['files']['hydra:member'], list):
+                                    logger.info(f"Found {len(project_with_photos['files']['hydra:member'])} documents in Hydra collection")
+                                    for doc in project_with_photos['files']['hydra:member']:
+                                        if isinstance(doc, dict):
+                                            # Extract document info from Hydra member
+                                            doc_id = str(doc.get('id', ''))
+                                            doc_url = doc.get('filename', '')  # URL is in 'filename' field
+                                            doc_title = doc.get('title', f"Document_{doc_id}")
+                                            doc_category = doc.get('category', 'other')
+                                            doc_filename = doc.get('original_filename', doc_title)
+                                            
+                                            if doc_url and doc_url.startswith('http'):
+                                                project_documents[f"{doc_category}_{doc_id}"] = {
+                                                    'url': doc_url,
+                                                    'title': doc_title,
+                                                    'category': doc_category,
+                                                    'filename': doc_filename,
+                                                    'id': doc_id
+                                                }
+                                                logger.info(f"Found document: {doc_title} ({doc_category}) - {doc_url[:100]}...")
+                                else:
+                                    # Fallback to old logic if not Hydra format
+                                    for doc_key, doc_value in project_with_photos['files'].items():
+                                        if isinstance(doc_value, str) and doc_value.startswith('http'):
+                                            project_documents[doc_key] = {'url': doc_value}
+                                        elif isinstance(doc_value, dict) and 'url' in doc_value:
+                                            project_documents[doc_key] = doc_value
+                            
+                            if project_documents:
+                                try:
+                                    imported_docs = await self.import_project_documents(
+                                        db, project_obj, project_documents, current_user
+                                    )
+                                except Exception as doc_error:
+                                    logger.error(f"Failed to import documents for project {project_obj.id}: {str(doc_error)}")
+                        
                         # Refresh micro location for newly created/updated project
                         if project_obj:
                             try:
@@ -1311,12 +1546,10 @@ class InvestagonSyncService:
                                     continue
                                 
                                 # Get property details
-                                logger.debug(f"Fetching property details for ID: {property_id}")
+                                # Get property details
                                 investagon_data = await self.api_client.get_property(property_id)
-                                logger.debug(f"Property data fields: {list(investagon_data.keys())}")
                                 
                                 # Map property data with project reference
-                                logger.debug(f"Mapping property data to model...")
                                 property_data = self._map_investagon_to_property(
                                     investagon_data, 
                                     db, 
@@ -1324,17 +1557,13 @@ class InvestagonSyncService:
                                     current_user.id,
                                     project_id=project_obj.id
                                 )
-                                logger.debug(f"Mapped property data successfully")
                                 
                                 # Use the investagon_id from the API response, not the URL property_id
                                 investagon_id = str(investagon_data.get("id", ""))
-                                logger.debug(f"Property investagon_id: {investagon_id}")
                                 
                                 # Check if property already exists
-                                logger.debug(f"Checking if property {investagon_id} exists in {len(existing_properties)} cached properties...")
                                 if investagon_id in existing_properties:
                                     # Update existing
-                                    logger.debug(f"Updating existing property {investagon_id}")
                                     prop = existing_properties[investagon_id]
                                     for key, value in property_data.items():
                                         if key != "investagon_data":  # Skip JSON field for now
@@ -1342,14 +1571,8 @@ class InvestagonSyncService:
                                     prop.updated_by = current_user.id
                                     prop.updated_at = datetime.now(timezone.utc)
                                     total_updated += 1
-                                    logger.debug(f"Property {investagon_id} updated successfully")
                                 else:
                                     # Create new
-                                    logger.debug(f"Creating new property {investagon_id}")
-                                    logger.debug(f"Property data keys: {list(property_data.keys())}")
-                                    logger.debug(f"Property data balcony: {property_data.get('balcony')}")
-                                    logger.debug(f"Property data active: {property_data.get('active')}")
-                                    logger.debug(f"Property data visibility: {property_data.get('visibility')}")
                                     prop = Property(
                                         **property_data,
                                         tenant_id=current_user.tenant_id,
@@ -1357,12 +1580,9 @@ class InvestagonSyncService:
                                     )
                                     db.add(prop)
                                     total_created += 1
-                                    logger.debug(f"Property {investagon_id} added to session")
                                 
                                 # Flush the property to get its ID
-                                logger.debug(f"Flushing property {investagon_id} to database...")
                                 db.flush()
-                                logger.debug(f"Property {investagon_id} flushed successfully")
                                 
                                 # Import images if available and property is new or we're doing a full sync
                                 photos = investagon_data.get('photos', [])
@@ -1374,6 +1594,47 @@ class InvestagonSyncService:
                                         logger.info(f"Imported {len(imported_images)} images for property {prop.id}")
                                     except Exception as img_error:
                                         logger.error(f"Failed to import images for property {prop.id}: {str(img_error)}")
+                                
+                                # Import documents if available and property is new or we're doing a full sync
+                                property_documents = {}
+                                
+                                # Check for 'files' field which contains a Hydra collection
+                                if 'files' in investagon_data and isinstance(investagon_data['files'], dict):
+                                    # Handle Hydra collection format
+                                    if 'hydra:member' in investagon_data['files'] and isinstance(investagon_data['files']['hydra:member'], list):
+                                        for doc in investagon_data['files']['hydra:member']:
+                                            if isinstance(doc, dict):
+                                                # Extract document info from Hydra member
+                                                doc_id = str(doc.get('id', ''))
+                                                doc_url = doc.get('filename', '')  # URL is in 'filename' field
+                                                doc_title = doc.get('title', f"Document_{doc_id}")
+                                                doc_category = doc.get('category', 'other')
+                                                doc_filename = doc.get('original_filename', doc_title)
+                                                
+                                                if doc_url and doc_url.startswith('http'):
+                                                    property_documents[f"{doc_category}_{doc_id}"] = {
+                                                        'url': doc_url,
+                                                        'title': doc_title,
+                                                        'category': doc_category,
+                                                        'filename': doc_filename,
+                                                        'id': doc_id
+                                                    }
+                                                    logger.info(f"Found document: {doc_title} ({doc_category}) - {doc_url[:100]}...")
+                                    else:
+                                        # Fallback to old logic if not Hydra format
+                                        for doc_key, doc_value in investagon_data['files'].items():
+                                            if isinstance(doc_value, str) and doc_value.startswith('http'):
+                                                property_documents[doc_key] = {'url': doc_value}
+                                            elif isinstance(doc_value, dict) and 'url' in doc_value:
+                                                property_documents[doc_key] = doc_value
+                                
+                                if property_documents and (investagon_id not in existing_properties or modified_since is None):
+                                    try:
+                                        imported_docs = await self.import_property_documents(
+                                            db, prop, property_documents, current_user
+                                        )
+                                    except Exception as doc_error:
+                                        logger.error(f"Failed to import documents for property {prop.id}: {str(doc_error)}")
                                 
                                 # Commit the savepoint
                                 savepoint.commit()
@@ -1693,7 +1954,6 @@ class InvestagonSyncService:
                 # Check if we already have this image
                 photo_id = str(photo.get('id', ''))
                 if photo_id and photo_id in existing_investagon_ids:
-                    logger.debug(f"Skipping already imported image {photo_id}")
                     skipped_count += 1
                     continue
                 
@@ -1814,7 +2074,6 @@ class InvestagonSyncService:
                 # Check if we already have this image
                 photo_id = str(photo.get('id', ''))
                 if photo_id and photo_id in existing_investagon_ids:
-                    logger.debug(f"Skipping already imported image {photo_id}")
                     skipped_count += 1
                     continue
                 
@@ -1892,3 +2151,417 @@ class InvestagonSyncService:
             logger.info(f"Successfully imported {len(imported_images)} new images for project {project_obj.id}")
         
         return imported_images
+
+    async def import_project_documents(
+        self,
+        db: Session,
+        project_obj: Project,
+        documents: Dict[str, Any],
+        current_user: User
+    ) -> List[ProjectDocument]:
+        """Import documents from Investagon URLs to S3 and create ProjectDocument records"""
+        imported_documents = []
+        s3_service = get_s3_service()
+        
+        if not s3_service or not s3_service.is_configured():
+            logger.warning("S3 service not configured. Skipping document import.")
+            return imported_documents
+        
+        # Get existing project documents to check for duplicates
+        existing_documents = db.query(ProjectDocument).filter(
+            ProjectDocument.project_id == project_obj.id
+        ).all()
+        
+        # Create a set of document identifiers we already have
+        existing_doc_identifiers = set()
+        for doc in existing_documents:
+            if doc.description and "Investagon:" in doc.description:
+                # Extract identifier from description
+                existing_doc_identifiers.add(doc.description)
+        
+        logger.info(f"Project {project_obj.id} has {len(existing_documents)} existing documents")
+        
+        # Document type mapping from Investagon categories to our system
+        document_type_mapping = {
+            # Direct category mappings from Investagon API
+            "expose": DocumentType.EXPOSE,
+            "site_plan": DocumentType.CADASTRAL_MAP_SITE_PLAN,
+            "declaration_of_division": DocumentType.DECLARATION_OF_DIVISION,
+            "economic_plan": DocumentType.STATEMENTS,
+            "layout": DocumentType.FLOOR_PLAN,
+            "land_register": DocumentType.LAND_REGISTRY_EXTRACT,
+            "proof_of_insurance": DocumentType.INSURANCE_CERTIFICATE,
+            "energy_certificate": DocumentType.ENERGY_CERTIFICATE,
+            "weg_protocols": DocumentType.HOA_MINUTES,
+            "settlements": DocumentType.STATEMENTS,
+            "living_area_calculation": DocumentType.LIVING_SPACE_CALCULATION,
+            "other_object": DocumentType.OTHER_DOCUMENTS_PROPERTY,
+            "other_documents_internal": DocumentType.OTHER_DOCUMENTS_PROPERTY,
+            # Legacy key-based mappings
+            "factsheet": DocumentType.FACTSHEET,
+            "floor_plan": DocumentType.FLOOR_PLAN,
+            "floorplan": DocumentType.FLOOR_PLAN,
+            "teilungserklarung": DocumentType.DECLARATION_OF_DIVISION,
+            "grundbuch": DocumentType.LAND_REGISTRY_EXTRACT,
+            "energieausweis": DocumentType.ENERGY_CERTIFICATE,
+            "wirtschaftsplan": DocumentType.STATEMENTS,
+            "insurance": DocumentType.INSURANCE_CERTIFICATE,
+            "hoa_minutes": DocumentType.HOA_MINUTES,
+            "protokolle": DocumentType.HOA_MINUTES,
+            "business_plan": DocumentType.BUSINESS_PLANS,
+            "cadastral_map": DocumentType.CADASTRAL_MAP_SITE_PLAN,
+            "lageplan": DocumentType.CADASTRAL_MAP_SITE_PLAN,
+            "living_space": DocumentType.LIVING_SPACE_CALCULATION,
+            "wohnflache": DocumentType.LIVING_SPACE_CALCULATION,
+            "rental_agreements": DocumentType.RENTAL_AGREEMENTS_RENT_INCREASES,
+            "mietvertrage": DocumentType.RENTAL_AGREEMENTS_RENT_INCREASES,
+            "other": DocumentType.OTHER_DOCUMENTS_PROPERTY
+        }
+        
+        # Process each document
+        for doc_key, doc_info in documents.items():
+            try:
+                # Skip if not a document field
+                if not isinstance(doc_info, dict) or 'url' not in doc_info:
+                    continue
+                
+                document_url = doc_info.get('url', '')
+                if not document_url or not document_url.startswith('http'):
+                    continue
+                
+                # Create identifier for duplicate check
+                # Use document ID if available, otherwise use key
+                doc_id = doc_info.get('id', '')
+                doc_identifier = f"Investagon: {doc_id}" if doc_id else f"Investagon: {doc_key}"
+                if doc_identifier in existing_doc_identifiers:
+                    continue
+                
+                # Determine document type from category or key
+                document_type = DocumentType.OTHER_DOCUMENTS_PROPERTY
+                
+                # First try to use the category field from Investagon
+                doc_category = doc_info.get('category', '').lower()
+                if doc_category and doc_category in document_type_mapping:
+                    document_type = document_type_mapping[doc_category]
+                else:
+                    # Fallback to key-based matching
+                    doc_key_lower = doc_key.lower()
+                    for key_pattern, doc_type in document_type_mapping.items():
+                        if key_pattern in doc_key_lower:
+                            document_type = doc_type
+                            break
+                
+                # Download document from Investagon
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(
+                        document_url,
+                        timeout=60.0,  # Longer timeout for documents
+                        follow_redirects=True
+                    )
+                    response.raise_for_status()
+                    document_content = response.content
+                
+                # Determine content type
+                content_type = response.headers.get('content-type', 'application/pdf')
+                if 'pdf' in document_url.lower() or 'pdf' in content_type.lower():
+                    content_type = 'application/pdf'
+                
+                # Generate filename
+                file_extension = mimetypes.guess_extension(content_type) or '.pdf'
+                original_filename = doc_info.get('filename', f"{doc_key}{file_extension}")
+                
+                # Optimize if PDF
+                file_size = len(document_content)
+                if content_type == 'application/pdf':
+                    try:
+                        file_buffer = io.BytesIO(document_content)
+                        optimized_file, new_size, was_optimized = await PDFOptimizer.optimize_pdf(
+                            file_buffer,
+                            file_size
+                        )
+                        if was_optimized:
+                            optimized_file.seek(0)
+                            document_content = optimized_file.read()
+                            file_size = new_size
+                            logger.info(f"Optimized document {doc_key}: {len(document_content)/1024/1024:.2f}MB -> {file_size/1024/1024:.2f}MB")
+                    except Exception as e:
+                        logger.warning(f"Failed to optimize PDF {doc_key}: {str(e)}")
+                
+                # Upload to S3
+                folder = f"documents/projects/{project_obj.id}/{document_type.value}"
+                temp_filename = f"investagon_{doc_key}_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}{file_extension}"
+                
+                # Create a file-like object from bytes
+                from io import BytesIO
+                
+                # Create a simple mock UploadFile class that works with our S3Service
+                class SimpleUploadFile:
+                    def __init__(self, file, filename, content_type, size):
+                        self.file = file
+                        self.filename = filename
+                        self.content_type = content_type
+                        self.size = size
+                    
+                    async def read(self):
+                        self.file.seek(0)
+                        return self.file.read()
+                    
+                    async def seek(self, offset):
+                        self.file.seek(offset)
+                
+                file_obj = BytesIO(document_content)
+                upload_file = SimpleUploadFile(
+                    file=file_obj,
+                    filename=temp_filename,
+                    content_type=content_type,
+                    size=len(document_content)
+                )
+                
+                upload_result = await s3_service.upload_file(
+                    file=upload_file,
+                    folder=folder,
+                    tenant_id=str(project_obj.tenant_id),
+                    allowed_types=['application/pdf', 'image/png', 'image/jpeg', 'image/jpg']
+                )
+                
+                # Create ProjectDocument record
+                # Use title from doc_info if available, otherwise generate from key
+                document_title = doc_info.get('title')
+                if not document_title:
+                    document_title = doc_key.replace('_', ' ').title()
+                
+                project_document = ProjectDocument(
+                    project_id=project_obj.id,
+                    tenant_id=project_obj.tenant_id,
+                    document_type=document_type,
+                    title=document_title,
+                    description=doc_identifier,
+                    display_order=doc_info.get('position', 0),
+                    file_name=original_filename,
+                    file_path=upload_result['url'],
+                    file_size=file_size,
+                    mime_type=content_type,
+                    s3_key=upload_result.get('s3_key'),
+                    s3_bucket=upload_result.get('s3_bucket'),
+                    uploaded_by=current_user.id,
+                    uploaded_at=datetime.now(timezone.utc)
+                )
+                
+                db.add(project_document)
+                db.commit()  # Commit immediately after successful upload
+                imported_documents.append(project_document)
+                
+                
+            except Exception as e:
+                logger.error(f"Failed to import document {doc_key}: {str(e)}")
+                continue
+        
+        if imported_documents:
+            logger.info(f"Successfully imported {len(imported_documents)} documents for project {project_obj.id}")
+        
+        return imported_documents
+
+    async def import_property_documents(
+        self,
+        db: Session,
+        property_obj: Property,
+        documents: Dict[str, Any],
+        current_user: User
+    ) -> List[PropertyDocument]:
+        """Import documents from Investagon URLs to S3 and create PropertyDocument records"""
+        imported_documents = []
+        s3_service = get_s3_service()
+        
+        if not s3_service or not s3_service.is_configured():
+            logger.warning("S3 service not configured. Skipping document import.")
+            return imported_documents
+        
+        # Get existing property documents to check for duplicates
+        existing_documents = db.query(PropertyDocument).filter(
+            PropertyDocument.property_id == property_obj.id
+        ).all()
+        
+        # Create a set of document identifiers we already have
+        existing_doc_identifiers = set()
+        for doc in existing_documents:
+            if doc.description and "Investagon:" in doc.description:
+                # Extract identifier from description
+                existing_doc_identifiers.add(doc.description)
+        
+        logger.info(f"Property {property_obj.id} has {len(existing_documents)} existing documents")
+        
+        # Document type mapping from Investagon categories to our system (same as project mapping)
+        document_type_mapping = {
+            # Direct category mappings from Investagon API
+            "expose": DocumentType.EXPOSE,
+            "site_plan": DocumentType.CADASTRAL_MAP_SITE_PLAN,
+            "declaration_of_division": DocumentType.DECLARATION_OF_DIVISION,
+            "economic_plan": DocumentType.STATEMENTS,
+            "layout": DocumentType.FLOOR_PLAN,
+            "land_register": DocumentType.LAND_REGISTRY_EXTRACT,
+            "proof_of_insurance": DocumentType.INSURANCE_CERTIFICATE,
+            "energy_certificate": DocumentType.ENERGY_CERTIFICATE,
+            "weg_protocols": DocumentType.HOA_MINUTES,
+            "settlements": DocumentType.STATEMENTS,
+            "living_area_calculation": DocumentType.LIVING_SPACE_CALCULATION,
+            "other_object": DocumentType.OTHER_DOCUMENTS_PROPERTY,
+            "other_documents_internal": DocumentType.OTHER_DOCUMENTS_PROPERTY,
+            # Legacy key-based mappings
+            "factsheet": DocumentType.FACTSHEET,
+            "floor_plan": DocumentType.FLOOR_PLAN,
+            "floorplan": DocumentType.FLOOR_PLAN,
+            "teilungserklarung": DocumentType.DECLARATION_OF_DIVISION,
+            "grundbuch": DocumentType.LAND_REGISTRY_EXTRACT,
+            "energieausweis": DocumentType.ENERGY_CERTIFICATE,
+            "wirtschaftsplan": DocumentType.STATEMENTS,
+            "insurance": DocumentType.INSURANCE_CERTIFICATE,
+            "hoa_minutes": DocumentType.HOA_MINUTES,
+            "protokolle": DocumentType.HOA_MINUTES,
+            "business_plan": DocumentType.BUSINESS_PLANS,
+            "cadastral_map": DocumentType.CADASTRAL_MAP_SITE_PLAN,
+            "lageplan": DocumentType.CADASTRAL_MAP_SITE_PLAN,
+            "living_space": DocumentType.LIVING_SPACE_CALCULATION,
+            "wohnflache": DocumentType.LIVING_SPACE_CALCULATION,
+            "rental_agreements": DocumentType.RENTAL_AGREEMENTS_RENT_INCREASES,
+            "mietvertrage": DocumentType.RENTAL_AGREEMENTS_RENT_INCREASES,
+            "other": DocumentType.OTHER_DOCUMENTS_PROPERTY
+        }
+        
+        # Process each document
+        for doc_key, doc_info in documents.items():
+            try:
+                # Skip if not a document field
+                if not isinstance(doc_info, dict) or 'url' not in doc_info:
+                    continue
+                
+                document_url = doc_info.get('url', '')
+                if not document_url or not document_url.startswith('http'):
+                    continue
+                
+                # Create identifier for duplicate check
+                # Use document ID if available, otherwise use key
+                doc_id = doc_info.get('id', '')
+                doc_identifier = f"Investagon: {doc_id}" if doc_id else f"Investagon: {doc_key}"
+                if doc_identifier in existing_doc_identifiers:
+                    continue
+                
+                # Determine document type from category or key
+                document_type = DocumentType.OTHER_DOCUMENTS_PROPERTY
+                
+                # First try to use the category field from Investagon
+                doc_category = doc_info.get('category', '').lower()
+                if doc_category and doc_category in document_type_mapping:
+                    document_type = document_type_mapping[doc_category]
+                else:
+                    # Fallback to key-based matching
+                    doc_key_lower = doc_key.lower()
+                    for key_pattern, doc_type in document_type_mapping.items():
+                        if key_pattern in doc_key_lower:
+                            document_type = doc_type
+                            break
+                
+                # Download document from Investagon
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(
+                        document_url,
+                        timeout=60.0,  # Longer timeout for documents
+                        follow_redirects=True
+                    )
+                    response.raise_for_status()
+                    document_content = response.content
+                
+                # Determine content type
+                content_type = response.headers.get('content-type', 'application/pdf')
+                if 'pdf' in document_url.lower() or 'pdf' in content_type.lower():
+                    content_type = 'application/pdf'
+                
+                # Generate filename
+                file_extension = mimetypes.guess_extension(content_type) or '.pdf'
+                original_filename = doc_info.get('filename', f"{doc_key}{file_extension}")
+                
+                # Optimize if PDF
+                file_size = len(document_content)
+                if content_type == 'application/pdf':
+                    try:
+                        file_buffer = io.BytesIO(document_content)
+                        optimized_file, new_size, was_optimized = await PDFOptimizer.optimize_pdf(
+                            file_buffer,
+                            file_size
+                        )
+                        if was_optimized:
+                            optimized_file.seek(0)
+                            document_content = optimized_file.read()
+                            file_size = new_size
+                            logger.info(f"Optimized document {doc_key}: {len(document_content)/1024/1024:.2f}MB -> {file_size/1024/1024:.2f}MB")
+                    except Exception as e:
+                        logger.warning(f"Failed to optimize PDF {doc_key}: {str(e)}")
+                
+                # Upload to S3
+                folder = f"documents/properties/{property_obj.id}/{document_type.value}"
+                temp_filename = f"investagon_{doc_key}_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}{file_extension}"
+                
+                # Create a file-like object from bytes
+                from io import BytesIO
+                
+                # Create a simple mock UploadFile class that works with our S3Service
+                class SimpleUploadFile:
+                    def __init__(self, file, filename, content_type, size):
+                        self.file = file
+                        self.filename = filename
+                        self.content_type = content_type
+                        self.size = size
+                    
+                    async def read(self):
+                        self.file.seek(0)
+                        return self.file.read()
+                    
+                    async def seek(self, offset):
+                        self.file.seek(offset)
+                
+                file_obj = BytesIO(document_content)
+                upload_file = SimpleUploadFile(
+                    file=file_obj,
+                    filename=temp_filename,
+                    content_type=content_type,
+                    size=len(document_content)
+                )
+                
+                upload_result = await s3_service.upload_file(
+                    file=upload_file,
+                    folder=folder,
+                    tenant_id=str(property_obj.tenant_id),
+                    allowed_types=['application/pdf', 'image/png', 'image/jpeg', 'image/jpg']
+                )
+                
+                # Create PropertyDocument record
+                document_title = doc_info.get('title', doc_key.replace('_', ' ').title())
+                property_document = PropertyDocument(
+                    property_id=property_obj.id,
+                    tenant_id=property_obj.tenant_id,
+                    document_type=document_type,
+                    title=document_title,
+                    description=doc_identifier,
+                    display_order=doc_info.get('position', 0),
+                    file_name=original_filename,
+                    file_path=upload_result['url'],
+                    file_size=file_size,
+                    mime_type=content_type,
+                    s3_key=upload_result.get('s3_key'),
+                    s3_bucket=upload_result.get('s3_bucket'),
+                    uploaded_by=current_user.id,
+                    uploaded_at=datetime.now(timezone.utc)
+                )
+                
+                db.add(property_document)
+                db.commit()  # Commit immediately after successful upload
+                imported_documents.append(property_document)
+                
+                
+            except Exception as e:
+                logger.error(f"Failed to import document {doc_key}: {str(e)}")
+                continue
+        
+        if imported_documents:
+            logger.info(f"Successfully imported {len(imported_documents)} documents for property {property_obj.id}")
+        
+        return imported_documents

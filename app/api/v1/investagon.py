@@ -116,15 +116,16 @@ async def sync_single_property(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/sync/project/{project_id}", response_model=Dict[str, Any], response_model_exclude_none=True)
+@router.post("/sync/project/{project_id}", response_model=Dict[str, Any], response_model_exclude_none=True, status_code=status.HTTP_202_ACCEPTED)
 async def sync_project_properties(
+    background_tasks: BackgroundTasks,
     project_id: UUID = Path(..., description="Project ID to sync properties for"),
     current_user: User = Depends(get_current_active_user),
     tenant_id: Optional[UUID] = Depends(get_current_tenant_id),
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("investagon", "sync"))
 ):
-    """Sync all properties for a specific project from Investagon"""
+    """Sync all properties for a specific project from Investagon (runs in background)"""
     try:
         # Check tenant context
         if not tenant_id:
@@ -152,30 +153,47 @@ async def sync_project_properties(
                 detail="Project does not have an Investagon ID and cannot be synced"
             )
         
-        # Create effective user with tenant context
-        effective_user = SimpleNamespace(
-            id=current_user.id,
-            tenant_id=tenant_id,
-            is_super_admin=current_user.is_super_admin
-        )
+        # Store project info for background task
+        investagon_project_id = project.investagon_id
+        project_name = project.name
         
-        sync_service = InvestagonSyncService()
-        result = await sync_service.sync_project_properties(
-            db, 
-            project.investagon_id, 
-            project.id,
-            effective_user
-        )
-        db.commit()
+        # Start sync in background
+        async def run_project_sync():
+            # Create new database session for background task
+            from app.core.database import SessionLocal
+            bg_db = SessionLocal()
+            
+            try:
+                # Create effective user with tenant context for background task
+                bg_user = SimpleNamespace(
+                    id=current_user.id,
+                    tenant_id=tenant_id,
+                    is_super_admin=current_user.is_super_admin
+                )
+                sync_service = InvestagonSyncService()
+                result = await sync_service.sync_project_properties(
+                    bg_db, 
+                    investagon_project_id, 
+                    project_id,
+                    bg_user
+                )
+                bg_db.commit()
+                logger.info(f"Background sync completed for project {project_id}: {result['total_synced']} properties synced")
+            except Exception as e:
+                logger.error(f"Background project sync failed: {str(e)}")
+                bg_db.rollback()
+            finally:
+                bg_db.close()
+        
+        # Add to background tasks
+        background_tasks.add_task(run_project_sync)
         
         return {
             "success": True,
+            "message": f"Project sync started in background for '{project_name}'",
             "project_id": str(project.id),
-            "investagon_project_id": project.investagon_id,
-            "properties_synced": result["total_synced"],
-            "properties_created": result["created"],
-            "properties_updated": result["updated"],
-            "errors": result["errors"]
+            "investagon_project_id": investagon_project_id,
+            "status": "Background sync initiated"
         }
     
     except HTTPException:

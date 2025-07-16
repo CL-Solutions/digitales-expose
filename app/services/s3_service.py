@@ -162,7 +162,7 @@ class S3Service:
             unique_filename = f"{uuid.uuid4()}{file_extension}"
             
             # Create S3 key with tenant isolation
-            s3_key = f"{tenant_id}/{folder}/{datetime.now(timezone.utc).strftime('%Y/%m/%d')}/{unique_filename}"
+            s3_key = f"{tenant_id}/{folder}/{unique_filename}"
             
             # Upload to S3
             self.s3_client.put_object(
@@ -406,7 +406,7 @@ class S3Service:
             unique_filename = f"{uuid.uuid4()}{file_extension}"
             
             # Create S3 key with tenant isolation
-            s3_key = f"{tenant_id}/{folder}/{datetime.now(timezone.utc).strftime('%Y/%m/%d')}/{unique_filename}"
+            s3_key = f"{tenant_id}/{folder}/{unique_filename}"
             
             # Upload to S3
             self.s3_client.put_object(
@@ -547,7 +547,7 @@ class S3Service:
             unique_filename = f"{uuid.uuid4()}{file_extension}"
             
             # Create S3 key with tenant isolation
-            s3_key = f"{tenant_id}/{folder}/{datetime.now(timezone.utc).strftime('%Y/%m/%d')}/{unique_filename}"
+            s3_key = f"{tenant_id}/{folder}/{unique_filename}"
             
             # Upload to S3
             self.s3_client.put_object(
