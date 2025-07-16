@@ -2,11 +2,12 @@
 # DIGITALES EXPOSE MODELS (models/business.py)
 # ================================
 
-from sqlalchemy import Column, String, Text, Integer, Float, Boolean, DateTime, ForeignKey, JSON, Numeric, and_, Index
+from sqlalchemy import Column, String, Text, Integer, Float, Boolean, DateTime, ForeignKey, JSON, Numeric, and_, Index, Enum
 from sqlalchemy.orm import relationship, foreign
 from sqlalchemy.dialects.postgresql import UUID
 from app.models.base import Base, TenantMixin, AuditMixin
 import uuid
+import enum
 from datetime import datetime, timezone
 
 class Project(Base, TenantMixin, AuditMixin):
@@ -84,6 +85,7 @@ class Project(Base, TenantMixin, AuditMixin):
     updater = relationship("User", foreign_keys="Project.updated_by")
     properties = relationship("Property", back_populates="project", cascade="all, delete-orphan")
     images = relationship("ProjectImage", back_populates="project", cascade="all, delete-orphan", order_by="ProjectImage.display_order")
+    documents = relationship("ProjectDocument", back_populates="project", cascade="all, delete-orphan", order_by="ProjectDocument.display_order")
     city_ref = relationship("City", foreign_keys="Project.city_id")
 
     # Table indexes
@@ -208,6 +210,7 @@ class Property(Base, TenantMixin, AuditMixin):
     creator = relationship("User", foreign_keys="Property.created_by", back_populates="created_properties")
     updater = relationship("User", foreign_keys="Property.updated_by", back_populates="updated_properties")
     images = relationship("PropertyImage", back_populates="property", cascade="all, delete-orphan", order_by="PropertyImage.display_order")
+    documents = relationship("PropertyDocument", back_populates="property", cascade="all, delete-orphan", order_by="PropertyDocument.display_order")
     expose_links = relationship("ExposeLink", back_populates="property", cascade="all, delete-orphan")
     city_ref = relationship("City", foreign_keys="Property.city_id")
     reservations = relationship("Reservation", back_populates="property", cascade="all, delete-orphan")
@@ -613,3 +616,76 @@ class TenantFeeConfig(Base, TenantMixin, AuditMixin):
     
     def __repr__(self):
         return f"<TenantFeeConfig(tenant_id='{self.tenant_id}')>"
+
+
+class DocumentType(str, enum.Enum):
+    """Document types for projects and properties"""
+    EXPOSE = "expose"
+    DECLARATION_OF_DIVISION = "declaration_of_division"
+    FLOOR_PLAN = "floor_plan"
+    STATEMENTS = "statements"
+    LAND_REGISTRY_EXTRACT = "land_registry_extract"
+    FACTSHEET = "factsheet"
+    LIVING_SPACE_CALCULATION = "living_space_calculation"
+    INSURANCE_CERTIFICATE = "insurance_certificate"
+    HOA_MINUTES = "hoa_minutes"
+    BUSINESS_PLANS = "business_plans"
+    CADASTRAL_MAP_SITE_PLAN = "cadastral_map_site_plan"
+    ENERGY_CERTIFICATE = "energy_certificate"
+    RENTAL_AGREEMENTS_RENT_INCREASES = "rental_agreements_rent_increases"
+    OTHER_DOCUMENTS_PROPERTY = "other_documents_property"
+    OTHER_DOCUMENTS_INTERNAL = "other_documents_internal"
+
+
+class ProjectDocument(Base, TenantMixin):
+    """Document storage for projects"""
+    __tablename__ = "project_documents"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    document_type = Column(Enum(DocumentType), nullable=False)
+    title = Column(String(255), nullable=False)
+    description = Column(Text)
+    file_name = Column(String(255), nullable=False)
+    file_path = Column(String(500), nullable=False)
+    file_size = Column(Integer)
+    mime_type = Column(String(100))
+    s3_key = Column(String(500), nullable=False)
+    s3_bucket = Column(String(255), nullable=False)
+    display_order = Column(Integer, default=0)
+    uploaded_by = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    uploaded_at = Column(DateTime, nullable=False)
+
+    # Relationships
+    project = relationship("Project", back_populates="documents")
+    uploader = relationship("User", foreign_keys=[uploaded_by])
+
+    def __repr__(self):
+        return f"<ProjectDocument(project='{self.project_id}', type='{self.document_type}')>"
+
+
+class PropertyDocument(Base, TenantMixin):
+    """Document storage for properties"""
+    __tablename__ = "property_documents"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    property_id = Column(UUID(as_uuid=True), ForeignKey("properties.id", ondelete="CASCADE"), nullable=False)
+    document_type = Column(Enum(DocumentType), nullable=False)
+    title = Column(String(255), nullable=False)
+    description = Column(Text)
+    file_name = Column(String(255), nullable=False)
+    file_path = Column(String(500), nullable=False)
+    file_size = Column(Integer)
+    mime_type = Column(String(100))
+    s3_key = Column(String(500), nullable=False)
+    s3_bucket = Column(String(255), nullable=False)
+    display_order = Column(Integer, default=0)
+    uploaded_by = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    uploaded_at = Column(DateTime, nullable=False)
+
+    # Relationships
+    property = relationship("Property", back_populates="documents")
+    uploader = relationship("User", foreign_keys=[uploaded_by])
+
+    def __repr__(self):
+        return f"<PropertyDocument(property='{self.property_id}', type='{self.document_type}')>"

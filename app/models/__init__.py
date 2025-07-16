@@ -21,7 +21,8 @@ from app.models.business import (
     City, CityImage,
     ExposeTemplate, ExposeLink, ExposeLinkView,
     InvestagonSync, Project, ProjectImage,
-    Reservation, ReservationStatusHistory
+    Reservation, ReservationStatusHistory,
+    ProjectDocument, PropertyDocument, DocumentType
 )
 from app.models.audit import AuditLog, SuperAdminSession
 from app.models.google_maps_cache import GoogleGeocodingCache, GooglePlacesCache, GoogleDistanceCache
@@ -52,6 +53,9 @@ __all__ = [
     "InvestagonSync",
     "Project",
     "ProjectImage",
+    "ProjectDocument",
+    "PropertyDocument",
+    "DocumentType",
     "Reservation",
     "ReservationStatusHistory",
     "AuditLog", 

@@ -487,6 +487,130 @@ class S3Service:
                 status_code=500,
                 detail="Failed to upload project image"
             )
+    
+    async def upload_file(
+        self,
+        file: UploadFile,
+        folder: str,
+        tenant_id: str,
+        max_size_mb: Optional[int] = None,
+        allowed_types: Optional[list] = None
+    ) -> Dict[str, Any]:
+        """
+        Upload a general file to S3-compatible storage (documents, PDFs, etc)
+        
+        Args:
+            file: FastAPI UploadFile object
+            folder: Folder path in S3 (e.g., 'documents/projects')
+            tenant_id: Tenant ID for organization
+            max_size_mb: Maximum file size in MB
+            allowed_types: List of allowed MIME types
+        
+        Returns:
+            Dict with upload details including URL and size
+        """
+        if not self.is_configured():
+            raise AppException(
+                status_code=503,
+                detail="File storage service is not available"
+            )
+            
+        try:
+            # Default allowed types for documents
+            if allowed_types is None:
+                allowed_types = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png']
+            
+            # Validate file type
+            if file.content_type not in allowed_types:
+                raise AppException(
+                    status_code=400,
+                    detail=f"File type not allowed. Allowed types: {', '.join(allowed_types)}"
+                )
+            
+            # Read file content
+            content = await file.read()
+            file_size = len(content)
+            
+            # Validate file size
+            if max_size_mb is None:
+                max_size_mb = settings.MAX_FILE_SIZE_MB
+            
+            max_size_bytes = max_size_mb * 1024 * 1024
+            if file_size > max_size_bytes:
+                raise AppException(
+                    status_code=400,
+                    detail=f"File size exceeds maximum allowed size of {max_size_mb}MB"
+                )
+            
+            # Generate unique filename
+            file_extension = mimetypes.guess_extension(file.content_type) or '.pdf'
+            unique_filename = f"{uuid.uuid4()}{file_extension}"
+            
+            # Create S3 key with tenant isolation
+            s3_key = f"{tenant_id}/{folder}/{datetime.now(timezone.utc).strftime('%Y/%m/%d')}/{unique_filename}"
+            
+            # Upload to S3
+            self.s3_client.put_object(
+                Bucket=self.bucket_name,
+                Key=s3_key,
+                Body=content,
+                ContentType=file.content_type,
+                # Make the object publicly readable
+                ACL='public-read',
+                Metadata={
+                    'tenant_id': tenant_id,
+                    'original_filename': file.filename or 'unknown',
+                    'uploaded_at': datetime.now(timezone.utc).isoformat()
+                }
+            )
+            
+            # Generate public URL for Hetzner Object Storage
+            endpoint_base = settings.S3_ENDPOINT_URL.replace('https://', '')
+            url = f"https://{self.bucket_name}.{endpoint_base}/{s3_key}"
+            
+            return {
+                'url': url,
+                's3_key': s3_key,
+                's3_bucket': self.bucket_name,
+                'file_size': file_size,
+                'mime_type': file.content_type,
+                'original_filename': file.filename
+            }
+            
+        except AppException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to upload file: {str(e)}")
+            raise AppException(
+                status_code=500,
+                detail="Failed to upload file"
+            )
+    
+    def delete_file(self, s3_key: str) -> bool:
+        """
+        Delete a file from S3-compatible storage
+        
+        Args:
+            s3_key: The S3 key of the file to delete
+        
+        Returns:
+            True if successful
+        """
+        if not self.is_configured():
+            logger.warning("S3 service not configured. Cannot delete file.")
+            return False
+            
+        try:
+            self.s3_client.delete_object(
+                Bucket=self.bucket_name,
+                Key=s3_key
+            )
+            logger.info(f"Deleted file from S3: {s3_key}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to delete file from S3: {str(e)}")
+            return False
 
 # Create singleton instance - will initialize when first imported
 s3_service = None

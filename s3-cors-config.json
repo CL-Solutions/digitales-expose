@@ -1,0 +1,21 @@
+{
+  "CORSRules": [
+    {
+      "AllowedHeaders": ["*"],
+      "AllowedMethods": ["GET", "HEAD"],
+      "AllowedOrigins": [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "https://app.nevesto.de",
+        "https://dev.nevesto.de"
+      ],
+      "ExposeHeaders": [
+        "Content-Length",
+        "Content-Type",
+        "Content-Disposition",
+        "ETag"
+      ],
+      "MaxAgeSeconds": 3600
+    }
+  ]
+}

@@ -77,6 +77,8 @@ gunicorn
 pyotp
 qrcode
 pillow
+PyPDF2
+pymupdf
 
 # ================================
 # DEVELOPMENT DEPENDENCIES

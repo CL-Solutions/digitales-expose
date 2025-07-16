@@ -132,6 +132,11 @@ def create_default_permissions(db: Session) -> List[Permission]:
         # Investagon Integration
         ("investagon", "sync", "Trigger data synchronization"),
         
+        # Document Management
+        ("documents", "upload", "Upload documents"),
+        ("documents", "read", "View documents"),
+        ("documents", "delete", "Delete documents"),
+        
         # Tenant Administration
         ("tenant", "manage", "Manage tenant settings"),
         ("tenant", "billing", "Access billing information"),
@@ -198,6 +203,7 @@ def create_default_roles_for_tenant(db: Session, tenant_id: uuid.UUID) -> List[R
                 "expose:create", "expose:view", "expose:edit_content", "expose:manage_templates",
                 "cities:create", "cities:read", "cities:update", "cities:delete",
                 "images:upload", "images:delete",
+                "documents:upload", "documents:read", "documents:delete",
                 "investagon:sync",
                 "tenant:manage", "tenant:billing",
                 "roles:create", "roles:read", "roles:update", "roles:delete", "roles:assign",
@@ -215,6 +221,7 @@ def create_default_roles_for_tenant(db: Session, tenant_id: uuid.UUID) -> List[R
                 "expose:view", "expose:edit_content", "expose:manage_templates",
                 "cities:create", "cities:read", "cities:update", "cities:delete",
                 "images:upload", "images:delete",
+                "documents:upload", "documents:read", "documents:delete",
                 "investagon:sync",
                 "roles:read",
                 "reservations:create", "reservations:read", "reservations:update", "reservations:delete", "reservations:manage",
@@ -229,6 +236,7 @@ def create_default_roles_for_tenant(db: Session, tenant_id: uuid.UUID) -> List[R
                 "properties:read",
                 "expose:create", "expose:view",
                 "cities:read",
+                "documents:read",
                 "roles:read",
                 "reservations:create", "reservations:read", "reservations:delete",
                 "fees:read"
