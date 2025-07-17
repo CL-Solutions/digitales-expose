@@ -1042,12 +1042,13 @@ class InvestagonSyncService:
                         logger.warning("Cannot import documents: project_with_photos is None (API fetch failed)")
                     elif 'files' not in project_with_photos:
                         logger.info("No 'files' field found in project data")
-                    # Check for 'files' field which contains a Hydra collection
-                    elif 'files' in project_with_photos and isinstance(project_with_photos['files'], dict):
-                        # Handle Hydra collection format
-                        if 'hydra:member' in project_with_photos['files'] and isinstance(project_with_photos['files']['hydra:member'], list):
-                            logger.info(f"Found {len(project_with_photos['files']['hydra:member'])} documents in Hydra collection for project")
-                            for doc in project_with_photos['files']['hydra:member']:
+                    else:
+                        files_data = project_with_photos.get('files', [])
+                        
+                        # Files are returned as a list from Investagon API
+                        if isinstance(files_data, list) and files_data:
+                            logger.info(f"Found {len(files_data)} documents for project")
+                            for doc in files_data:
                                 if isinstance(doc, dict):
                                     doc_id = str(doc.get('id', ''))
                                     doc_url = doc.get('filename', '')  # URL is in 'filename' field
@@ -1063,7 +1064,11 @@ class InvestagonSyncService:
                                             'filename': doc_filename,
                                             'id': doc_id
                                         }
-                                        logger.info(f"Found project document: {doc_title} ({doc_category})...")
+                                        logger.info(f"Found document: {doc_title} ({doc_category})")
+                        elif not files_data:
+                            logger.info("No documents found for project")
+                        else:
+                            logger.warning(f"Unexpected files format from Investagon API. Expected list, got {type(files_data)}")
                     
                     if project_documents:
                         try:
@@ -1453,14 +1458,14 @@ class InvestagonSyncService:
                                 logger.warning(f"Cannot import documents for project {project_obj.id}: project_with_photos is None (API fetch failed)")
                             elif 'files' not in project_with_photos:
                                 logger.info(f"No 'files' field found in project data for project {project_obj.id}")
-                            # Check for 'files' field which contains a Hydra collection
-                            elif 'files' in project_with_photos and isinstance(project_with_photos['files'], dict):
-                                # Handle Hydra collection format
-                                if 'hydra:member' in project_with_photos['files'] and isinstance(project_with_photos['files']['hydra:member'], list):
-                                    logger.info(f"Found {len(project_with_photos['files']['hydra:member'])} documents in Hydra collection")
-                                    for doc in project_with_photos['files']['hydra:member']:
+                            else:
+                                files_data = project_with_photos.get('files', [])
+                                
+                                # Files are returned as a list from Investagon API
+                                if isinstance(files_data, list) and files_data:
+                                    logger.info(f"Found {len(files_data)} documents for project {project_obj.id}")
+                                    for doc in files_data:
                                         if isinstance(doc, dict):
-                                            # Extract document info from Hydra member
                                             doc_id = str(doc.get('id', ''))
                                             doc_url = doc.get('filename', '')  # URL is in 'filename' field
                                             doc_title = doc.get('title', f"Document_{doc_id}")
@@ -1475,14 +1480,11 @@ class InvestagonSyncService:
                                                     'filename': doc_filename,
                                                     'id': doc_id
                                                 }
-                                                logger.info(f"Found document: {doc_title} ({doc_category}) - {doc_url[:100]}...")
+                                                logger.info(f"Found document: {doc_title} ({doc_category})")
+                                elif not files_data:
+                                    logger.info(f"No documents found for project {project_obj.id}")
                                 else:
-                                    # Fallback to old logic if not Hydra format
-                                    for doc_key, doc_value in project_with_photos['files'].items():
-                                        if isinstance(doc_value, str) and doc_value.startswith('http'):
-                                            project_documents[doc_key] = {'url': doc_value}
-                                        elif isinstance(doc_value, dict) and 'url' in doc_value:
-                                            project_documents[doc_key] = doc_value
+                                    logger.warning(f"Unexpected files format from Investagon API. Expected list, got {type(files_data)}")
                             
                             if project_documents:
                                 try:
