@@ -1011,6 +1011,7 @@ class InvestagonSyncService:
                 
                 # Import project images - fetch from /projects endpoint which includes photos
                 project_photos = []
+                project_with_photos = None  # Initialize to avoid undefined variable
                 try:
                     logger.info(f"Fetching project photos from /projects endpoint for {investagon_project_id}")
                     project_with_photos = await self.api_client.get_project_with_photos(investagon_project_id)
@@ -1037,8 +1038,12 @@ class InvestagonSyncService:
                 if local_project:
                     project_documents = {}
                     
+                    if not project_with_photos:
+                        logger.warning("Cannot import documents: project_with_photos is None (API fetch failed)")
+                    elif 'files' not in project_with_photos:
+                        logger.info("No 'files' field found in project data")
                     # Check for 'files' field which contains a Hydra collection
-                    if 'files' in project_with_photos and isinstance(project_with_photos['files'], dict):
+                    elif 'files' in project_with_photos and isinstance(project_with_photos['files'], dict):
                         # Handle Hydra collection format
                         if 'hydra:member' in project_with_photos['files'] and isinstance(project_with_photos['files']['hydra:member'], list):
                             logger.info(f"Found {len(project_with_photos['files']['hydra:member'])} documents in Hydra collection for project")
@@ -1423,6 +1428,7 @@ class InvestagonSyncService:
                         
                         # Import project images - fetch from /projects endpoint which includes photos
                         project_photos = []
+                        project_with_photos = None  # Initialize to avoid undefined variable
                         try:
                             logger.info(f"Fetching project photos from /projects endpoint for {project_id}")
                             project_with_photos = await self.api_client.get_project_with_photos(project_id)
@@ -1440,11 +1446,15 @@ class InvestagonSyncService:
                                 logger.error(f"Failed to import images for project {project_obj.id}: {str(img_error)}")
                         
                         # Import project documents
-                        if project_obj and project_with_photos:
+                        if project_obj:
                             project_documents = {}
                             
+                            if not project_with_photos:
+                                logger.warning(f"Cannot import documents for project {project_obj.id}: project_with_photos is None (API fetch failed)")
+                            elif 'files' not in project_with_photos:
+                                logger.info(f"No 'files' field found in project data for project {project_obj.id}")
                             # Check for 'files' field which contains a Hydra collection
-                            if 'files' in project_with_photos and isinstance(project_with_photos['files'], dict):
+                            elif 'files' in project_with_photos and isinstance(project_with_photos['files'], dict):
                                 # Handle Hydra collection format
                                 if 'hydra:member' in project_with_photos['files'] and isinstance(project_with_photos['files']['hydra:member'], list):
                                     logger.info(f"Found {len(project_with_photos['files']['hydra:member'])} documents in Hydra collection")

@@ -74,6 +74,9 @@ async def startup_tasks():
     # Clean up stuck Investagon syncs
     await cleanup_stuck_syncs()
     
+    # Reset sync rate limits to allow immediate syncing after restart
+    await reset_sync_rate_limits()
+    
     # Run health checks
     await run_startup_health_checks()
 
@@ -255,6 +258,65 @@ async def cleanup_stuck_syncs():
     except Exception as e:
         logger.error(f"Failed to cleanup stuck syncs: {e}")
         # Don't raise - app should start even if cleanup fails
+
+async def reset_sync_rate_limits():
+    """Reset Investagon sync rate limits on startup to allow immediate syncing"""
+    try:
+        from app.core.database import SessionLocal
+        from app.models.business import InvestagonSync
+        from app.models.tenant import Tenant
+        from datetime import datetime, timedelta, timezone
+        from sqlalchemy import and_
+        
+        db = SessionLocal()
+        try:
+            # Find all tenants with Investagon credentials
+            tenants_with_investagon = db.query(Tenant).filter(
+                and_(
+                    Tenant.investagon_organization_id.isnot(None),
+                    Tenant.investagon_api_key.isnot(None)
+                )
+            ).all()
+            
+            if not tenants_with_investagon:
+                logger.info("No tenants with Investagon credentials found")
+                return
+            
+            reset_count = 0
+            
+            for tenant in tenants_with_investagon:
+                # Find the last full sync for this tenant
+                last_sync = db.query(InvestagonSync).filter(
+                    and_(
+                        InvestagonSync.tenant_id == tenant.id,
+                        InvestagonSync.sync_type == "full",
+                        InvestagonSync.status.in_(["completed", "partial"])
+                    )
+                ).order_by(InvestagonSync.completed_at.desc()).first()
+                
+                if last_sync and last_sync.completed_at:
+                    # Check if the last sync was within the last hour
+                    time_since_sync = datetime.now(timezone.utc) - last_sync.completed_at
+                    if time_since_sync < timedelta(hours=1):
+                        # Update the completed_at time to 2 hours ago
+                        old_time = last_sync.completed_at
+                        new_time = datetime.now(timezone.utc) - timedelta(hours=2)
+                        last_sync.completed_at = new_time
+                        reset_count += 1
+                        logger.info(f"Reset sync rate limit for tenant {tenant.name} (ID: {tenant.id})")
+            
+            if reset_count > 0:
+                db.commit()
+                logger.info(f"Successfully reset sync rate limits for {reset_count} tenant(s)")
+            else:
+                logger.info("No sync rate limits needed to be reset")
+                
+        finally:
+            db.close()
+            
+    except Exception as e:
+        logger.error(f"Failed to reset sync rate limits: {e}")
+        # Don't raise - app should start even if this fails
 
 async def run_startup_health_checks():
     """Run health checks on startup"""
