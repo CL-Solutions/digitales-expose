@@ -296,7 +296,13 @@ async def reset_sync_rate_limits():
                 
                 if last_sync and last_sync.completed_at:
                     # Check if the last sync was within the last hour
-                    time_since_sync = datetime.now(timezone.utc) - last_sync.completed_at
+                    # Ensure completed_at is timezone-aware
+                    completed_at = last_sync.completed_at
+                    if completed_at.tzinfo is None:
+                        # If naive datetime, assume UTC
+                        completed_at = completed_at.replace(tzinfo=timezone.utc)
+                    
+                    time_since_sync = datetime.now(timezone.utc) - completed_at
                     if time_since_sync < timedelta(hours=1):
                         # Update the completed_at time to 2 hours ago
                         old_time = last_sync.completed_at

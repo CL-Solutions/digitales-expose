@@ -246,3 +246,35 @@ async def delete_property_document(
         return {"message": "Document deleted successfully"}
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+# Tenant-wide Document Endpoints
+
+@router.get("/tenant/all", response_model=List[dict])
+async def list_all_tenant_documents(
+    document_type: Optional[DocumentType] = Query(None),
+    include_property_documents: bool = Query(True),
+    include_project_documents: bool = Query(True),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: UUID = Depends(get_current_tenant_id),
+    _: bool = Depends(require_permission("documents", "read"))
+):
+    """
+    List all documents for the current tenant.
+    
+    Returns document metadata including:
+    - Document type (expose, floor_plan, etc.)
+    - Access URL (presigned S3 URL for secure access)
+    - Associated project or property ID
+    - File metadata (name, size, mime type)
+    """
+    documents = DocumentService.list_tenant_documents(
+        db=db,
+        tenant_id=tenant_id,
+        document_type=document_type,
+        include_property_documents=include_property_documents,
+        include_project_documents=include_project_documents
+    )
+    
+    return documents

@@ -437,3 +437,84 @@ class DocumentService:
             raise AppException(f"Document {document_id} not found", status_code=404)
 
         return document
+
+    @staticmethod
+    def list_tenant_documents(
+        db: Session,
+        tenant_id: UUID,
+        document_type: Optional[DocumentType] = None,
+        include_property_documents: bool = True,
+        include_project_documents: bool = True
+    ) -> List[dict]:
+        """List all documents for a tenant with access URLs"""
+        documents = []
+        s3_service = S3Service()
+
+        # Get project documents if requested
+        if include_project_documents:
+            project_query = db.query(ProjectDocument).filter(
+                ProjectDocument.tenant_id == tenant_id
+            )
+            
+            if document_type:
+                project_query = project_query.filter(ProjectDocument.document_type == document_type)
+            
+            project_docs = project_query.all()
+            
+            for doc in project_docs:
+                # Generate presigned URL for access
+                try:
+                    presigned_url = s3_service.generate_presigned_url(doc.s3_key)
+                except:
+                    presigned_url = doc.file_path  # Fallback to stored URL
+                
+                documents.append({
+                    "id": str(doc.id),
+                    "type": "project",
+                    "document_type": doc.document_type.value,
+                    "title": doc.title,
+                    "description": doc.description,
+                    "file_name": doc.file_name,
+                    "file_size": doc.file_size,
+                    "mime_type": doc.mime_type,
+                    "access_url": presigned_url,
+                    "uploaded_at": doc.uploaded_at.isoformat(),
+                    "project_id": str(doc.project_id)
+                })
+
+        # Get property documents if requested
+        if include_property_documents:
+            property_query = db.query(PropertyDocument).filter(
+                PropertyDocument.tenant_id == tenant_id
+            )
+            
+            if document_type:
+                property_query = property_query.filter(PropertyDocument.document_type == document_type)
+            
+            property_docs = property_query.all()
+            
+            for doc in property_docs:
+                # Generate presigned URL for access
+                try:
+                    presigned_url = s3_service.generate_presigned_url(doc.s3_key)
+                except:
+                    presigned_url = doc.file_path  # Fallback to stored URL
+                
+                documents.append({
+                    "id": str(doc.id),
+                    "type": "property",
+                    "document_type": doc.document_type.value,
+                    "title": doc.title,
+                    "description": doc.description,
+                    "file_name": doc.file_name,
+                    "file_size": doc.file_size,
+                    "mime_type": doc.mime_type,
+                    "access_url": presigned_url,
+                    "uploaded_at": doc.uploaded_at.isoformat(),
+                    "property_id": str(doc.property_id)
+                })
+
+        # Sort by upload date, newest first
+        documents.sort(key=lambda x: x["uploaded_at"], reverse=True)
+        
+        return documents
