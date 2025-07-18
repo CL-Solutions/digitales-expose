@@ -37,7 +37,8 @@ def add_location_manager_role_to_tenants():
             ("expose", "read"),
             ("cities", "read"),
             ("reports", "team"),
-            ("roles", "read")
+            ("roles", "read"),
+            ("documents", "read")  # Added to allow location managers to view documents
         ]
         
         # Get permission IDs
