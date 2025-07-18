@@ -9,6 +9,7 @@ from app.models.user import User, UserSession
 from app.models.audit import AuditLog
 from app.schemas.tenant import TenantCreate, TenantUpdate
 from app.core.exceptions import AppException
+from app.config import settings
 from app.utils.audit import AuditLogger
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
@@ -148,7 +149,10 @@ class TenantService:
             "max_users": tenant.max_users,
             "is_active": tenant.is_active,
             "investagon_organization_id": tenant.investagon_organization_id,
-            "investagon_sync_enabled": tenant.investagon_sync_enabled
+            "investagon_sync_enabled": tenant.investagon_sync_enabled,
+            "primary_color": tenant.primary_color,
+            "secondary_color": tenant.secondary_color,
+            "accent_color": tenant.accent_color
         }
         
         # Update fields
@@ -216,6 +220,17 @@ class TenantService:
         if tenant_update.contact_country is not None:
             tenant.contact_country = tenant_update.contact_country
             update_data["contact_country"] = tenant_update.contact_country
+        
+        # Update brand colors if provided (including setting to None/null)
+        if hasattr(tenant_update, 'primary_color'):
+            tenant.primary_color = tenant_update.primary_color
+            update_data["primary_color"] = tenant_update.primary_color
+        if hasattr(tenant_update, 'secondary_color'):
+            tenant.secondary_color = tenant_update.secondary_color
+            update_data["secondary_color"] = tenant_update.secondary_color
+        if hasattr(tenant_update, 'accent_color'):
+            tenant.accent_color = tenant_update.accent_color
+            update_data["accent_color"] = tenant_update.accent_color
         
         # Audit log
         audit_logger.log_auth_event(
@@ -893,3 +908,198 @@ class TenantService:
             "records_removed": cleaned_count,
             "cutoff_date": cleanup_date.isoformat()
         }
+    
+    @staticmethod
+    async def upload_logo(
+        db: Session,
+        tenant_id: uuid.UUID,
+        file: Any,  # UploadFile from FastAPI
+        current_user: User
+    ) -> Tenant:
+        """Upload logo for tenant"""
+        from app.services.s3_service import S3Service
+        
+        try:
+            # Get tenant
+            tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+            if not tenant:
+                raise AppException("Tenant not found", 404, "TENANT_NOT_FOUND")
+            
+            # Verify file is an image
+            allowed_extensions = ['jpg', 'jpeg', 'png', 'webp', 'svg']
+            file_extension = file.filename.split('.')[-1].lower()
+            if file_extension not in allowed_extensions:
+                raise AppException(
+                    f"Invalid file type. Allowed types: {', '.join(allowed_extensions)}", 
+                    400, 
+                    "INVALID_FILE_TYPE"
+                )
+            
+            # Check file size (max 5MB)
+            max_size = 5 * 1024 * 1024  # 5MB
+            file.file.seek(0, 2)  # Seek to end
+            file_size = file.file.tell()
+            file.file.seek(0)  # Reset to beginning
+            
+            if file_size > max_size:
+                raise AppException("File too large. Maximum size is 5MB", 400, "FILE_TOO_LARGE")
+            
+            # If tenant already has a logo, delete the old one from S3
+            if tenant.logo_url:
+                try:
+                    # Extract S3 key from URL
+                    old_key = tenant.logo_url.split(f"{settings.S3_BUCKET_NAME}/")[-1]
+                    await S3Service.delete_file(old_key)
+                except Exception as e:
+                    # Log error but don't fail the upload
+                    print(f"Failed to delete old logo: {str(e)}")
+        
+            # Upload new logo to S3
+            s3_service = S3Service()
+            filename = f"{uuid.uuid4()}.{file_extension}"
+            
+            # Upload file - SVG files don't need resizing
+            if file_extension == 'svg':
+                # For SVG, upload directly without image processing
+                # Reset file position
+                file.file.seek(0)
+                
+                # Direct S3 upload for SVG
+                if s3_service.is_configured():
+                    s3_key = f"{tenant_id}/tenant/logo/{filename}"
+                    s3_service.s3_client.upload_fileobj(
+                        file.file,
+                        s3_service.bucket_name,
+                        s3_key,
+                        ExtraArgs={
+                            'ACL': 'public-read',
+                            'ContentType': 'image/svg+xml'
+                        }
+                    )
+                    logo_url = f"{settings.S3_ENDPOINT_URL}/{s3_service.bucket_name}/{s3_key}"
+                else:
+                    raise AppException("S3 storage not configured", 500, "S3_NOT_CONFIGURED")
+            else:
+                # Upload raster images with resizing through the standard method
+                result = await s3_service.upload_image(
+                    file=file,
+                    folder="tenant/logo",
+                    tenant_id=str(tenant_id),
+                    resize_options={
+                        'width': 512,
+                        'height': 512,
+                        'quality': 85
+                    }
+                )
+                logo_url = result['url']
+            
+            # Update tenant with new logo URL
+            tenant.logo_url = logo_url
+            
+            # Extract colors from the logo
+            from app.services.color_extraction_service import ColorExtractionService
+            
+            try:
+                if file_extension == 'svg':
+                    colors = ColorExtractionService.extract_colors_from_svg(logo_url)
+                else:
+                    colors = ColorExtractionService.extract_colors_from_url(logo_url)
+                
+                if colors:
+                    if colors.get('primary_color'):
+                        tenant.primary_color = colors['primary_color']
+                    if colors.get('secondary_color'):
+                        tenant.secondary_color = colors['secondary_color']
+                    if colors.get('accent_color'):
+                        tenant.accent_color = colors['accent_color']
+                    
+                    print(f"Extracted colors for tenant {tenant_id}: {colors}")
+            except Exception as e:
+                # Log error but don't fail the upload
+                print(f"Failed to extract colors from logo: {str(e)}")
+            
+            # Audit log
+            audit_logger.log_business_event(
+                db=db,
+                action="TENANT_LOGO_UPLOADED",
+                user_id=current_user.id,
+                tenant_id=tenant_id,
+                resource_type="tenant",
+                resource_id=tenant_id,
+                new_values={
+                    "logo_url": logo_url,
+                    "primary_color": tenant.primary_color,
+                    "secondary_color": tenant.secondary_color,
+                    "accent_color": tenant.accent_color
+                }
+            )
+            
+            return tenant
+            
+        except AppException:
+            raise
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            raise AppException(f"Failed to upload logo: {str(e)}", 500, "LOGO_UPLOAD_FAILED")
+    
+    @staticmethod
+    async def delete_logo(
+        db: Session,
+        tenant_id: uuid.UUID,
+        current_user: User
+    ) -> Tenant:
+        """Delete logo for tenant"""
+        from app.services.s3_service import S3Service
+        
+        # Get tenant
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if not tenant:
+            raise AppException("Tenant not found", 404, "TENANT_NOT_FOUND")
+        
+        if not tenant.logo_url:
+            raise AppException("Tenant has no logo", 404, "NO_LOGO_FOUND")
+        
+        # Delete logo from S3
+        try:
+            # Extract S3 key from URL
+            s3_key = tenant.logo_url.split(f"{settings.S3_BUCKET_NAME}/")[-1]
+            await S3Service.delete_file(s3_key)
+        except Exception as e:
+            # Log error but continue with database update
+            print(f"Failed to delete logo from S3: {str(e)}")
+        
+        # Remove logo URL and colors from tenant
+        old_logo_url = tenant.logo_url
+        old_primary_color = tenant.primary_color
+        old_secondary_color = tenant.secondary_color
+        old_accent_color = tenant.accent_color
+        
+        tenant.logo_url = None
+        tenant.primary_color = None
+        tenant.secondary_color = None
+        tenant.accent_color = None
+        
+        # Audit log
+        audit_logger.log_business_event(
+            db=db,
+            action="TENANT_LOGO_DELETED",
+            user_id=current_user.id,
+            tenant_id=tenant_id,
+            resource_type="tenant",
+            resource_id=tenant_id,
+            old_values={
+                "logo_url": old_logo_url,
+                "primary_color": old_primary_color,
+                "secondary_color": old_secondary_color,
+                "accent_color": old_accent_color
+            },
+            new_values={
+                "logo_url": None,
+                "primary_color": None,
+                "secondary_color": None,
+                "accent_color": None
+            }
+        )
+        
+        return tenant

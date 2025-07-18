@@ -32,6 +32,12 @@ class Tenant(Base):
     contact_zip_code = Column(String(20), nullable=True)
     contact_country = Column(String(100), nullable=True)
     
+    # Company Branding
+    logo_url = Column(Text, nullable=True)
+    primary_color = Column(String(7), nullable=True)  # Hex color e.g. #FF5733
+    secondary_color = Column(String(7), nullable=True)  # Hex color
+    accent_color = Column(String(7), nullable=True)  # Hex color
+    
     # Investagon Integration
     investagon_organization_id = Column(String(255), nullable=True)
     investagon_api_key = Column(String(255), nullable=True)  # Should be encrypted in production

@@ -2,7 +2,7 @@
 # TENANT MANAGEMENT API ROUTES (api/v1/tenants.py) - UPDATED
 # ================================
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Path
+from fastapi import APIRouter, Depends, HTTPException, Query, Path, File, UploadFile
 from sqlalchemy.orm import Session
 from app.dependencies import get_db, get_super_admin_user, get_current_user, get_current_active_user, get_current_tenant_id, require_permission
 from app.schemas.tenant import (
@@ -242,6 +242,82 @@ async def delete_tenant(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Tenant deletion failed")
+
+# ================================
+# TENANT LOGO MANAGEMENT
+# ================================
+
+@router.post("/{tenant_id}/logo")
+async def upload_tenant_logo(
+    tenant_id: uuid.UUID = Path(..., description="Tenant ID"),
+    file: UploadFile = File(..., description="Logo image file"),
+    current_user: User = Depends(get_current_active_user),
+    current_tenant_id: uuid.UUID = Depends(get_current_tenant_id),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_permission("tenant", "manage"))
+):
+    """Upload tenant logo (Tenant Admin only)"""
+    try:
+        # Verify user has access to this tenant
+        if not current_user.is_super_admin and current_tenant_id != tenant_id:
+            raise HTTPException(status_code=403, detail="Access denied to this tenant")
+        
+        # Upload logo using TenantService
+        tenant = await TenantService.upload_logo(db, tenant_id, file, current_user)
+        db.commit()
+        
+        # Add user count
+        user_count = db.query(User).filter(User.tenant_id == tenant.id).count()
+        
+        # Convert to dict and add user_count
+        tenant_dict = tenant.__dict__.copy()
+        tenant_dict['user_count'] = user_count
+        tenant_dict.pop('_sa_instance_state', None)
+        
+        return TenantResponse.model_validate(tenant_dict)
+    
+    except HTTPException:
+        raise
+    except AppException as e:
+        db.rollback()
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        db.rollback()
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Logo upload failed: {str(e)}")
+
+@router.delete("/{tenant_id}/logo")
+async def delete_tenant_logo(
+    tenant_id: uuid.UUID = Path(..., description="Tenant ID"),
+    current_user: User = Depends(get_current_active_user),
+    current_tenant_id: uuid.UUID = Depends(get_current_tenant_id),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_permission("tenant", "manage"))
+):
+    """Delete tenant logo (Tenant Admin only)"""
+    try:
+        # Verify user has access to this tenant
+        if not current_user.is_super_admin and current_tenant_id != tenant_id:
+            raise HTTPException(status_code=403, detail="Access denied to this tenant")
+        
+        # Delete logo using TenantService
+        tenant = await TenantService.delete_logo(db, tenant_id, current_user)
+        db.commit()
+        
+        return SuccessResponse(
+            message="Logo deleted successfully",
+            data={"tenant_id": str(tenant_id)}
+        )
+    
+    except HTTPException:
+        raise
+    except AppException as e:
+        db.rollback()
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Logo deletion failed")
 
 # ================================
 # TENANT IDENTITY PROVIDERS

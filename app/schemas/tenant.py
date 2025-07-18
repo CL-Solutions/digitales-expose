@@ -27,6 +27,12 @@ class TenantBase(BaseSchema, DomainFieldMixin):
     contact_state: Optional[str] = Field(max_length=100, description="Contact state")
     contact_zip_code: Optional[str] = Field(max_length=20, description="Contact ZIP code")
     contact_country: Optional[str] = Field(max_length=100, description="Contact country")
+    
+    # Company Branding
+    logo_url: Optional[str] = Field(None, description="Company logo URL")
+    primary_color: Optional[str] = Field(None, pattern="^#[0-9A-Fa-f]{6}$", description="Primary brand color in hex format")
+    secondary_color: Optional[str] = Field(None, pattern="^#[0-9A-Fa-f]{6}$", description="Secondary brand color in hex format")
+    accent_color: Optional[str] = Field(None, pattern="^#[0-9A-Fa-f]{6}$", description="Accent brand color in hex format")
 
 class TenantCreate(TenantBase, SlugFieldMixin):
     """Schema für Tenant-Erstellung (nur Super-Admin)"""
