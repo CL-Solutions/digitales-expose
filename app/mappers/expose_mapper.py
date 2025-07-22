@@ -29,16 +29,9 @@ def map_expose_link_to_response(link: ExposeLink) -> Dict[str, Any]:
         "last_viewed_at": link.last_viewed_at,
         "created_at": link.created_at,
         "created_by": link.created_by,
-        "preset_equity_percentage": link.preset_equity_percentage,
-        "preset_interest_rate": link.preset_interest_rate,
-        "preset_repayment_rate": link.preset_repayment_rate,
-        "preset_gross_income": link.preset_gross_income,
-        "preset_is_married": link.preset_is_married,
-        "preset_monthly_rent": link.preset_monthly_rent,
+        "preset_data": link.preset_data or {},
         "expiration_date": link.expiration_date,
-        "password_protected": link.password_protected,
-        "visible_sections": link.visible_sections,
-        "custom_message": link.custom_message
+        "password_protected": link.password_protected
     }
     
     # Add property overview if available

@@ -17,7 +17,9 @@ from app.schemas.business import (
     ExposeLinkCreate,
     ExposeLinkUpdate,
     ExposeLinkResponse,
-    ExposeLinkPublicResponse
+    ExposeLinkPublicResponse,
+    FeeCalculationRequest,
+    FeeCalculationResponse
 )
 from app.schemas.base import SuccessResponse
 from app.services.expose_service import ExposeService
@@ -492,20 +494,46 @@ async def get_public_expose(
             link_id=link.link_id,
             property=link.property,
             template=template,  # Use the tenant's template
-            preset_equity_percentage=link.preset_equity_percentage,
-            preset_interest_rate=link.preset_interest_rate,
-            preset_repayment_rate=link.preset_repayment_rate,
-            preset_gross_income=link.preset_gross_income,
-            preset_is_married=link.preset_is_married,
-            preset_monthly_rent=link.preset_monthly_rent,
-            visible_sections=link.visible_sections,
-            custom_message=link.custom_message,
+            preset_data=link.preset_data or {},
             city_info=city_info,
             tenant_contact=tenant_contact
         )
         
         return response
     
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/public/{link_id}/calculate-fees", response_model=FeeCalculationResponse)
+async def calculate_fees_public(
+    link_id: str = Path(..., description="Public expose link ID"),
+    request: FeeCalculationRequest = ...,
+    db: Session = Depends(get_db)
+):
+    """Calculate fees for a public expose link"""
+    try:
+        # Verify the link exists and is valid
+        link = ExposeService.get_expose_link(db, link_id)
+        
+        # Get the property from the link
+        if not link.property:
+            raise HTTPException(status_code=404, detail="Property not found")
+        
+        # Import the fee calculation service
+        from app.services.fee_calculation_service import FeeCalculationService
+        
+        # Calculate fees using the property's tenant context
+        result = FeeCalculationService.calculate_fees(
+            db=db,
+            tenant_id=link.tenant_id,
+            request=request,
+            property_id=link.property_id
+        )
+        
+        return result
+        
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
     except Exception as e:

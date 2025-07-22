@@ -323,6 +323,16 @@ class ExposeService:
             
             # Create link
             link_dict = link_data.model_dump(exclude={'password'})
+            
+            # Debug logging
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Creating expose link with data: {link_dict}")
+            logger.info(f"preset_data value: {link_dict.get('preset_data')}")
+            
+            # Extract preset_data separately to ensure it's properly set
+            preset_data = link_dict.pop('preset_data', {})
+            
             link = ExposeLink(
                 **link_dict,
                 link_id=link_id,
@@ -330,12 +340,21 @@ class ExposeService:
                 created_by=current_user.id
             )
             
+            # Explicitly set preset_data after creation
+            link.preset_data = preset_data or {}
+            
+            # Log the actual preset_data being set
+            logger.info(f"Setting link.preset_data to: {link.preset_data}")
+            
             # Hash password if provided
             if link_data.password_protected and password:
                 link.password_hash = get_password_hash(password)
             
             db.add(link)
             db.flush()
+            
+            # Debug - check if preset_data was saved
+            logger.info(f"After flush - link.preset_data: {link.preset_data}")
             
             # Log activity
             audit_logger.log_business_event(
@@ -359,6 +378,9 @@ class ExposeService:
                 joinedload(ExposeLink.property).joinedload(Property.project),
                 joinedload(ExposeLink.template)
             ).filter(ExposeLink.id == link.id).first()
+            
+            # Final debug check
+            logger.info(f"Final link.preset_data before return: {link.preset_data}")
             
             return link
             
@@ -394,6 +416,11 @@ class ExposeService:
                     status_code=404,
                     detail="Expose link not found"
                 )
+            
+            # Debug logging
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Retrieved expose link {link_id}: preset_data = {link.preset_data}")
             
             # Check if link is active
             if not link.is_active:

@@ -787,19 +787,18 @@ class ExposeLinkBase(BaseSchema):
     template_id: Optional[UUID] = None
     name: Optional[str] = Field(None, max_length=255)
     
-    # Financial presets
-    preset_equity_percentage: Optional[float] = Field(None, ge=-10, le=100)
-    preset_interest_rate: Optional[float] = Field(None, ge=0, le=20)
-    preset_repayment_rate: Optional[float] = Field(None, ge=0, le=10)
-    preset_gross_income: Optional[float] = Field(None, ge=0)
-    preset_is_married: Optional[bool] = None
-    preset_monthly_rent: Optional[float] = Field(None, ge=0)
+    # All presets, sections, and message in one JSON field
+    preset_data: Optional[Dict[str, Any]] = Field(default_factory=dict, description="""
+        JSON field containing all expose link data:
+        - Financial presets (equity_percentage, interest_rate, etc.)
+        - Advanced parameters (broker_rate, maintenance_type, etc.)
+        - Visible sections configuration
+        - Custom message
+        - Expiration days
+    """)
     
     expiration_date: Optional[datetime] = None
     password_protected: bool = False
-    
-    visible_sections: Optional[Dict[str, bool]] = None
-    custom_message: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -817,19 +816,18 @@ class ExposeLinkUpdate(BaseSchema):
     """Schema for updating an ExposeLink"""
     name: Optional[str] = Field(max_length=255)
     
-    # Financial presets
-    preset_equity_percentage: Optional[float] = Field(ge=-10, le=100)
-    preset_interest_rate: Optional[float] = Field(ge=0, le=20)
-    preset_repayment_rate: Optional[float] = Field(ge=0, le=10)
-    preset_gross_income: Optional[float] = Field(ge=0)
-    preset_is_married: Optional[bool]
-    preset_monthly_rent: Optional[float] = Field(ge=0)
+    # All presets, sections, and message in one JSON field
+    preset_data: Optional[Dict[str, Any]] = Field(description="""
+        JSON field containing all expose link data:
+        - Financial presets (equity_percentage, interest_rate, etc.)
+        - Advanced parameters (broker_rate, maintenance_type, etc.)
+        - Visible sections configuration
+        - Custom message
+        - Expiration days
+    """)
     
     expiration_date: Optional[datetime]
     is_active: Optional[bool]
-    
-    visible_sections: Optional[Dict[str, bool]] = None
-    custom_message: Optional[str]
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -856,16 +854,8 @@ class ExposeLinkPublicResponse(BaseSchema):
     property: PropertyResponse
     template: Optional[ExposeTemplateResponse]
     
-    # Financial presets
-    preset_equity_percentage: Optional[float]
-    preset_interest_rate: Optional[float]
-    preset_repayment_rate: Optional[float]
-    preset_gross_income: Optional[float]
-    preset_is_married: Optional[bool]
-    preset_monthly_rent: Optional[float]
-    
-    visible_sections: Optional[Dict[str, bool]] = None
-    custom_message: Optional[str]
+    # All presets, sections, and message in one JSON field
+    preset_data: Optional[Dict[str, Any]] = Field(default_factory=dict)
     
     # City information if available
     city_info: Optional[CityResponse]

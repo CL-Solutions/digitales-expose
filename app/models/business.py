@@ -403,13 +403,8 @@ class ExposeLink(Base, TenantMixin, AuditMixin):
     link_id = Column(String(100), nullable=False, unique=True, default=lambda: str(uuid.uuid4())[:8])
     name = Column(String(255), nullable=True)  # Optional name for internal tracking
     
-    # Predefined Calculation Parameters (can be overridden by viewer)
-    preset_equity_percentage = Column(Float, nullable=True)  # Percentage-based equity
-    preset_interest_rate = Column(Float, nullable=True)
-    preset_repayment_rate = Column(Float, nullable=True)  # Repayment percentage
-    preset_gross_income = Column(Numeric(10, 2), nullable=True)  # Annual gross income
-    preset_is_married = Column(Boolean, nullable=True)  # Marital status for tax calculation
-    preset_monthly_rent = Column(Numeric(10, 2), nullable=True)
+    # Preset Data (JSON field containing all presets, sections, message, etc.)
+    preset_data = Column(JSON, nullable=True, default=dict)
     
     # Access Control
     expiration_date = Column(DateTime, nullable=True)
@@ -422,9 +417,6 @@ class ExposeLink(Base, TenantMixin, AuditMixin):
     first_viewed_at = Column(DateTime, nullable=True)
     last_viewed_at = Column(DateTime, nullable=True)
     
-    # Custom Settings
-    visible_sections = Column(JSON, nullable=True)  # Which sections to show/hide
-    custom_message = Column(Text, nullable=True)  # Personal message from sales person
     
     # Relationships
     property = relationship("Property", back_populates="expose_links")
