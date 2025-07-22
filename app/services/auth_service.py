@@ -57,7 +57,8 @@ class AuthService:
             is_verified=user_data.send_welcome_email,  # Verified if welcome email sent
             email_verification_token=generate_reset_token() if user_data.require_email_verification else None,
             email_verification_expires=datetime.now(timezone.utc) + timedelta(hours=24) if user_data.require_email_verification else None,
-            provision_percentage=user_data.provision_percentage if hasattr(user_data, 'provision_percentage') else 0
+            provision_percentage=user_data.provision_percentage if hasattr(user_data, 'provision_percentage') else 0,
+            can_see_all_properties=user_data.can_see_all_properties if hasattr(user_data, 'can_see_all_properties') else False
         )
         
         db.add(user)

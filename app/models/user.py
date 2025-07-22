@@ -51,6 +51,9 @@ class User(Base):
     # Provision percentage (0-100)
     provision_percentage = Column(Integer, default=0, nullable=False)
     
+    # Property access control
+    can_see_all_properties = Column(Boolean, default=False, nullable=False)
+    
     # Relationships
     tenant = relationship("Tenant", back_populates="users")
     user_roles = relationship("UserRole", foreign_keys="UserRole.user_id", back_populates="user", cascade="all, delete-orphan")
@@ -65,6 +68,9 @@ class User(Base):
     created_expose_links = relationship("ExposeLink", foreign_keys="ExposeLink.created_by", back_populates="creator")
     created_reservations = relationship("Reservation", foreign_keys="Reservation.user_id", back_populates="user")
     audit_logs = relationship("AuditLog", foreign_keys="AuditLog.user_id", back_populates="user")
+    
+    # Property assignments
+    property_assignments = relationship("PropertyAssignment", foreign_keys="PropertyAssignment.user_id", back_populates="user", cascade="all, delete-orphan")
     
     # Team relationships
     managed_team_members = relationship(

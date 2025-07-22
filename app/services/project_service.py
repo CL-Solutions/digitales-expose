@@ -298,22 +298,33 @@ class ProjectService:
         # Check user permissions for visibility filtering
         is_admin_or_manager = current_user.is_super_admin
         if not is_admin_or_manager:
-            from app.services.rbac_service import RBACService
-            permissions = RBACService.get_user_permissions(
-                db, current_user.id, current_user.tenant_id
-            )
-            permission_names = [p["name"] for p in permissions.get("permissions", [])]
-            is_admin_or_manager = "properties:update" in permission_names
+            # Check if user has can_see_all_properties flag
+            if current_user.can_see_all_properties:
+                # User can see all projects - no filter needed
+                is_admin_or_manager = True
+            else:
+                from app.services.rbac_service import RBACService
+                permissions = RBACService.get_user_permissions(
+                    db, current_user.id, current_user.tenant_id
+                )
+                permission_names = [p["name"] for p in permissions.get("permissions", [])]
+                is_admin_or_manager = "properties:update" in permission_names
         
-        # For non-admin users, filter projects to only those with visible properties
+        # For non-admin users who can't see all properties, filter projects based on property assignments
         if not is_admin_or_manager:
-            # Join with properties and filter by visibility
-            from app.models.business import Property
-            # Use a subquery to get project IDs that have visible properties
+            from app.models.business import Property, PropertyAssignment
+            
+            # Get properties assigned to this user
+            assigned_property_ids = db.query(PropertyAssignment.property_id).filter(
+                PropertyAssignment.user_id == current_user.id,
+                PropertyAssignment.tenant_id == tenant_id
+            ).subquery()
+            
+            # Get project IDs that have at least one property assigned to this user
             visible_project_ids = db.query(Project.id).join(Project.properties).filter(
                 and_(
                     Project.tenant_id == tenant_id,
-                    Property.visibility == 1
+                    Property.id.in_(assigned_property_ids)
                 )
             ).distinct().subquery()
             

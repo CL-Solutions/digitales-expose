@@ -2,13 +2,13 @@
 # PROPERTIES API (api/v1/properties.py)
 # ================================
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status, Path, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Path, UploadFile, File, Form, Body
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 import json
 
-from app.dependencies import get_db, get_current_active_user, require_permission, get_current_tenant_id
+from app.dependencies import get_db, get_current_user, require_permission, get_current_tenant_id
 from app.models.user import User
 from app.schemas.business import (
     PropertyCreate,
@@ -35,7 +35,7 @@ router = APIRouter()
 async def list_properties(
     filter_params: PropertyFilter = Depends(),
     active: Optional[List[int]] = Query(None),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
     tenant_id: Optional[UUID] = Depends(get_current_tenant_id),
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("properties", "read"))
@@ -66,7 +66,7 @@ async def list_properties(
 @router.get("/aggregate-stats", response_model=PropertyAggregateStats)
 async def get_property_aggregate_stats(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
     tenant_id: UUID = Depends(get_current_tenant_id)
 ):
     """Get aggregate statistics for all properties"""
@@ -82,7 +82,7 @@ async def get_property_aggregate_stats(
 @router.post("/", response_model=PropertyResponse, response_model_exclude_none=True, status_code=status.HTTP_201_CREATED)
 async def create_property(
     property_data: PropertyCreate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("properties", "create"))
 ):
@@ -105,7 +105,7 @@ async def create_property(
 @router.get("/{property_id}", response_model=PropertyResponse, response_model_exclude_none=True)
 async def get_property(
     property_id: UUID = Path(..., description="Property ID"),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("properties", "read"))
 ):
@@ -219,7 +219,7 @@ async def get_property(
 async def update_property(
     property_id: UUID = Path(..., description="Property ID"),
     property_data: PropertyUpdate = ...,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("properties", "update"))
 ):
@@ -243,7 +243,7 @@ async def update_property(
 async def patch_property(
     property_id: UUID = Path(..., description="Property ID"),
     property_data: PropertyUpdate = ...,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("properties", "update"))
 ):
@@ -266,7 +266,7 @@ async def patch_property(
 @router.delete("/{property_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_property(
     property_id: UUID = Path(..., description="Property ID"),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("properties", "delete"))
 ):
@@ -292,7 +292,7 @@ async def upload_property_image(
     title: Optional[str] = Form(None, description="Image title"),
     description: Optional[str] = Form(None, description="Image description"),
     display_order: int = Form(0, description="Display order"),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("properties", "update"))
 ):
@@ -364,7 +364,7 @@ async def upload_property_image(
 async def add_property_image(
     property_id: UUID = Path(..., description="Property ID"),
     image_data: PropertyImageCreate = ...,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("images", "upload"))
 ):
@@ -387,7 +387,7 @@ async def update_property_image(
     property_id: UUID = Path(..., description="Property ID"),
     image_id: UUID = Path(..., description="Image ID"),
     image_data: PropertyImageUpdate = ...,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("images", "upload"))
 ):
@@ -411,7 +411,7 @@ async def update_property_image(
 async def delete_property_image(
     property_id: UUID = Path(..., description="Property ID"),
     image_id: UUID = Path(..., description="Image ID"),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("properties", "update"))
 ):
@@ -449,7 +449,7 @@ async def delete_property_image(
 
 @router.get("/stats/overview", response_model=dict, response_model_exclude_none=True)
 async def get_property_statistics(
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     _: bool = Depends(require_permission("properties", "read"))
 ):
@@ -461,5 +461,164 @@ async def get_property_statistics(
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ================================
+# PROPERTY ASSIGNMENTS
+# ================================
+
+from app.schemas.business import (
+    PropertyAssignmentCreate,
+    PropertyAssignmentUpdate,
+    PropertyAssignmentResponse,
+    PropertyAssignmentBulkCreate,
+    PropertyAssignmentListResponse
+)
+from app.services.property_assignment_service import PropertyAssignmentService
+
+
+@router.post("/{property_id}/assignments", response_model=PropertyAssignmentResponse)
+async def assign_property_to_user(
+    property_id: UUID = Path(..., description="Property ID"),
+    assignment_data: PropertyAssignmentCreate = Body(...),
+    current_user: User = Depends(get_current_user),
+    tenant_id: UUID = Depends(get_current_tenant_id),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_permission("properties", "update"))
+):
+    """Assign a property to a user"""
+    try:
+        # Ensure property_id matches the one in the path
+        assignment_data.property_id = property_id
+        
+        assignment = PropertyAssignmentService.create_assignment(
+            db=db,
+            assignment_data=assignment_data,
+            assigned_by=current_user.id,
+            tenant_id=tenant_id
+        )
+        db.commit()
+        
+        # Load relationships for response
+        db.refresh(assignment)
+        return PropertyAssignmentResponse.model_validate(assignment)
+        
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/assignments/bulk", response_model=Dict[str, Any])
+async def bulk_assign_properties(
+    bulk_data: PropertyAssignmentBulkCreate,
+    current_user: User = Depends(get_current_user),
+    tenant_id: UUID = Depends(get_current_tenant_id),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_permission("properties", "update"))
+):
+    """Bulk assign multiple properties to multiple users"""
+    try:
+        result = PropertyAssignmentService.bulk_assign_properties(
+            db=db,
+            bulk_data=bulk_data,
+            assigned_by=current_user.id,
+            tenant_id=tenant_id
+        )
+        db.commit()
+        return result
+        
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{property_id}/assignments", response_model=List[PropertyAssignmentResponse])
+async def get_property_assignments(
+    property_id: UUID = Path(..., description="Property ID"),
+    current_user: User = Depends(get_current_user),
+    tenant_id: UUID = Depends(get_current_tenant_id),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_permission("properties", "read"))
+):
+    """Get all users assigned to a property"""
+    try:
+        assignments = PropertyAssignmentService.get_property_assignments(
+            db=db,
+            property_id=property_id,
+            tenant_id=tenant_id
+        )
+        
+        return [PropertyAssignmentResponse.model_validate(a) for a in assignments]
+        
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/{property_id}/assignments/{user_id}")
+async def delete_property_assignment(
+    property_id: UUID = Path(..., description="Property ID"),
+    user_id: UUID = Path(..., description="User ID"),
+    current_user: User = Depends(get_current_user),
+    tenant_id: UUID = Depends(get_current_tenant_id),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_permission("properties", "update"))
+):
+    """Remove a user's assignment to a property"""
+    try:
+        PropertyAssignmentService.delete_assignment(
+            db=db,
+            property_id=property_id,
+            user_id=user_id,
+            current_user_id=current_user.id,
+            tenant_id=tenant_id
+        )
+        db.commit()
+        
+        return SuccessResponse(message="Assignment deleted successfully")
+        
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/{property_id}/assignments/{user_id}", response_model=PropertyAssignmentResponse)
+async def update_property_assignment(
+    update_data: PropertyAssignmentUpdate,
+    property_id: UUID = Path(..., description="Property ID"),
+    user_id: UUID = Path(..., description="User ID"),
+    current_user: User = Depends(get_current_user),
+    tenant_id: UUID = Depends(get_current_tenant_id),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_permission("properties", "update"))
+):
+    """Update a property assignment"""
+    try:
+        assignment = PropertyAssignmentService.update_assignment(
+            db=db,
+            property_id=property_id,
+            user_id=user_id,
+            update_data=update_data,
+            current_user_id=current_user.id,
+            tenant_id=tenant_id
+        )
+        db.commit()
+        
+        # Load relationships for response
+        db.refresh(assignment)
+        return PropertyAssignmentResponse.model_validate(assignment)
+        
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 

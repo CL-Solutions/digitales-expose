@@ -14,6 +14,7 @@ from app.schemas.expose_template_types import (
     OnsiteManagementService, OnsiteManagementPackage, 
     SpecialFeatureItem, ExposeHighlight
 )
+from app.schemas.user import UserBasicInfo
 
 # ================================
 # Project Schemas
@@ -1163,3 +1164,42 @@ class FeeCalculationResponse(BaseSchema):
     override_applied: bool = False
     override_percentage: Optional[float] = None
     original_notary_total: Optional[float] = None  # Before override
+
+
+# ================================
+# PROPERTY ASSIGNMENT SCHEMAS
+# ================================
+
+class PropertyAssignmentBase(BaseSchema):
+    """Base schema for property assignments"""
+    property_id: UUID = Field(..., description="Property ID")
+    user_id: UUID = Field(..., description="User ID to assign property to")
+    notes: Optional[str] = Field(None, description="Optional notes about the assignment")
+
+class PropertyAssignmentCreate(PropertyAssignmentBase):
+    """Schema for creating property assignments"""
+    pass
+
+class PropertyAssignmentUpdate(BaseSchema):
+    """Schema for updating property assignments"""
+    notes: Optional[str] = Field(None, description="Optional notes about the assignment")
+
+class PropertyAssignmentResponse(PropertyAssignmentBase, BaseResponseSchema, TimestampMixin):
+    """Schema for property assignment responses"""
+    assigned_by: UUID = Field(..., description="User who made the assignment")
+    assigned_at: datetime = Field(..., description="When the assignment was made")
+    user: Optional['UserBasicInfo'] = Field(None, description="Assigned user details")
+    property: Optional['PropertyOverview'] = Field(None, description="Property details")
+
+class PropertyAssignmentBulkCreate(BaseSchema):
+    """Schema for bulk property assignments"""
+    property_ids: List[UUID] = Field(..., description="List of property IDs to assign")
+    user_ids: List[UUID] = Field(..., description="List of user IDs to assign properties to")
+    notes: Optional[str] = Field(None, description="Optional notes about the assignment")
+
+class PropertyAssignmentListResponse(BaseSchema):
+    """Schema for property assignment list responses"""
+    assignments: List[PropertyAssignmentResponse]
+    total: int
+    page: int
+    page_size: int

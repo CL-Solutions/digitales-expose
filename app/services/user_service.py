@@ -37,7 +37,8 @@ class UserService:
             "is_active": user.is_active,
             "avatar_url": user.avatar_url,
             "settings": user.settings,
-            "provision_percentage": user.provision_percentage
+            "provision_percentage": user.provision_percentage,
+            "can_see_all_properties": user.can_see_all_properties
         }
         
         # Update fields
@@ -63,6 +64,9 @@ class UserService:
         if user_update.provision_percentage is not None:
             user.provision_percentage = user_update.provision_percentage
             update_data["provision_percentage"] = user_update.provision_percentage
+        if user_update.can_see_all_properties is not None:
+            user.can_see_all_properties = user_update.can_see_all_properties
+            update_data["can_see_all_properties"] = user_update.can_see_all_properties
         
         # Audit log with old and new values
         audit_logger.log_business_event(

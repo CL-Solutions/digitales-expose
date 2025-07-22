@@ -196,26 +196,42 @@ class PropertyService:
             effective_tenant_id = tenant_id if tenant_id else current_user.tenant_id
             query = query.filter(Property.tenant_id == effective_tenant_id)
             
-            # Apply visibility filter based on user role
+            # Apply visibility filter based on user role and assignments
             # Visibility levels:
             # -1: Hidden/Deactivated (visible to admins and property managers)
             #  0: In progress/Draft (visible to admins and property managers)
             #  1: Active/Published (visible to all users including sales people)
             if not current_user.is_super_admin:
-                # Get user permissions to check role
-                permissions = RBACService.get_user_permissions(
-                    db, current_user.id, current_user.tenant_id
-                )
-                permission_names = [p["name"] for p in permissions.get("permissions", [])]
-                
-                # Check if user is tenant_admin or property_manager
-                # These roles typically have properties:update permission
-                is_admin_or_manager = "properties:update" in permission_names
-                
-                if not is_admin_or_manager:
-                    # Sales people and other roles only see fully visible properties (visibility = 1)
-                    query = query.filter(Property.visibility == 1)
-                # Tenant admins and property managers see all properties (no visibility filter)
+                # Check if user has can_see_all_properties flag
+                if current_user.can_see_all_properties:
+                    # User can see all properties - no filter needed
+                    pass
+                else:
+                    # Get user permissions to check role
+                    permissions = RBACService.get_user_permissions(
+                        db, current_user.id, current_user.tenant_id
+                    )
+                    permission_names = [p["name"] for p in permissions.get("permissions", [])]
+                    
+                    # Check if user is tenant_admin or property_manager
+                    # These roles typically have properties:update permission
+                    is_admin_or_manager = "properties:update" in permission_names
+                    
+                    if not is_admin_or_manager:
+                        # Sales people need to check assignments
+                        from app.models.business import PropertyAssignment
+                        
+                        # Get properties assigned to this user
+                        assigned_property_ids = db.query(PropertyAssignment.property_id).filter(
+                            PropertyAssignment.user_id == current_user.id,
+                            PropertyAssignment.tenant_id == effective_tenant_id
+                        ).subquery()
+                        
+                        # User can ONLY see properties explicitly assigned to them
+                        query = query.filter(
+                            Property.id.in_(assigned_property_ids)
+                        )
+                    # Tenant admins and property managers see all properties (no visibility filter)
             
             # Apply search filter
             if filter_params.search:

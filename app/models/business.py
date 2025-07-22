@@ -214,6 +214,7 @@ class Property(Base, TenantMixin, AuditMixin):
     expose_links = relationship("ExposeLink", back_populates="property", cascade="all, delete-orphan")
     city_ref = relationship("City", foreign_keys="Property.city_id")
     reservations = relationship("Reservation", back_populates="property", cascade="all, delete-orphan")
+    assignments = relationship("PropertyAssignment", back_populates="property", cascade="all, delete-orphan")
 
     # Table indexes
     __table_args__ = (
@@ -681,3 +682,32 @@ class PropertyDocument(Base, TenantMixin):
 
     def __repr__(self):
         return f"<PropertyDocument(property='{self.property_id}', type='{self.document_type}')>"
+
+
+class PropertyAssignment(Base, TenantMixin, AuditMixin):
+    """Property Assignment Model for assigning properties to specific users"""
+    __tablename__ = "property_assignments"
+    
+    # Foreign Keys
+    property_id = Column(UUID(as_uuid=True), ForeignKey('properties.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    assigned_by = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
+    
+    # Assignment Details
+    assigned_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=True)  # For temporary assignments
+    notes = Column(Text, nullable=True)
+    
+    # Relationships
+    property = relationship("Property", back_populates="assignments")
+    user = relationship("User", foreign_keys=[user_id])
+    assigner = relationship("User", foreign_keys=[assigned_by])
+    
+    # Indexes
+    __table_args__ = (
+        Index('idx_property_assignments_property_user', 'property_id', 'user_id', 'tenant_id', unique=True),
+        Index('idx_property_assignments_user', 'user_id', 'tenant_id'),
+    )
+    
+    def __repr__(self):
+        return f"<PropertyAssignment(property='{self.property_id}', user='{self.user_id}')>"

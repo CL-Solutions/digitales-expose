@@ -24,6 +24,7 @@ class UserCreate(UserBase):
     require_email_verification: bool = Field(default=False, description="Require email verification before login")
     tenant_id: UUID = Field(..., description="Tenant ID for the user")
     provision_percentage: Optional[int] = Field(default=0, ge=0, le=100, description="User's provision percentage (0-100)")
+    can_see_all_properties: bool = Field(default=False, description="User can see all properties regardless of assignments")
 
 class UserUpdate(BaseSchema):
     """Schema für User-Updates"""
@@ -33,6 +34,7 @@ class UserUpdate(BaseSchema):
     avatar_url: Optional[str] = Field(None, description="Avatar image URL")
     settings: Optional[dict] = Field(None, description="User settings")
     provision_percentage: Optional[int] = Field(None, ge=0, le=100, description="User's provision percentage (0-100)")
+    can_see_all_properties: Optional[bool] = Field(None, description="User can see all properties regardless of assignments")
     
     model_config = ConfigDict(
         from_attributes=True,
@@ -54,6 +56,7 @@ class UserResponse(UserBase, TimestampMixin):
     avatar_url: Optional[str]
     settings: Optional[dict] = Field(default_factory=dict, description="User settings")
     provision_percentage: int = Field(default=0, description="User's provision percentage (0-100)")
+    can_see_all_properties: bool = Field(default=False, description="User can see all properties regardless of assignments")
     
     # Role Information
     roles: List['RoleResponse'] = Field(default_factory=list)

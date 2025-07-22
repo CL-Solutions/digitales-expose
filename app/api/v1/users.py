@@ -794,3 +794,48 @@ async def remove_role_from_user(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to remove role")
+
+
+# ================================
+# USER PROPERTY ASSIGNMENTS
+# ================================
+
+from app.schemas.business import PropertyAssignmentResponse
+from app.services.property_assignment_service import PropertyAssignmentService
+
+
+@router.get("/{user_id}/assigned-properties", response_model=List[PropertyAssignmentResponse])
+async def get_user_assigned_properties(
+    user_id: uuid.UUID = Path(..., description="User ID"),
+    include_expired: bool = Query(False, description="Include expired assignments"),
+    current_user: User = Depends(get_current_user),
+    tenant_id: uuid.UUID = Depends(get_current_tenant_id),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_permission("properties", "read"))
+):
+    """Get all properties assigned to a user"""
+    try:
+        # Check if user can view this user's assignments
+        if user_id != current_user.id:
+            # Only admins can view other users' assignments
+            permissions = RBACService.get_user_permissions(
+                db, current_user.id, current_user.tenant_id
+            )
+            permission_names = [p["name"] for p in permissions.get("permissions", [])]
+            
+            if "users:read" not in permission_names:
+                raise HTTPException(status_code=403, detail="Cannot view other users' assignments")
+        
+        assignments = PropertyAssignmentService.get_user_assignments(
+            db=db,
+            user_id=user_id,
+            tenant_id=tenant_id,
+            include_expired=include_expired
+        )
+        
+        return [PropertyAssignmentResponse.model_validate(a) for a in assignments]
+        
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
