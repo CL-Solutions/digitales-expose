@@ -486,7 +486,10 @@ async def get_public_expose(
                 "state": tenant.contact_state,
                 "zip_code": tenant.contact_zip_code,
                 "country": tenant.contact_country,
-                "company_name": tenant.name
+                "company_name": tenant.name,
+                "logo_url": tenant.logo_url,
+                "primary_color": tenant.primary_color,
+                "secondary_color": tenant.secondary_color
             }
         
         # Build response
