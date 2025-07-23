@@ -31,7 +31,7 @@ from app.mappers.property_mapper import map_property_to_response
 
 router = APIRouter()
 
-@router.get("/", response_model=PropertyListResponse, response_model_exclude_none=True)
+@router.get("", response_model=PropertyListResponse, response_model_exclude_none=True)
 async def list_properties(
     filter_params: PropertyFilter = Depends(),
     active: Optional[List[int]] = Query(None),
@@ -79,7 +79,7 @@ async def get_property_aggregate_stats(
             detail=f"Failed to get property aggregate stats: {str(e)}"
         )
 
-@router.post("/", response_model=PropertyResponse, response_model_exclude_none=True, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=PropertyResponse, response_model_exclude_none=True, status_code=status.HTTP_201_CREATED)
 async def create_property(
     property_data: PropertyCreate,
     current_user: User = Depends(get_current_user),

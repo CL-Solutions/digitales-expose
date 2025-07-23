@@ -6,8 +6,8 @@
       "AllowedOrigins": [
         "http://localhost:3000",
         "http://localhost:3001",
-        "https://app.nevesto.de",
-        "https://dev.nevesto.de"
+        "https://app.blackvesto.de",
+        "https://dev.blackvesto.de"
       ],
       "ExposeHeaders": [
         "Content-Length",

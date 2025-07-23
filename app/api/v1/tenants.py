@@ -26,7 +26,7 @@ router = APIRouter()
 # TENANT CRUD OPERATIONS
 # ================================
 
-@router.post("/", response_model=TenantResponse, response_model_exclude_none=True)
+@router.post("", response_model=TenantResponse, response_model_exclude_none=True)
 async def create_tenant(
     tenant_data: TenantCreate,
     super_admin: User = Depends(get_super_admin_user),
@@ -51,7 +51,7 @@ async def create_tenant(
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to create tenant")
 
-@router.get("/", response_model=TenantListResponse, response_model_exclude_none=True)
+@router.get("", response_model=TenantListResponse, response_model_exclude_none=True)
 async def list_tenants(
     filter_params: TenantFilterParams = Depends(),
     super_admin: User = Depends(get_super_admin_user),

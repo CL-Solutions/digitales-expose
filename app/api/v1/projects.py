@@ -26,7 +26,7 @@ router = APIRouter()
 # Project CRUD Endpoints
 # ================================
 
-@router.post("/", response_model=ProjectResponse, response_model_exclude_none=True, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=ProjectResponse, response_model_exclude_none=True, status_code=status.HTTP_201_CREATED)
 async def create_project(
     project: ProjectCreate,
     db: Session = Depends(get_db),
@@ -47,7 +47,7 @@ async def create_project(
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
 
-@router.get("/", response_model=ProjectListResponse, response_model_exclude_none=True)
+@router.get("", response_model=ProjectListResponse, response_model_exclude_none=True)
 async def list_projects(
     filters: ProjectFilter = Depends(),
     db: Session = Depends(get_db),

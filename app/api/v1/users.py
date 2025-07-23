@@ -82,7 +82,7 @@ async def update_current_user_profile(
 # USER MANAGEMENT (ADMIN)
 # ================================
 
-@router.get("/", response_model=UserListResponse, response_model_exclude_none=True)
+@router.get("", response_model=UserListResponse, response_model_exclude_none=True)
 async def list_users(
     request: Request,
     filter_params: UserFilterParams = Depends(),

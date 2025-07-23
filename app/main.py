@@ -347,7 +347,7 @@ async def run_startup_health_checks():
 app = FastAPI(
     title=settings.APP_NAME,
     version="1.0.0",
-    description="Nevesto - Real Estate Investment Platform API",
+    description="Blackvesto - Real Estate Investment Platform API",
     docs_url="/docs" if settings.DEBUG else None,  # Disable docs in production
     redoc_url="/redoc" if settings.DEBUG else None,
     lifespan=lifespan
@@ -765,7 +765,7 @@ def custom_openapi():
     openapi_schema = get_openapi(
         title=settings.APP_NAME,
         version="1.0.0",
-        description="Nevesto - Real Estate Investment Platform API",
+        description="Blackvesto - Real Estate Investment Platform API",
         routes=app.routes,
     )
     

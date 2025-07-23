@@ -38,9 +38,9 @@ def configure_cors():
                 'AllowedOrigins': [
                     'http://localhost:3000',
                     'http://localhost:3001', 
-                    'https://app.nevesto.de',
-                    'https://dev.nevesto.de',
-                    'https://nevesto.de'
+                    'https://app.blackvesto.de',
+                    'https://dev.blackvesto.de',
+                    'https://blackvesto.de'
                 ],
                 'ExposeHeaders': [
                     'ETag',

@@ -14,7 +14,7 @@ router = APIRouter(
 )
 
 
-@router.post("/", response_model=FeedbackResponse)
+@router.post("", response_model=FeedbackResponse)
 async def submit_feedback(
     feedback: FeedbackRequest,
     db: Session = Depends(get_db),

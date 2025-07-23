@@ -30,8 +30,8 @@ class settings(BaseSettings):
     AWS_ACCESS_KEY_ID: Optional[str] = None
     AWS_SECRET_ACCESS_KEY: Optional[str] = None
     AWS_REGION: str = "eu-central-1"  # Frankfurt region (näher zu Deutschland)
-    AWS_SES_FROM_EMAIL: str = "noreply@yourapp.com"
-    AWS_SES_FROM_NAME: str = "Your App Name"
+    AWS_SES_FROM_EMAIL: str = "noreply@blackvesto.de"
+    AWS_SES_FROM_NAME: str = "Blackvesto"
     AWS_SES_REPLY_TO: Optional[str] = None
     AWS_SES_CONFIGURATION_SET: Optional[str] = None  # Für tracking/analytics
     
@@ -69,18 +69,18 @@ class settings(BaseSettings):
     EMAIL_TEMPLATES_DIR: str = "app/templates/email"
     
     # App Settings
-    APP_NAME: str = "Enterprise Multi-Tenant App"
-    BASE_URL: str = "https://yourapp.com"
-    FRONTEND_URL: str = "https://app.yourapp.com"
+    APP_NAME: str = "Blackvesto"
+    BASE_URL: str = "https://blackvesto.de"
+    FRONTEND_URL: str = "https://app.blackvesto.de"
     DEBUG: bool = False
     CORS_ORIGINS: list[str] = [
         "http://localhost:3000", 
         "http://91.99.139.66:3000",
-        "http://nevesto.de",
-        "https://nevesto.de",
-        "https://dev.nevesto.de",
-        "http://www.nevesto.de",
-        "https://www.nevesto.de"
+        "http://blackvesto.de",
+        "https://blackvesto.de",
+        "https://dev.blackvesto.de",
+        "http://www.blackvesto.de",
+        "https://www.blackvesto.de"
     ]
     
     # Super Admin Settings

@@ -26,7 +26,7 @@ from app.config import settings
 
 router = APIRouter()
 
-@router.get("/", response_model=List[CityResponse], response_model_exclude_none=True)
+@router.get("", response_model=List[CityResponse], response_model_exclude_none=True)
 async def list_cities(
     state: Optional[str] = Query(None, description="Filter by state"),
     search: Optional[str] = Query(None, description="Search by city name"),
@@ -61,7 +61,7 @@ async def get_cities_with_properties(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/", response_model=CityResponse, response_model_exclude_none=True, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=CityResponse, response_model_exclude_none=True, status_code=status.HTTP_201_CREATED)
 async def create_city(
     city_data: CityCreate,
     current_user: User = Depends(get_current_active_user),
